@@ -26,10 +26,16 @@ export interface Game {
     status: 'upcoming' | 'live' | 'final' | 'postponed' | 'canceled' | 'unknown';
     statusLabel: string;
     sourceUrl: string;
+    week?: number;
 }
 
 export interface Feed {
-    teamId: string;
+    id: string;
+    label: string;
+    note: string;
+    officialUrl: string;
+    available: boolean;
+    purdue?: boolean;
     games: Game[];
     updatedAt: string | null;
     stale: boolean;

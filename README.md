@@ -1,20 +1,22 @@
 # Team Scoreboard
 
-Personal schedules, live scores and recent results for the Colts, Seahawks, Pacers, Giants, and Purdue varsity sports, with editable favorites shared across devices.
+Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Favorite teams are highlighted and listed first in each day, and favorites are shared across devices.
 
 ## Status
 
-Local application implemented with passing unit and browser tests. Not deployed. No production database has been created. Real PostgreSQL persistence, public/private access, and startup acceptance remain unverified.
+Deployed on jimbrownhome1 through the solution-deploy framework: https://team-scoreboard.jimlertech.com/ behind Cloudflare Access, with a Tailscale fallback on port 8801. Favorites live in the `team_scoreboard` PostgreSQL database. iPhone and iPad layout is unverified on device.
 
 ## Data and coverage
 
-The app reads ESPN's public, undocumented `site.api.espn.com` team schedule endpoint (`/apis/site/v2/sports/{sport}/{league}/teams/{id}/schedule`). It needs no key. ESPN can change or remove it without notice, so a broken feed shows an error and keeps the last good data.
+The app reads ESPN's public, undocumented `site.api.espn.com` endpoints. They need no key. ESPN can change or remove them without notice, so a broken feed shows an error and keeps the last good data.
 
-Each team shows live games, its last 3 results and its next 5 games. When the default schedule is empty (for example MLB in October or college basketball before its season), the server retries once with `?seasontype=2`. Postseason games outside the default schedule may be missing. ESPN answers HTTP 400 for some sports with no current season; that is treated as no games.
+NFL, NBA and MLB come from each league's scoreboard (`/apis/site/v2/sports/{sport}/{league}/scoreboard`), which carries live scores. NBA and MLB are fetched one Eastern day per request (`?dates=YYYYMMDD`) from the chosen number of days back through 7 days ahead. NFL is fetched by week (`?week=N&seasontype=T`): the current week, enough past weeks to cover the chosen days, and next week. The Results control picks 1, 3, 7 or 14 days back; it is a per-device setting in localStorage.
 
-ESPN feeds cover the pro teams and Purdue football, men's and women's basketball, volleyball, women's soccer (team 20519), baseball (189) and softball (601, under `baseball/college-softball`). Other Purdue programs link to their official schedule. The catalog keeps its original app IDs, which are stored in PostgreSQL; each team's `providerId` holds the ESPN `sport/league/teamId` path.
+Purdue programs use the team schedule endpoint (`/teams/{id}/schedule`) and show live games, the last 3 results and the next 5 games. When the default schedule is empty the server retries once with `?seasontype=2`. ESPN answers HTTP 400 for some sports with no current season; that is treated as no games. Purdue feeds cover football, men's and women's basketball, volleyball, women's soccer (team 20519), baseball (189) and softball (601, under `baseball/college-softball`). Other Purdue programs link to their official schedule.
 
-Each feed is cached in process for 15 minutes. Requests share a queue with 500 ms between calls, bounded timeouts and rate-limit backoff. A failed refresh keeps prior data and shows an error/stale label. Restarting clears this cache; favorites remain in PostgreSQL. The browser pauses refresh while hidden.
+The catalog lists all 92 pro teams. The 34 teams from the first release keep their original IDs because favorites are stored in PostgreSQL; new teams use `<league>-<espnId>`. Each team's `providerId` holds the ESPN `sport/league/teamId` path.
+
+Caching is in process. Scoreboard pages with a live game or one starting within 30 minutes refetch every 5 minutes, today's page every 10 minutes and future pages every 30 minutes. Past days whose games are all final stay cached for 24 hours. Purdue feeds refresh every 5 minutes while hot and every 15 minutes otherwise. The Refresh button (`POST /api/refresh`) refetches live and current pages, at most once per 30 seconds; finished days stay cached. Requests share a queue with 500 ms between calls, bounded timeouts and rate-limit backoff, so a cold load of all three leagues takes about 15 seconds. Restarting clears the cache; favorites remain in PostgreSQL. The browser polls every 20 seconds and pauses while hidden.
 
 Terms: [Disney terms of use section 2.B.x](https://disneytermsofuse.com/english/) limits automated extraction. This is a personal app behind Cloudflare Access, used with that risk accepted. No ESPN artwork is used.
 

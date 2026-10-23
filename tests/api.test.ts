@@ -3,12 +3,26 @@ import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../server/app.js';
 import { FeedCache } from '../server/feeds.js';
-import { defaultFavorites } from '../server/catalog.js';
+import { defaultFavorites, expandFavorites } from '../server/catalog.js';
 
 let server: Server;
 let origin: string;
 let favorites = [...defaultFavorites];
 let failed = false;
+let forced = 0;
+const daysSeen: number[] = [];
+const sports = {
+    async league(_source: unknown, daysBack: number) {
+        daysSeen.push(daysBack);
+        return [];
+    },
+    async schedule() {
+        return [];
+    },
+    refreshLive() {
+        forced += 1;
+    },
+};
 const store = {
     async list() {
         if (failed) throw new Error('database unavailable');
@@ -34,7 +48,8 @@ beforeAll(async () => {
         'request',
         createApp({
             store,
-            feeds: new FeedCache(async () => []),
+            feeds: new FeedCache(),
+            sports,
             allowedOrigins: [origin],
         })
     );
@@ -59,7 +74,13 @@ describe('API with in-memory test double (no database writes)', () => {
         const dashboard = await response.json();
         expect(response.status).toBe(200);
         expect(dashboard.favorites).toEqual(defaultFavorites);
-        expect(dashboard.feeds).toHaveLength(24);
+        const purdue = expandFavorites(defaultFavorites).filter((team) => team.purdue).length;
+        expect(dashboard.feeds).toHaveLength(3 + purdue);
+        expect(dashboard.feeds.slice(0, 3).map((feed: { id: string }) => feed.id)).toEqual([
+            'league-nfl-3d',
+            'league-nba-3d',
+            'league-mlb-3d',
+        ]);
         expect(dashboard.liveAvailable).toBe(true);
     });
     it('adds once, removes only the requested favorite, preserves across reads', async () => {
@@ -83,6 +104,21 @@ describe('API with in-memory test double (no database writes)', () => {
         failed = true;
         expect((await fetch(origin + '/api/health')).status).toBe(503);
         expect((await fetch(origin + '/api/dashboard')).status).toBe(503);
+    });
+    it('applies the requested results window and clamps bad values', async () => {
+        const dashboard = await (await fetch(origin + '/api/dashboard?days=7')).json();
+        expect(dashboard.feeds[0].id).toBe('league-nfl-7d');
+        const fallback = await (await fetch(origin + '/api/dashboard?days=99')).json();
+        expect(fallback.feeds[0].id).toBe('league-nfl-3d');
+    });
+    it('forces a live refresh at most once per 30 seconds and validates the body', async () => {
+        const before = forced;
+        expect((await write('/api/refresh', 'POST', { days: 7 })).status).toBe(204);
+        expect((await write('/api/refresh', 'POST', { days: 7 })).status).toBe(204);
+        expect(forced - before).toBe(1);
+        expect(daysSeen).toContain(7);
+        expect((await write('/api/refresh', 'POST', { days: 7, extra: 1 })).status).toBe(400);
+        expect((await write('/api/refresh', 'POST', { days: 7 }, 'https://evil.test')).status).toBe(403);
     });
     it('rejects malformed JSON rather than returning success', async () => {
         const response = await fetch(origin + '/api/favorites', {

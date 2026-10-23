@@ -1,17 +1,55 @@
 import express from 'express';
 import type { ErrorRequestHandler } from 'express';
 import { z } from 'zod';
-import type { Dashboard } from '../shared/contracts.js';
-import { expandFavorites, teams } from './catalog.js';
-import type { FeedCache } from './feeds.js';
+import type { Dashboard, Game, Team } from '../shared/contracts.js';
+import { expandFavorites, leagues, teams } from './catalog.js';
+import type { LeagueSource } from './catalog.js';
+import type { FeedCache, FeedSource } from './feeds.js';
 import type { FavoritesStore } from './storage.js';
+import { maxDaysBack } from './provider.js';
 
 export const notice =
-    'Schedules and scores from ESPN. Each team shows live games, its last 3 results and its next 5 games. Feeds refresh every 15 minutes; an off-season sport shows no games.';
+    'Every NFL, NBA and MLB game from ESPN, with results for the days you choose and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Live scores refresh every 5 minutes; use Refresh for the latest.';
+
+export interface SportsSource {
+    league(source: LeagueSource, daysBack: number): Promise<Game[]>;
+    schedule(team: Team): Promise<Game[]>;
+    refreshLive(): void;
+}
+
+const daysSchema = z.coerce.number().int().min(1).max(maxDaysBack).catch(3);
+
+export function dashboardSources(favorites: string[], sports: SportsSource, daysBack = 3): FeedSource[] {
+    return [
+        ...leagues.map((source): FeedSource => ({
+            // The window is part of the id so a new setting doesn't reuse a feed built for another window.
+            id: `${source.id}-${daysBack}d`,
+            label: `${source.league} scoreboard`,
+            note: source.byWeek
+                ? `Every game from the last ${Math.ceil(daysBack / 7)} week(s) through next week.`
+                : `Every game from ${daysBack} day(s) back to 7 days ahead.`,
+            officialUrl: `https://www.espn.com/${source.league.toLowerCase()}/scoreboard`,
+            load: () => sports.league(source, daysBack),
+            // The provider caches each scoreboard page and only refetches pages that are due.
+            interval: () => 60_000,
+        })),
+        ...expandFavorites(favorites)
+            .filter((team) => team.purdue)
+            .map((team): FeedSource => ({
+                id: team.id,
+                label: team.name,
+                note: team.coverageNote,
+                officialUrl: team.officialUrl,
+                purdue: true,
+                ...(team.providerId ? { load: () => sports.schedule(team) } : {}),
+            })),
+    ];
+}
 
 export function createApp(options: {
     store: FavoritesStore;
     feeds: FeedCache;
+    sports: SportsSource;
     allowedOrigins: string[];
     staticDirectory?: string;
     contentSecurityPolicy?: string;
@@ -55,14 +93,35 @@ export function createApp(options: {
             res.status(503).json({ ok: false, error: 'Database unavailable or schema not initialized.' });
         }
     });
-    app.get('/api/dashboard', async (_req, res) => {
+    let lastForced = 0;
+    app.post('/api/refresh', async (req, res) => {
+        const parsed = z.object({ days: daysSchema }).strict().safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({ error: 'Send the results window in days.' });
+            return;
+        }
+        // At most one forced ESPN fetch per 30 seconds; later presses reuse the fresh data.
+        if (Date.now() - lastForced > 30_000) {
+            lastForced = Date.now();
+            options.sports.refreshLive();
+            options.feeds.invalidate();
+        }
+        const favorites = await options.store.list();
+        for (const source of dashboardSources(favorites, options.sports, parsed.data.days)) options.feeds.get(source);
+        let timer: NodeJS.Timeout | undefined;
+        await Promise.race([options.feeds.settle(), new Promise((resolve) => (timer = setTimeout(resolve, 20_000)))]);
+        clearTimeout(timer);
+        res.status(204).end();
+    });
+    app.get('/api/dashboard', async (req, res) => {
+        const days = daysSchema.parse(req.query.days);
         const favorites = await options.store.list();
         const unknown = favorites.filter((id) => !teams.some((team) => team.id === id));
         if (unknown.length) throw new Error('Stored favorites contain unsupported team identifiers.');
         const dashboard: Dashboard = {
             favorites,
             teams,
-            feeds: expandFavorites(favorites).map((team) => options.feeds.get(team)),
+            feeds: dashboardSources(favorites, options.sports, days).map((source) => options.feeds.get(source)),
             liveAvailable: true,
             notice,
         };

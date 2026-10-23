@@ -1,17 +1,80 @@
 import type { Team } from '../shared/contracts.js';
 
 const espnNote = 'ESPN schedule with live scores: live games, the last 3 results and the next 5 games.';
-const paths: Record<string, string> = { NFL: 'football/nfl', NBA: 'basketball/nba', MLB: 'baseball/mlb' };
-const pro = (id: string, espnId: string, name: string, sport: string, league: string): Team => ({
-    id,
-    name,
-    sport,
-    league,
-    providerId: `${paths[league]}/${espnId}`,
-    officialUrl: `https://www.espn.com/${league.toLowerCase()}/team/_/id/${espnId}`,
-    coverage: 'schedule-results',
-    coverageNote: espnNote,
-});
+
+export interface LeagueSource {
+    id: string;
+    league: 'NFL' | 'NBA' | 'MLB';
+    sport: string;
+    path: string;
+    byWeek: boolean;
+}
+
+export const leagues: LeagueSource[] = [
+    { id: 'league-nfl', league: 'NFL', sport: 'Football', path: 'football/nfl', byWeek: true },
+    { id: 'league-nba', league: 'NBA', sport: 'Basketball', path: 'basketball/nba', byWeek: false },
+    { id: 'league-mlb', league: 'MLB', sport: 'Baseball', path: 'baseball/mlb', byWeek: false },
+];
+
+// Teams saved before the full-league catalog keep their original ids so stored favorites still match.
+const legacyIds: Record<string, string> = {
+    'NFL:11': '134927',
+    'NFL:26': '134949',
+    'NFL:22': '134946',
+    'NFL:1': '134942',
+    'NFL:33': '134922',
+    'NFL:2': '134918',
+    'NFL:29': '134943',
+    'NFL:3': '134938',
+    'NFL:4': '134923',
+    'NFL:5': '134924',
+    'NFL:6': '134934',
+    'NFL:7': '134930',
+    'NBA:11': '134873',
+    'NBA:1': '134880',
+    'NBA:2': '134860',
+    'NBA:17': '134861',
+    'NBA:30': '134881',
+    'NBA:4': '134870',
+    'NBA:5': '134871',
+    'NBA:6': '134875',
+    'NBA:7': '134885',
+    'NBA:8': '134872',
+    'NBA:9': '134865',
+    'MLB:26': '135279',
+    'MLB:29': '135267',
+    'MLB:11': '135261',
+    'MLB:15': '135268',
+    'MLB:1': '135251',
+    'MLB:2': '135252',
+    'MLB:16': '135269',
+    'MLB:4': '135253',
+    'MLB:17': '135270',
+    'MLB:5': '135254',
+    'MLB:27': '135271',
+};
+
+const proTeams: Record<LeagueSource['league'], string> = {
+    NFL: '22 Arizona Cardinals;1 Atlanta Falcons;33 Baltimore Ravens;2 Buffalo Bills;29 Carolina Panthers;3 Chicago Bears;4 Cincinnati Bengals;5 Cleveland Browns;6 Dallas Cowboys;7 Denver Broncos;8 Detroit Lions;9 Green Bay Packers;34 Houston Texans;11 Indianapolis Colts;30 Jacksonville Jaguars;12 Kansas City Chiefs;13 Las Vegas Raiders;24 Los Angeles Chargers;14 Los Angeles Rams;15 Miami Dolphins;16 Minnesota Vikings;17 New England Patriots;18 New Orleans Saints;19 New York Giants;20 New York Jets;21 Philadelphia Eagles;23 Pittsburgh Steelers;25 San Francisco 49ers;26 Seattle Seahawks;27 Tampa Bay Buccaneers;10 Tennessee Titans;28 Washington Commanders',
+    NBA: '1 Atlanta Hawks;2 Boston Celtics;17 Brooklyn Nets;30 Charlotte Hornets;4 Chicago Bulls;5 Cleveland Cavaliers;6 Dallas Mavericks;7 Denver Nuggets;8 Detroit Pistons;9 Golden State Warriors;10 Houston Rockets;11 Indiana Pacers;12 LA Clippers;13 Los Angeles Lakers;29 Memphis Grizzlies;14 Miami Heat;15 Milwaukee Bucks;16 Minnesota Timberwolves;3 New Orleans Pelicans;18 New York Knicks;25 Oklahoma City Thunder;19 Orlando Magic;20 Philadelphia 76ers;21 Phoenix Suns;22 Portland Trail Blazers;23 Sacramento Kings;24 San Antonio Spurs;28 Toronto Raptors;26 Utah Jazz;27 Washington Wizards',
+    MLB: '29 Arizona Diamondbacks;11 Athletics;15 Atlanta Braves;1 Baltimore Orioles;2 Boston Red Sox;16 Chicago Cubs;4 Chicago White Sox;17 Cincinnati Reds;5 Cleveland Guardians;27 Colorado Rockies;6 Detroit Tigers;18 Houston Astros;7 Kansas City Royals;3 Los Angeles Angels;19 Los Angeles Dodgers;28 Miami Marlins;8 Milwaukee Brewers;9 Minnesota Twins;21 New York Mets;10 New York Yankees;22 Philadelphia Phillies;23 Pittsburgh Pirates;25 San Diego Padres;26 San Francisco Giants;12 Seattle Mariners;24 St. Louis Cardinals;30 Tampa Bay Rays;13 Texas Rangers;14 Toronto Blue Jays;20 Washington Nationals',
+};
+
+const pro = leagues.flatMap((source) =>
+    proTeams[source.league].split(';').map((entry): Team => {
+        const [espnId, ...words] = entry.split(' ');
+        return {
+            id: legacyIds[`${source.league}:${espnId}`] ?? `${source.league.toLowerCase()}-${espnId}`,
+            name: words.join(' '),
+            sport: source.sport,
+            league: source.league,
+            providerId: `${source.path}/${espnId}`,
+            officialUrl: `https://www.espn.com/${source.league.toLowerCase()}/team/_/id/${espnId}`,
+            coverage: 'schedule-results',
+            coverageNote: `Included in the ${source.league} league scoreboard.`,
+        };
+    })
+);
 // ESPN feeds for Purdue programs; the rest link to the official schedule.
 const purdueFeeds: Record<string, string> = {
     baseball: 'baseball/college-baseball/189',
@@ -46,10 +109,7 @@ const programs: [string, string, string][] = [
 ];
 
 export const teams: Team[] = [
-    pro('134927', '11', 'Indianapolis Colts', 'Football', 'NFL'),
-    pro('134949', '26', 'Seattle Seahawks', 'Football', 'NFL'),
-    pro('134873', '11', 'Indiana Pacers', 'Basketball', 'NBA'),
-    pro('135279', '26', 'San Francisco Giants', 'Baseball', 'MLB'),
+    ...pro,
     {
         id: 'purdue-all',
         name: 'Purdue Boilermakers · All Varsity',
@@ -75,41 +135,12 @@ export const teams: Team[] = [
         ...(purdueFeeds[slug] ? { providerId: purdueFeeds[slug] } : {}),
         purdue: true,
     })),
-    ...(
-        [
-            ['134946', '22', 'Arizona Cardinals', 'Football', 'NFL'],
-            ['134942', '1', 'Atlanta Falcons', 'Football', 'NFL'],
-            ['134922', '33', 'Baltimore Ravens', 'Football', 'NFL'],
-            ['134918', '2', 'Buffalo Bills', 'Football', 'NFL'],
-            ['134943', '29', 'Carolina Panthers', 'Football', 'NFL'],
-            ['134938', '3', 'Chicago Bears', 'Football', 'NFL'],
-            ['134923', '4', 'Cincinnati Bengals', 'Football', 'NFL'],
-            ['134924', '5', 'Cleveland Browns', 'Football', 'NFL'],
-            ['134934', '6', 'Dallas Cowboys', 'Football', 'NFL'],
-            ['134930', '7', 'Denver Broncos', 'Football', 'NFL'],
-            ['134880', '1', 'Atlanta Hawks', 'Basketball', 'NBA'],
-            ['134860', '2', 'Boston Celtics', 'Basketball', 'NBA'],
-            ['134861', '17', 'Brooklyn Nets', 'Basketball', 'NBA'],
-            ['134881', '30', 'Charlotte Hornets', 'Basketball', 'NBA'],
-            ['134870', '4', 'Chicago Bulls', 'Basketball', 'NBA'],
-            ['134871', '5', 'Cleveland Cavaliers', 'Basketball', 'NBA'],
-            ['134875', '6', 'Dallas Mavericks', 'Basketball', 'NBA'],
-            ['134885', '7', 'Denver Nuggets', 'Basketball', 'NBA'],
-            ['134872', '8', 'Detroit Pistons', 'Basketball', 'NBA'],
-            ['134865', '9', 'Golden State Warriors', 'Basketball', 'NBA'],
-            ['135267', '29', 'Arizona Diamondbacks', 'Baseball', 'MLB'],
-            ['135261', '11', 'Athletics', 'Baseball', 'MLB'],
-            ['135268', '15', 'Atlanta Braves', 'Baseball', 'MLB'],
-            ['135251', '1', 'Baltimore Orioles', 'Baseball', 'MLB'],
-            ['135252', '2', 'Boston Red Sox', 'Baseball', 'MLB'],
-            ['135269', '16', 'Chicago Cubs', 'Baseball', 'MLB'],
-            ['135253', '4', 'Chicago White Sox', 'Baseball', 'MLB'],
-            ['135270', '17', 'Cincinnati Reds', 'Baseball', 'MLB'],
-            ['135254', '5', 'Cleveland Guardians', 'Baseball', 'MLB'],
-            ['135271', '27', 'Colorado Rockies', 'Baseball', 'MLB'],
-        ] as [string, string, string, string, string][]
-    ).map(([id, espnId, name, sport, league]) => pro(id, espnId, name, sport, league)),
 ];
+
+// Maps an ESPN team id within a league path to the catalog id.
+export function catalogTeamId(path: string, espnId: string): string | undefined {
+    return teams.find((team) => team.providerId === `${path}/${espnId}`)?.id;
+}
 
 export const defaultFavorites = ['134927', '134949', '134873', '135279', 'purdue-all'];
 

@@ -67,8 +67,14 @@ export function SelectField({
         return () => document.removeEventListener('pointerdown', outside);
     }, [open]);
 
+    // Scroll only the popup. scrollIntoView can run before the popup is positioned and scroll the whole page.
     useEffect(() => {
-        if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: 'nearest' });
+        const list = panel.current;
+        const option = open ? document.getElementById(`${id}-${active}`) : null;
+        if (!list || !option) return;
+        if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
+        else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight)
+            list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
     }, [active, id, open]);
 
     const show = () => {

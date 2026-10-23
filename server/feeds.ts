@@ -1,52 +1,72 @@
-import type { Feed, Game, Team } from '../shared/contracts.js';
-import { ProviderError } from './provider.js';
+import type { Feed, Game } from '../shared/contracts.js';
+import { isHot, liveRefreshMs, ProviderError } from './provider.js';
+
+export interface FeedSource {
+    id: string;
+    label: string;
+    note: string;
+    officialUrl: string;
+    purdue?: boolean;
+    load?: () => Promise<Game[]>;
+    // Milliseconds until the next refresh after a successful load.
+    interval?: (games: Game[], now: number) => number;
+}
 
 interface CacheEntry {
-    feed: Feed;
+    feed: Omit<Feed, 'label' | 'note' | 'officialUrl' | 'available' | 'purdue'>;
     nextAttempt: number;
     pending: Promise<void> | null;
     failures: number;
 }
 
+export const hotInterval = (games: Game[], now: number) => (isHot(games, now) ? liveRefreshMs : 15 * 60_000);
+
 export class FeedCache {
     private readonly entries = new Map<string, CacheEntry>();
 
     constructor(
-        private readonly load: (team: Team) => Promise<Game[]>,
         private readonly clock: () => number = Date.now,
         private readonly report: (error: unknown) => void = (error) =>
             console.error('Sports feed refresh failed:', error)
     ) {}
 
-    get(team: Team): Feed {
-        if (!team.providerId) {
-            return { teamId: team.id, games: [], updatedAt: null, stale: false, error: null, pending: false };
-        }
-        let entry = this.entries.get(team.id);
+    get(source: FeedSource): Feed {
+        const details = {
+            id: source.id,
+            label: source.label,
+            note: source.note,
+            officialUrl: source.officialUrl,
+            available: Boolean(source.load),
+            ...(source.purdue ? { purdue: true } : {}),
+        };
+        const load = source.load;
+        if (!load) return { ...details, games: [], updatedAt: null, stale: false, error: null, pending: false };
+        let entry = this.entries.get(source.id);
         if (!entry) {
             entry = {
-                feed: { teamId: team.id, games: [], updatedAt: null, stale: false, error: null, pending: true },
+                feed: { id: source.id, games: [], updatedAt: null, stale: false, error: null, pending: true },
                 nextAttempt: 0,
                 pending: null,
                 failures: 0,
             };
-            this.entries.set(team.id, entry);
+            this.entries.set(source.id, entry);
         }
         const current = entry;
         if (this.clock() >= current.nextAttempt && !current.pending) {
             current.feed = { ...current.feed, pending: true, stale: current.feed.updatedAt !== null };
-            current.pending = this.load(team)
+            current.pending = load()
                 .then((games) => {
+                    const now = this.clock();
                     current.feed = {
-                        teamId: team.id,
+                        id: source.id,
                         games,
-                        updatedAt: new Date(this.clock()).toISOString(),
+                        updatedAt: new Date(now).toISOString(),
                         stale: false,
                         error: null,
                         pending: false,
                     };
                     current.failures = 0;
-                    current.nextAttempt = this.clock() + 15 * 60_000;
+                    current.nextAttempt = now + (source.interval ?? hotInterval)(games, now);
                 })
                 .catch((error: unknown) => {
                     this.report(error);
@@ -71,7 +91,12 @@ export class FeedCache {
                     current.pending = null;
                 });
         }
-        return { ...current.feed, games: [...current.feed.games] };
+        return { ...details, ...current.feed, games: [...current.feed.games] };
+    }
+
+    // Makes every feed due now; entries already loading keep their pending request.
+    invalidate(): void {
+        for (const entry of this.entries.values()) entry.nextAttempt = 0;
     }
 
     async settle(): Promise<void> {

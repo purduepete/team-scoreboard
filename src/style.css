@@ -289,6 +289,61 @@ small {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
     gap: 16px;
 }
+.game-group + .game-group {
+    margin-top: 28px;
+}
+.group-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    font-size: 1.05rem;
+}
+.group-heading svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+.group-heading small {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+    white-space: nowrap;
+}
+.refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+.spin {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .spin {
+        animation: none;
+    }
+}
+.game.favorite {
+    border-left: 4px solid var(--accent);
+    background: var(--raised);
+}
+.game-meta .star {
+    color: var(--accent);
+    fill: var(--accent);
+    vertical-align: -2px;
+    margin-right: 6px;
+}
+.live-label {
+    color: var(--accent);
+    font-weight: 600;
+}
 .game {
     background: var(--page);
     border: 1px solid var(--border);

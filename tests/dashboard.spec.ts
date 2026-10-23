@@ -1,58 +1,107 @@
 import { test, expect } from '@playwright/test';
 import { teams, defaultFavorites, expandFavorites } from '../server/catalog';
-import type { Dashboard, Game } from '../shared/contracts';
+import type { Dashboard, Feed, Game } from '../shared/contracts';
 
 const game: Game = {
     id: 'fixture-1',
-    teamIds: ['134927'],
+    teamIds: ['134927', 'nfl-26'],
     sport: 'Football',
     league: 'NFL',
-    title: 'Fixture Colts vs Seahawks',
+    title: 'Fixture Seahawks at Colts',
     home: 'Indianapolis Colts',
     away: 'Seattle Seahawks',
     homeScore: null,
     awayScore: null,
-    startTime: '2026-10-25T17:00:00Z',
+    startTime: '2026-10-25T20:00:00Z',
     date: '2026-10-25',
+    week: 8,
     status: 'upcoming',
     statusLabel: 'Scheduled',
     sourceUrl: 'https://www.espn.com/nfl/game/_/gameId/1',
 };
+// Earlier the same day, so it sorts first unless favorites lead.
+const otherGame: Game = {
+    ...game,
+    id: 'fixture-2',
+    teamIds: ['nfl-1', 'nfl-2'],
+    title: 'Fixture Falcons at Bills',
+    home: 'Buffalo Bills',
+    away: 'Atlanta Falcons',
+    startTime: '2026-10-25T17:00:00Z',
+    sourceUrl: 'https://www.espn.com/nfl/game/_/gameId/2',
+};
 const liveGame: Game = {
     ...game,
     id: 'fixture-live',
-    title: 'Fixture Pacers vs Bulls',
-    teamIds: ['134873'],
+    title: 'Fixture Bulls at Pacers',
+    teamIds: ['134873', 'nba-4'],
     sport: 'Basketball',
     league: 'NBA',
     home: 'Indiana Pacers',
     away: 'Chicago Bulls',
     homeScore: 54,
     awayScore: 50,
+    week: undefined,
     status: 'live',
     statusLabel: 'Q3 4:12',
 };
 
+const leagueFeed = (league: string, days: string, games: Game[], error: string | null = null): Feed => ({
+    id: `league-${league.toLowerCase()}-${days}d`,
+    label: `${league} scoreboard`,
+    note: `Every ${league} game.`,
+    officialUrl: `https://www.espn.com/${league.toLowerCase()}/scoreboard`,
+    available: true,
+    games,
+    updatedAt: '2026-10-22T23:00:00Z',
+    stale: Boolean(error),
+    error,
+    pending: false,
+});
+
+let requestedDays: string[] = [];
+let refreshBodies: unknown[] = [];
+
 test.beforeEach(async ({ page }) => {
     let favorites = [...defaultFavorites];
+    requestedDays = [];
+    refreshBodies = [];
     await page.route('**/api/**', async (route) => {
         const request = route.request();
-        if (request.url().endsWith('/api/dashboard')) {
+        const url = new URL(request.url());
+        if (url.pathname === '/api/dashboard') {
+            const days = url.searchParams.get('days') ?? '';
+            requestedDays.push(days);
             const body: Dashboard = {
                 favorites,
                 teams,
                 liveAvailable: true,
                 notice: 'Fixture data from ESPN-shaped feeds.',
-                feeds: expandFavorites(favorites).map((entry) => ({
-                    teamId: entry.id,
-                    games: entry.id === '134927' ? [game] : entry.id === '134873' ? [liveGame] : [],
-                    updatedAt: entry.providerId ? '2026-10-22T23:00:00Z' : null,
-                    stale: entry.id === '134927',
-                    error: entry.id === '134927' ? 'Fixture upstream failure' : null,
-                    pending: false,
-                })),
+                feeds: [
+                    leagueFeed('NFL', days, [otherGame, game], 'Fixture upstream failure'),
+                    leagueFeed('NBA', days, [liveGame]),
+                    leagueFeed('MLB', days, []),
+                    ...expandFavorites(favorites)
+                        .filter((entry) => entry.purdue)
+                        .map((entry): Feed => ({
+                            id: entry.id,
+                            label: entry.name,
+                            note: entry.coverageNote,
+                            officialUrl: entry.officialUrl,
+                            available: Boolean(entry.providerId),
+                            purdue: true,
+                            games: [],
+                            updatedAt: entry.providerId ? '2026-10-22T23:00:00Z' : null,
+                            stale: false,
+                            error: null,
+                            pending: false,
+                        })),
+                ],
             };
             await route.fulfill({ json: body });
+        } else if (url.pathname === '/api/refresh') {
+            refreshBodies.push(request.postDataJSON());
+            await route.fulfill({ status: 204 });
         } else {
             if (request.method() === 'POST') favorites = [...new Set([...favorites, request.postDataJSON().teamId])];
             if (request.method() === 'DELETE')
@@ -61,7 +110,6 @@ test.beforeEach(async ({ page }) => {
         }
     });
 });
-
 test('themes, system tracking, keyboard dropdowns and mobile width', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
@@ -125,6 +173,30 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.getByRole('button', { name: 'Close favorites editor' }).click();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await page.screenshot({ path: 'test-results/scoreboard-midnight-desktop.png', fullPage: false });
+});
+
+test('favorites lead each day, refresh posts the window and the window is remembered', async ({ page }) => {
+    await page.goto('/');
+    const cards = page.locator('.game');
+    await expect(cards.first()).toContainText('Indianapolis Colts');
+    await expect(cards.first()).toHaveClass(/favorite/);
+    await expect(cards.first()).toContainText('NFL · Football · Week 8');
+    await expect(cards.nth(1)).not.toHaveClass(/favorite/);
+    await expect(page.locator('.group-heading').first()).toContainText('2 games');
+    await page.getByRole('button', { name: 'Show', exact: true }).click();
+    await page.getByRole('option', { name: 'Favorites', exact: true }).click();
+    await expect(cards).toHaveCount(1);
+    await page.getByRole('button', { name: 'Group by', exact: true }).click();
+    await page.getByRole('option', { name: 'Week', exact: true }).click();
+    await expect(page.locator('.group-heading').first()).toContainText(/week|Week of/);
+    await page.getByRole('button', { name: 'Results', exact: true }).click();
+    await page.getByRole('option', { name: 'Last 7 days', exact: true }).click();
+    await expect.poll(() => requestedDays.at(-1)).toBe('7');
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect.poll(() => refreshBodies).toEqual([{ days: 7 }]);
+    await page.reload();
+    await expect.poll(() => requestedDays.at(-1)).toBe('7');
+    await expect(page.getByRole('button', { name: 'Results', exact: true })).toContainText('Last 7 days');
 });
 
 test('server failures are visible with retry, without fake records', async ({ page }) => {

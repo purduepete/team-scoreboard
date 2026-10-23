@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { Game, Team } from '../shared/contracts.js';
+import { catalogTeamId } from './catalog.js';
+import type { LeagueSource } from './catalog.js';
 
 const providerPattern = /^([a-z]+\/[a-z0-9.-]+)\/(\d+)$/;
 const scoreSchema = z
@@ -17,6 +19,7 @@ const eventSchema = z.object({
     id: z.string().regex(/^\d+$/),
     name: z.string().min(1),
     date: z.string().optional(),
+    week: z.object({ number: z.number().int() }).optional(),
     links: z.array(z.object({ rel: z.array(z.string()), href: z.string() })).optional(),
     status: statusSchema.optional(),
     competitions: z
@@ -56,13 +59,16 @@ function source(links: { rel: string[]; href: string }[] | undefined, fallback: 
     return (espn.find((link) => link.rel.includes('summary')) ?? espn[0])?.href ?? fallback;
 }
 
-export function normalizeEvent(input: unknown, team: Team): Game {
+interface EventContext {
+    sport: string;
+    league: string;
+    path: string;
+    fallbackUrl: string;
+}
+
+function toGame(input: unknown, context: EventContext): { game: Game; espnTeamIds: string[] } {
     const event = eventSchema.parse(input);
-    const { id: providerTeamId } = parseProviderId(team.providerId ?? '');
     const competition = event.competitions[0];
-    if (!competition.competitors.some((entry) => entry.team.id === providerTeamId)) {
-        throw new Error('Provider returned an event for a different team.');
-    }
     const home = competition.competitors.find((entry) => entry.homeAway === 'home');
     const away = competition.competitors.find((entry) => entry.homeAway === 'away');
     const type = (competition.status ?? event.status)?.type;
@@ -82,11 +88,16 @@ export function normalizeEvent(input: unknown, team: Team): Game {
     const instant = event.date ? new Date(event.date) : null;
     if (instant && Number.isNaN(instant.getTime())) throw new Error('Provider returned an invalid start time.');
     const timeKnown = instant && competition.timeValid !== false;
-    return {
+    const espnTeamIds = competition.competitors.map((entry) => entry.team.id);
+    const game: Game = {
         id: event.id,
-        teamIds: [team.id],
-        sport: team.sport,
-        league: team.league,
+        teamIds: [
+            ...new Set(
+                espnTeamIds.map((id) => catalogTeamId(context.path, id)).filter((id): id is string => id !== undefined)
+            ),
+        ],
+        sport: context.sport,
+        league: context.league,
         title: event.name,
         home: home?.team.displayName ?? null,
         away: away?.team.displayName ?? null,
@@ -105,13 +116,64 @@ export function normalizeEvent(input: unknown, team: Team): Game {
                     : status === 'unknown'
                       ? 'Status unavailable'
                       : status.charAt(0).toUpperCase() + status.slice(1),
-        sourceUrl: source(event.links, team.officialUrl),
+        sourceUrl: source(event.links, context.fallbackUrl),
+        ...(event.week ? { week: event.week.number } : {}),
     };
+    return { game, espnTeamIds };
+}
+
+export function normalizeEvent(input: unknown, team: Team): Game {
+    const { path, id } = parseProviderId(team.providerId ?? '');
+    const { game, espnTeamIds } = toGame(input, {
+        sport: team.sport,
+        league: team.league,
+        path,
+        fallbackUrl: team.officialUrl,
+    });
+    if (!espnTeamIds.includes(id)) throw new Error('Provider returned an event for a different team.');
+    return game.teamIds.includes(team.id) ? game : { ...game, teamIds: [team.id, ...game.teamIds] };
 }
 
 export function parseEvents(input: unknown, team: Team): Game[] {
     const response = z.object({ events: z.array(z.unknown()).nullable().optional() }).parse(input);
     return (response.events ?? []).map((value) => normalizeEvent(value, team));
+}
+
+const scoreboardSchema = z.object({
+    events: z.array(z.unknown()).nullable().optional(),
+    week: z.object({ number: z.number().int() }).optional(),
+    season: z.object({ type: z.number().int() }).optional(),
+});
+
+// One odd event (for example an exhibition with placeholder teams) must not blank a whole league.
+export function parseScoreboard(input: unknown, league: LeagueSource): Game[] {
+    const events = scoreboardSchema.parse(input).events ?? [];
+    const context = {
+        sport: league.sport,
+        league: league.league,
+        path: league.path,
+        fallbackUrl: `https://www.espn.com/${league.league.toLowerCase()}/scoreboard`,
+    };
+    const games: Game[] = [];
+    for (const value of events) {
+        try {
+            games.push(toGame(value, context).game);
+        } catch (error) {
+            console.warn(`Skipped a ${league.league} event:`, error instanceof Error ? error.message : error);
+        }
+    }
+    if (events.length && !games.length) throw new Error(`Every ${league.league} event failed to parse.`);
+    return games;
+}
+
+// A feed is hot while a game is live or about to start, so its scores refresh every 5 minutes.
+export function isHot(games: Game[], now: number): boolean {
+    return games.some((game) => {
+        if (game.status === 'live') return true;
+        if (game.status !== 'upcoming' || !game.startTime) return false;
+        const start = new Date(game.startTime).getTime();
+        return start <= now + 30 * 60_000 && start >= now - 6 * 60 * 60_000;
+    });
 }
 
 // Keep live games, the last 3 results and the next 5 games so daily sports don't bury weekly ones.
@@ -130,6 +192,15 @@ export function selectWindow(games: Game[], now: number): Game[] {
     return [...live, ...finals, ...upcoming];
 }
 
+// ESPN scoreboard days follow US Eastern dates.
+export function scoreboardDays(now: number, back = 3, ahead = 7): string[] {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(now);
+    const base = Date.parse(`${today}T12:00:00Z`);
+    return Array.from({ length: back + ahead + 1 }, (_, index) =>
+        new Date(base + (index - back) * 86_400_000).toISOString().slice(0, 10).replaceAll('-', '')
+    );
+}
+
 export class ProviderError extends Error {
     constructor(
         message: string,
@@ -139,10 +210,24 @@ export class ProviderError extends Error {
     }
 }
 
+interface ScoreboardEntry {
+    games: Game[];
+    fetchedAt: number;
+    usedAt: number;
+    generation: number;
+    week?: number;
+    seasonType?: number;
+}
+
+export const liveRefreshMs = 5 * 60_000;
+export const maxDaysBack = 14;
+
 export class SportsProvider {
     private tail: Promise<void> = Promise.resolve();
     private nextRequestAt = 0;
     private blockedUntil = 0;
+    private readonly scoreboards = new Map<string, ScoreboardEntry>();
+    private generation = 0;
 
     constructor(
         private readonly fetcher: typeof fetch = fetch,
@@ -150,15 +235,15 @@ export class SportsProvider {
         private readonly wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
     ) {}
 
-    private request(path: string, id: string, query = ''): Promise<unknown> {
+    private request(resource: string): Promise<unknown> {
         const operation = this.tail.then(async () => {
             const delay = Math.max(this.nextRequestAt, this.blockedUntil) - this.clock();
             if (delay > 0) await this.wait(delay);
             this.nextRequestAt = this.clock() + 500;
-            const response = await this.fetcher(
-                `https://site.api.espn.com/apis/site/v2/sports/${path}/teams/${id}/schedule${query}`,
-                { signal: AbortSignal.timeout(12_000), redirect: 'error' }
-            );
+            const response = await this.fetcher(`https://site.api.espn.com/apis/site/v2/sports/${resource}`, {
+                signal: AbortSignal.timeout(12_000),
+                redirect: 'error',
+            });
             if (response.status === 429) {
                 const retry = Number(response.headers.get('retry-after'));
                 const backoff = Number.isFinite(retry) && retry > 0 ? Math.min(retry * 1000, 900_000) : 120_000;
@@ -180,8 +265,73 @@ export class SportsProvider {
     async schedule(team: Team): Promise<Game[]> {
         if (!team.providerId) throw new Error('This sport has no configured feed.');
         const { path, id } = parseProviderId(team.providerId);
-        let games = parseEvents(await this.request(path, id), team);
-        if (!games.length) games = parseEvents(await this.request(path, id, '?seasontype=2'), team);
+        let games = parseEvents(await this.request(`${path}/teams/${id}/schedule`), team);
+        if (!games.length) games = parseEvents(await this.request(`${path}/teams/${id}/schedule?seasontype=2`), team);
         return selectWindow([...new Map(games.map((game) => [game.id, game])).values()], this.clock());
+    }
+
+    // Makes live and current pages due on the next load; finished past pages stay cached.
+    refreshLive(): void {
+        this.generation += 1;
+    }
+
+    // Refetches only pages that are due. Live or about-to-start pages refresh every 5 minutes, the
+    // current page every 10 minutes and future pages every 30 minutes. A past page whose games are
+    // all final keeps its scores for a day.
+    private async page(league: LeagueSource, query: string, current: boolean, past: boolean): Promise<ScoreboardEntry> {
+        const key = `${league.id}?${query}`;
+        const now = this.clock();
+        const cached = this.scoreboards.get(key);
+        if (cached) {
+            cached.usedAt = now;
+            const hot = isHot(cached.games, now);
+            const settled =
+                past && cached.games.every((game) => ['final', 'postponed', 'canceled'].includes(game.status));
+            const age = hot ? liveRefreshMs : settled ? 24 * 60 * 60_000 : current ? 10 * 60_000 : 30 * 60_000;
+            const forced = (hot || current) && cached.generation < this.generation;
+            if (!forced && now - cached.fetchedAt < age) return cached;
+        }
+        const generation = this.generation;
+        const body = await this.request(`${league.path}/scoreboard${query ? `?${query}` : ''}`);
+        const meta = scoreboardSchema.parse(body);
+        const entry = {
+            games: parseScoreboard(body, league),
+            fetchedAt: this.clock(),
+            usedAt: this.clock(),
+            generation,
+            week: meta.week?.number,
+            seasonType: meta.season?.type,
+        };
+        this.scoreboards.set(key, entry);
+        return entry;
+    }
+
+    async league(league: LeagueSource, daysBack = 3): Promise<Game[]> {
+        const back = Math.min(Math.max(Math.trunc(daysBack), 1), maxDaysBack);
+        const pages: ScoreboardEntry[] = [];
+        if (league.byWeek) {
+            const current = await this.page(league, '', true, false);
+            pages.push(current);
+            if (current.week && current.seasonType) {
+                const weeksBack = Math.ceil(back / 7);
+                for (let week = current.week - weeksBack; week <= current.week + 1; week++) {
+                    if (week < 1 || week === current.week) continue;
+                    const query = `week=${week}&seasontype=${current.seasonType}`;
+                    pages.push(await this.page(league, query, false, week < current.week));
+                }
+            }
+        } else {
+            const days = scoreboardDays(this.clock(), back, 7);
+            const today = days[back];
+            for (const day of days) {
+                pages.push(await this.page(league, `dates=${day}`, day === today, day < today));
+            }
+        }
+        // Drop pages nobody has asked for in a day, so a smaller window setting frees memory later.
+        const now = this.clock();
+        for (const [key, entry] of this.scoreboards) {
+            if (now - entry.usedAt > 24 * 60 * 60_000) this.scoreboards.delete(key);
+        }
+        return [...new Map(pages.flatMap((entry) => entry.games).map((game) => [game.id, game])).values()];
     }
 }

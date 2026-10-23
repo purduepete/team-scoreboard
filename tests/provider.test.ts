@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { Game } from '../shared/contracts.js';
-import { teams, expandFavorites } from '../server/catalog.js';
-import { normalizeEvent, parseEvents, selectWindow, SportsProvider } from '../server/provider.js';
+import { teams, expandFavorites, leagues } from '../server/catalog.js';
+import {
+    isHot,
+    normalizeEvent,
+    parseEvents,
+    parseScoreboard,
+    scoreboardDays,
+    selectWindow,
+    SportsProvider,
+} from '../server/provider.js';
 import { FeedCache } from '../server/feeds.js';
-import { formatStart, visibleGames } from '../src/games.js';
+import type { FeedSource } from '../server/feeds.js';
+import { formatStart, groupGames, visibleGames } from '../src/games.js';
 
-const team = teams[0];
+const team = teams.find((item) => item.id === '134927')!;
+const [nfl, nba] = leagues;
 const status = (name: string, state: string, shortDetail = 'Final') => ({ type: { name, state, shortDetail } });
 const event = {
     id: '401872659',
@@ -141,10 +151,43 @@ describe('window and filters', () => {
         const upcoming = make('up', 16, 'upcoming');
         const final = make('fin', 14, 'final');
         const all = [live, upcoming, final, { ...final, teamIds: ['134949'] }];
-        expect(visibleGames(all, 'live', 'all', 'all', []).map((game) => game.id)).toEqual(['live']);
-        expect(visibleGames(all, 'upcoming', 'all', 'all', []).map((game) => game.id)).toEqual(['up']);
-        expect(visibleGames(all, 'recent', 'all', 'all', [])).toHaveLength(1);
-        expect(visibleGames(all, 'recent', '134949', 'all', [])).toHaveLength(1);
+        expect(visibleGames(all, 'live', 'all', []).map((game) => game.id)).toEqual(['live']);
+        expect(visibleGames(all, 'upcoming', 'all', []).map((game) => game.id)).toEqual(['up']);
+        expect(visibleGames(all, 'recent', 'all', [])).toHaveLength(1);
+        expect(visibleGames(all, 'recent', '134949', [])).toHaveLength(1);
+        expect(visibleGames(all, 'recent', 'favorites', ['134949'])).toHaveLength(1);
+        expect(visibleGames(all, 'recent', 'favorites', ['nba-11'])).toHaveLength(0);
+        expect(visibleGames(all, 'recent', 'league:NFL', [])).toHaveLength(1);
+        expect(visibleGames(all, 'recent', 'league:NBA', [])).toHaveLength(0);
+    });
+    it('groups by local day and week with favorites first and results newest first', () => {
+        const at = (id: string, day: number, hour: number, teamIds: string[], gameStatus: Game['status']): Game => ({
+            ...make(id, day, gameStatus),
+            teamIds,
+            startTime: new Date(2026, 9, day, hour).toISOString(),
+        });
+        const now = new Date(2026, 9, 22, 9);
+        const games = [
+            at('early', 22, 13, ['nba-1'], 'upcoming'),
+            at('fav', 22, 20, ['134927'], 'upcoming'),
+            at('tomorrow', 23, 19, ['nba-2'], 'upcoming'),
+            { ...at('tba', 24, 19, ['nba-3'], 'upcoming'), startTime: null, date: null },
+        ];
+        const days = groupGames(games, 'upcoming', 'day', ['134927'], now);
+        expect(days.map((group) => group.label.split(' · ')[0])).toEqual(['Today', 'Tomorrow', 'Date to be announced']);
+        expect(days[0].games.map((game) => game.id)).toEqual(['fav', 'early']);
+        const weeks = groupGames(games, 'upcoming', 'week', [], now);
+        expect(weeks[0].label).toMatch(/^This week · /);
+        expect(weeks[0].games.map((game) => game.id)).toEqual(['early', 'fav', 'tomorrow']);
+        const results = groupGames(
+            [at('old', 20, 19, ['nba-1'], 'final'), at('new', 21, 19, ['nba-1'], 'final')],
+            'recent',
+            'day',
+            [],
+            now
+        );
+        expect(results.map((group) => group.games[0].id)).toEqual(['new', 'old']);
+        expect(results[0].label).toMatch(/^Yesterday · /);
     });
     it('expands the umbrella without duplicates and excludes the umbrella feed', () => {
         const expanded = expandFavorites(['purdue-all', 'purdue-football']);
@@ -204,37 +247,166 @@ describe('provider requests', () => {
     });
 });
 
+describe('league scoreboards', () => {
+    const competitor = (homeAway: string, id: string, name: string, score?: string) => ({
+        homeAway,
+        team: { id, displayName: name },
+        ...(score === undefined ? {} : { score }),
+    });
+    const scoreboardEvent = (
+        id: string,
+        state: string,
+        scores: [string, string] | null,
+        date = '2026-10-22T00:15Z'
+    ) => ({
+        id,
+        name: 'New England Patriots at Chicago Bears',
+        date,
+        week: { number: 7 },
+        links: [{ rel: ['summary', 'desktop', 'event'], href: `https://www.espn.com/nfl/game/_/gameId/${id}` }],
+        competitions: [
+            {
+                timeValid: true,
+                status: status(state === 'in' ? 'STATUS_IN_PROGRESS' : 'STATUS_FINAL', state, '1:21 - 4th'),
+                competitors: [
+                    competitor('away', '17', 'New England Patriots', scores?.[0]),
+                    competitor('home', '3', 'Chicago Bears', scores?.[1]),
+                ],
+            },
+        ],
+    });
+    it('reads live string scores, both catalog teams and the NFL week', () => {
+        const [game] = parseScoreboard({ events: [scoreboardEvent('1', 'in', ['24', '27'])] }, nfl);
+        expect(game).toMatchObject({ status: 'live', awayScore: 24, homeScore: 27, week: 7, league: 'NFL' });
+        expect(game.teamIds).toContain('134938');
+        expect(game.teamIds).toHaveLength(2);
+    });
+    it('skips one broken event without blanking the league', () => {
+        const games = parseScoreboard({ events: [scoreboardEvent('1', 'post', ['1', '2']), { id: 'bad' }] }, nfl);
+        expect(games).toHaveLength(1);
+        expect(() => parseScoreboard({ events: [{ id: 'bad' }] }, nfl)).toThrow('Every NFL event');
+    });
+    it('treats live and about-to-start games as hot', () => {
+        const now = Date.parse('2026-10-22T00:00Z');
+        const live = parseScoreboard({ events: [scoreboardEvent('1', 'in', ['0', '0'])] }, nfl);
+        expect(isHot(live, now)).toBe(true);
+        const later = [{ ...live[0], status: 'upcoming' as const, startTime: '2026-10-22T03:00:00.000Z' }];
+        expect(isHot(later, now)).toBe(false);
+        expect(isHot([{ ...later[0], startTime: '2026-10-22T00:20:00.000Z' }], now)).toBe(true);
+    });
+    it('builds Eastern scoreboard days around today', () => {
+        const days = scoreboardDays(Date.parse('2026-10-22T02:00Z'), 2, 1);
+        expect(days).toEqual(['20261019', '20261020', '20261021', '20261022']);
+    });
+
+    const harness = (body: (url: string) => unknown) => {
+        const urls: string[] = [];
+        let clock = Date.parse('2026-10-22T16:00Z');
+        const espn = new SportsProvider(
+            async (url) => {
+                urls.push(String(url));
+                return new Response(JSON.stringify(body(String(url))));
+            },
+            () => clock,
+            async (delay) => {
+                clock += delay;
+            }
+        );
+        return { espn, urls, advance: (ms: number) => (clock += ms) };
+    };
+    it('pages NFL by week and daily leagues by day for the chosen window', async () => {
+        const nflRun = harness((url) =>
+            url.endsWith('/scoreboard')
+                ? { events: [scoreboardEvent('100', 'post', ['1', '2'])], week: { number: 7 }, season: { type: 2 } }
+                : { events: [] }
+        );
+        expect(await nflRun.espn.league(nfl, 3)).toHaveLength(1);
+        expect(nflRun.urls.map((url) => url.split('scoreboard')[1])).toEqual([
+            '',
+            '?week=6&seasontype=2',
+            '?week=8&seasontype=2',
+        ]);
+        await nflRun.espn.league(nfl, 14);
+        expect(nflRun.urls.slice(3).map((url) => url.split('scoreboard')[1])).toEqual(['?week=5&seasontype=2']);
+
+        const nbaRun = harness(() => ({ events: [] }));
+        await nbaRun.espn.league(nba, 99);
+        expect(nbaRun.urls).toHaveLength(14 + 7 + 1);
+        expect(nbaRun.urls[0]).toMatch(/dates=20261008$/);
+    });
+    it('refetches live pages after 5 minutes or on demand and keeps finished past days cached', async () => {
+        const run = harness((url) => {
+            if (url.includes('dates=20261022'))
+                return { events: [scoreboardEvent('200', 'in', ['3', '0'], '2026-10-22T15:00Z')] };
+            return { events: [scoreboardEvent(url.slice(-8), 'post', ['1', '2'], '2026-10-20T15:00Z')] };
+        });
+        await run.espn.league(nba, 1);
+        const first = run.urls.length;
+        await run.espn.league(nba, 1);
+        expect(run.urls).toHaveLength(first);
+        run.advance(5 * 60_000);
+        await run.espn.league(nba, 1);
+        expect(run.urls.slice(first).map((url) => url.slice(-8))).toEqual(['20261022']);
+        const second = run.urls.length;
+        run.espn.refreshLive();
+        await run.espn.league(nba, 1);
+        expect(run.urls.slice(second).map((url) => url.slice(-8))).toEqual(['20261022']);
+    });
+});
+
 describe('feed cache', () => {
+    const source = (load?: () => Promise<Game[]>): FeedSource => ({
+        id: 'league-nfl-3d',
+        label: 'NFL scoreboard',
+        note: 'Every game.',
+        officialUrl: 'https://www.espn.com/nfl/scoreboard',
+        ...(load ? { load } : {}),
+    });
     it('shares pending fetches and retains last successful data with errors', async () => {
         let now = 0;
         let calls = 0;
+        const feed = source(async () => {
+            if (++calls > 1) throw new Error('upstream unavailable');
+            return [normalizeEvent(event, team)];
+        });
         const cache = new FeedCache(
-            async () => {
-                if (++calls > 1) throw new Error('upstream unavailable');
-                return [normalizeEvent(event, team)];
-            },
             () => now,
             () => undefined
         );
-        expect(cache.get(team).pending).toBe(true);
-        cache.get(team);
+        expect(cache.get(feed).pending).toBe(true);
+        cache.get(feed);
         await cache.settle();
         expect(calls).toBe(1);
-        expect(cache.get(team).games).toHaveLength(1);
+        expect(cache.get(feed)).toMatchObject({ label: 'NFL scoreboard', available: true });
+        expect(cache.get(feed).games).toHaveLength(1);
         now = 16 * 60_000;
-        cache.get(team);
+        cache.get(feed);
         await cache.settle();
-        const stale = cache.get(team);
+        const stale = cache.get(feed);
         expect(stale.stale).toBe(true);
         expect(stale.error).not.toBeNull();
         expect(stale.games).toHaveLength(1);
         expect(calls).toBe(2);
     });
-    it('does not call the provider for sports without a feed', async () => {
-        const cache = new FeedCache(async () => {
-            throw new Error('must not call');
+    it('reloads every feed after invalidate', async () => {
+        let calls = 0;
+        const feed = source(async () => {
+            calls += 1;
+            return [];
         });
-        const unsupported = teams.find((entry) => entry.id === 'purdue-wrestling')!;
-        expect(cache.get(unsupported)).toMatchObject({ games: [], error: null, pending: false });
+        const cache = new FeedCache(() => 0);
+        cache.get(feed);
+        await cache.settle();
+        cache.get(feed);
+        await cache.settle();
+        expect(calls).toBe(1);
+        cache.invalidate();
+        cache.get(feed);
+        await cache.settle();
+        expect(calls).toBe(2);
+    });
+    it('returns a link-only feed for sports without a loader', () => {
+        const cache = new FeedCache();
+        expect(cache.get(source())).toMatchObject({ games: [], error: null, pending: false, available: false });
     });
 });

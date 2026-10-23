@@ -41,7 +41,8 @@ pool.on('error', (error) => console.error('Idle PostgreSQL connection error:', e
 const provider = new SportsProvider();
 const app = createApp({
     store: new PostgresFavorites(pool),
-    feeds: new FeedCache((team) => provider.schedule(team)),
+    feeds: new FeedCache(),
+    sports: provider,
     allowedOrigins: origins,
     staticDirectory: resolve('dist'),
     contentSecurityPolicy: csp,
