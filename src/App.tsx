@@ -165,9 +165,9 @@ export function App() {
         favoriteIds
     );
     // One team or Purdue alone: every card would match, so skip favorite highlighting and ordering.
-    const singleTeam =
-        team === 'league:NCAA' || !(team === 'all' || team === 'favorites' || team.startsWith('league:'));
-    const highlightIds = singleTeam ? [] : favoriteIds;
+    const noHighlight =
+        team === 'favorites' || team === 'league:NCAA' || !(team === 'all' || team.startsWith('league:'));
+    const highlightIds = noHighlight ? [] : favoriteIds;
     const sections = groupGames(games, view, highlightIds);
     const current = toggled.filter === team ? toggled : { filter: team, open: team !== 'all', keys: [] };
     const isOpen = (key: string) => current.open !== current.keys.includes(key);

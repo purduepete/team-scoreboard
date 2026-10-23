@@ -222,6 +222,7 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'Favorites', exact: true }).click();
     await expect(cards).toHaveCount(1);
+    await expect(cards.first()).not.toHaveClass(/favorite/);
     await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'Indianapolis Colts', exact: true }).click();
