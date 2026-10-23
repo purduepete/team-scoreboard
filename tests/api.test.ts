@@ -79,11 +79,13 @@ describe('API with in-memory test double (no database writes)', () => {
         expect(response.status).toBe(200);
         expect(dashboard.favorites).toEqual(defaultFavorites);
         const purdue = expandFavorites(defaultFavorites).filter((team) => team.purdue).length;
-        expect(dashboard.feeds).toHaveLength(3 + purdue);
-        expect(dashboard.feeds.slice(0, 3).map((feed: { id: string }) => feed.id)).toEqual([
+        expect(dashboard.feeds).toHaveLength(5 + purdue);
+        expect(dashboard.feeds.slice(0, 5).map((feed: { id: string }) => feed.id)).toEqual([
             'league-nfl-3d',
             'league-nba-3d',
             'league-mlb-3d',
+            'league-b1g-football-3d',
+            'league-b1g-mens-basketball-3d',
         ]);
         expect(dashboard.liveAvailable).toBe(true);
     });

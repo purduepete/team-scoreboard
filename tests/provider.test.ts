@@ -12,7 +12,7 @@ import {
 } from '../server/provider.js';
 import { FeedCache } from '../server/feeds.js';
 import type { FeedSource } from '../server/feeds.js';
-import { formatStart, groupGames, visibleGames } from '../src/games.js';
+import { formatStart, formatTime, groupGames, visibleGames } from '../src/games.js';
 
 const team = teams.find((item) => item.id === '134927')!;
 const [nfl, nba] = leagues;
@@ -93,6 +93,12 @@ describe('ESPN normalization', () => {
         const game = normalizeEvent({ ...event, competitions: [{ ...event.competitions[0], timeValid: false }] }, team);
         expect(game.startTime).toBeNull();
         expect(formatStart(game)).toBe('2026-09-13 · time unannounced');
+    });
+    it('shows start times on a 24-hour clock', () => {
+        const evening = { startTime: new Date(2026, 9, 24, 19, 30).toISOString(), date: null };
+        expect(formatTime(evening)).toMatch(/^19:30/);
+        expect(formatStart(evening)).toMatch(/19:30/);
+        expect(formatTime({ ...evening, startTime: new Date(2026, 9, 24, 0, 5).toISOString() })).toMatch(/^00:05/);
     });
     it('rejects broken shapes and events for other teams', () => {
         expect(parseEvents({ events: [] }, team)).toEqual([]);
@@ -199,12 +205,16 @@ describe('window and filters', () => {
             at('tomorrow', 23, 19, ['nba-2'], 'upcoming'),
             at('mlb', 23, 16, ['mlb-1'], 'upcoming', 'MLB'),
             at('boiler', 24, 12, ['purdue-football'], 'upcoming', 'NCAA'),
+            at('boiler', 24, 12, ['purdue-football'], 'upcoming', 'Big Ten'),
             at('nfl', 25, 10, ['nfl-1'], 'upcoming', 'NFL'),
             { ...at('tba', 24, 19, ['nba-3'], 'upcoming'), startTime: null, date: null },
         ];
-        const sections = groupGames(upcoming, 'upcoming', ['134927'], now);
-        expect(sections.map((section) => section.label)).toEqual(['Purdue', 'NFL', 'NBA', 'MLB']);
-        const nba = sections[2];
+        const shown = visibleGames(upcoming, 'upcoming', 'all', [], now);
+        expect(shown.filter((game) => game.id === 'boiler').map((game) => game.league)).toEqual(['NCAA', 'Big Ten']);
+        expect(visibleGames(upcoming, 'upcoming', 'league:Big Ten', [], now)).toHaveLength(1);
+        const sections = groupGames(shown, 'upcoming', ['134927'], now);
+        expect(sections.map((section) => section.label)).toEqual(['Purdue', 'Big Ten', 'NFL', 'NBA', 'MLB']);
+        const nba = sections[3];
         expect(nba.count).toBe(4);
         expect(nba.days.map((group) => group.label.split(' · ')[0])).toEqual([
             'Today',
@@ -378,6 +388,21 @@ describe('league scoreboards', () => {
         await nbaRun.espn.league(nba, 99);
         expect(nbaRun.urls).toHaveLength(14 + 7 + 1);
         expect(nbaRun.urls[0]).toMatch(/dates=20261008$/);
+    });
+    it('filters Big Ten scoreboards with the ESPN conference group', async () => {
+        const [football, basketball] = leagues.filter((source) => source.league === 'Big Ten');
+        const footballRun = harness((url) =>
+            url.endsWith('?groups=5') ? { events: [], week: { number: 8 }, season: { type: 2 } } : { events: [] }
+        );
+        await footballRun.espn.league(football, 3);
+        expect(footballRun.urls.map((url) => url.split('sports/')[1])).toEqual([
+            'football/college-football/scoreboard?groups=5',
+            'football/college-football/scoreboard?groups=5&week=7&seasontype=2',
+            'football/college-football/scoreboard?groups=5&week=9&seasontype=2',
+        ]);
+        const basketballRun = harness(() => ({ events: [] }));
+        await basketballRun.espn.league(basketball, 1);
+        expect(basketballRun.urls[0]).toMatch(/mens-college-basketball\/scoreboard\?groups=7&dates=20261021$/);
     });
     it('refetches live pages after 5 minutes or on demand and keeps finished past days cached', async () => {
         const run = harness((url) => {

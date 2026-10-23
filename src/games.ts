@@ -6,17 +6,21 @@ export function formatStart(game: Pick<Game, 'startTime' | 'date'>): string {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
-        hour: 'numeric',
+        hour: '2-digit',
         minute: '2-digit',
+        hourCycle: 'h23',
         timeZoneName: 'short',
     }).format(new Date(game.startTime));
 }
 
 export function formatTime(game: Pick<Game, 'startTime' | 'date'>): string {
     if (!game.startTime) return 'Time unannounced';
-    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(
-        new Date(game.startTime)
-    );
+    return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+        timeZoneName: 'short',
+    }).format(new Date(game.startTime));
 }
 
 export type View = 'live' | 'upcoming' | 'recent';
@@ -47,7 +51,7 @@ function localDay(game: Game): Date | null {
 const startOfDay = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate());
 const isToday = (game: Game, now: Date) => localDay(game)?.getTime() === startOfDay(now).getTime();
 
-// filter is 'all', 'favorites', 'league:<NFL|NBA|MLB|NCAA>' or a single team id.
+// filter is 'all', 'favorites', 'league:<NFL|NBA|MLB|Big Ten|NCAA>' or a single team id.
 export const upcomingDays = 7;
 export const resultDays = 14;
 
@@ -66,11 +70,13 @@ export function visibleGames(
         const day = localDay(game);
         return day ? Math.round((day.getTime() - today) / 86_400_000) : null;
     };
+    // Purdue's Big Ten games arrive from both the Purdue and Big Ten feeds; keep one per section.
     const deduplicated = new Map<string, Game>();
     for (const game of games) {
-        const existing = deduplicated.get(game.id);
+        const key = `${game.league}:${game.id}`;
+        const existing = deduplicated.get(key);
         deduplicated.set(
-            game.id,
+            key,
             existing ? { ...game, teamIds: [...new Set([...existing.teamIds, ...game.teamIds])] } : game
         );
     }
@@ -96,6 +102,7 @@ export function isFavorite(game: Game, favoriteIds: string[]): boolean {
 
 const sections = [
     { key: 'NCAA', label: 'Purdue' },
+    { key: 'Big Ten', label: 'Big Ten' },
     { key: 'NFL', label: 'NFL' },
     { key: 'NBA', label: 'NBA' },
     { key: 'MLB', label: 'MLB' },
@@ -111,7 +118,7 @@ function dayLabel(day: Date, today: Date): string {
 // Live first, then today's results, then games still to start.
 const statusRank = (game: Game) => (game.status === 'live' ? 0 : game.status === 'final' ? 1 : 2);
 
-// Sections run Purdue, NFL, NBA, MLB, each split into local days. Within a day, Live orders by
+// Sections run Purdue, Big Ten, NFL, NBA, MLB, each split into local days. Within a day, Live orders by
 // status (live, final, upcoming); every view then puts favorites first and sorts by start time,
 // newest first for results.
 export function groupGames(games: Game[], view: View, favoriteIds: string[], now = new Date()): LeagueSection[] {

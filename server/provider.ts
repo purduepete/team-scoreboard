@@ -152,7 +152,7 @@ export function parseScoreboard(input: unknown, league: LeagueSource): Game[] {
         sport: league.sport,
         league: league.league,
         path: league.path,
-        fallbackUrl: `https://www.espn.com/${league.league.toLowerCase()}/scoreboard`,
+        fallbackUrl: league.scoreboardUrl,
     };
     const games: Game[] = [];
     for (const value of events) {
@@ -299,7 +299,8 @@ export class SportsProvider {
             if (!forced && now - cached.fetchedAt < age) return cached;
         }
         const generation = this.generation;
-        const body = await this.request(`${league.path}/scoreboard${query ? `?${query}` : ''}`);
+        const params = [league.group ? `groups=${league.group}` : '', query].filter(Boolean).join('&');
+        const body = await this.request(`${league.path}/scoreboard${params ? `?${params}` : ''}`);
         const meta = scoreboardSchema.parse(body);
         const entry = {
             games: parseScoreboard(body, league),

@@ -9,7 +9,7 @@ import type { FavoritesStore } from './storage.js';
 import { isHot, maxDaysBack } from './provider.js';
 
 export const notice =
-    'Every NFL, NBA and MLB game from ESPN, with results for the days you choose and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh every 5 minutes, and Refresh refetches games in progress.';
+    "Every NFL, NBA and MLB game plus Big Ten football and men's basketball from ESPN, with results for the last 14 days and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh every 5 minutes, and Refresh refetches games in progress.";
 
 export interface SportsSource {
     league(source: LeagueSource, daysBack: number): Promise<Game[]>;
@@ -25,11 +25,11 @@ export function dashboardSources(favorites: string[], sports: SportsSource, days
         ...leagues.map((source): FeedSource => ({
             // The window is part of the id so a new setting doesn't reuse a feed built for another window.
             id: `${source.id}-${daysBack}d`,
-            label: `${source.league} scoreboard`,
+            label: source.label,
             note: source.byWeek
                 ? `Every game from the last ${Math.ceil(daysBack / 7)} week(s) through next week.`
                 : `Every game from ${daysBack} day(s) back to 7 days ahead.`,
-            officialUrl: `https://www.espn.com/${source.league.toLowerCase()}/scoreboard`,
+            officialUrl: source.scoreboardUrl,
             load: () => sports.league(source, daysBack),
             // The provider caches each scoreboard page and only refetches pages that are due.
             interval: () => 60_000,

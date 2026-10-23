@@ -174,8 +174,9 @@ export function App() {
                             <small className="updated" title="Last updated">
                                 <span className="updated-label">Updated </span>
                                 {new Date(updated).toLocaleTimeString(undefined, {
-                                    hour: 'numeric',
+                                    hour: '2-digit',
                                     minute: '2-digit',
+                                    hourCycle: 'h23',
                                 })}
                             </small>
                         )}
@@ -325,6 +326,7 @@ export function App() {
                                             { value: 'league:NBA', label: 'NBA' },
                                             { value: 'league:MLB', label: 'MLB' },
                                             { value: 'league:NCAA', label: 'Purdue' },
+                                            { value: 'league:Big Ten', label: 'Big Ten' },
                                             ...favoriteTeams
                                                 .filter((item) => !item.umbrella)
                                                 .map((item) => ({ value: item.id, label: item.name })),
@@ -521,6 +523,7 @@ export function App() {
                                                     <small>
                                                         Last successful fetch:{' '}
                                                         {new Date(feed.updatedAt).toLocaleString(undefined, {
+                                                            hourCycle: 'h23',
                                                             timeZoneName: 'short',
                                                         })}
                                                     </small>
