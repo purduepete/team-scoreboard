@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <meta name="theme-color" content="#020617" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Team Scoreboard" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap"
+            rel="stylesheet"
+        />
+        <title>Team Scoreboard</title>
+        <script>
+            (() => {
+                let preference = 'midnight';
+                try {
+                    const stored = localStorage.getItem('team-scoreboard-theme');
+                    if (['system', 'light', 'midnight'].includes(stored)) preference = stored;
+                } catch (error) {
+                    console.warn('Theme storage unavailable.', error);
+                }
+                const dark =
+                    preference === 'midnight' ||
+                    (preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.className = dark ? 'dark theme-midnight' : 'light';
+                document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+                document.documentElement.style.backgroundColor = dark ? '#020617' : '#ffffff';
+                document.querySelector('meta[name="theme-color"]').content = dark ? '#020617' : '#ffffff';
+            })();
+        </script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

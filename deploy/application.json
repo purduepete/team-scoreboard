@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "team-scoreboard",
+  "repository": "https://github.com/purduepete/team-scoreboard.git",
+  "database": {
+    "engine": "postgresql",
+    "name": "team_scoreboard",
+    "connectionEnvironment": "DATABASE_URL",
+    "backendEnvironment": "STORAGE_BACKEND",
+    "schemaVersion": 1,
+    "migrationsDirectory": "deploy\\postgresql",
+    "backupFormat": "custom"
+  },
+  "runtime": { "kind": "node", "minimumVersion": "22.12.0" },
+  "build": {
+    "commands": [
+      { "tool": "npm", "arguments": ["ci"], "workingDirectory": "." },
+      { "tool": "npm", "arguments": ["run", "build"], "workingDirectory": "." }
+    ]
+  },
+  "launch": {
+    "entrypoint": "dist-server\\server\\main.js",
+    "arguments": [],
+    "port": 8801,
+    "environment": {
+      "PORT": "8801",
+      "STORAGE_BACKEND": "postgresql",
+      "ALLOWED_ORIGINS": "https://team-scoreboard.jimlertech.com,https://jimbrownhome1.tail8ad282.ts.net:8801"
+    },
+    "secretFile": "app.env",
+    "stopFileEnvironment": "SOLUTIONDEPLOY_STOP_FILE"
+  },
+  "readiness": { "path": "/api/health", "expected": { "ok": true }, "timeoutSeconds": 60 },
+  "state": [],
+  "managedState": [],
+  "routes": [{ "hostname": "team-scoreboard.jimlertech.com" }],
+  "source": { "host": "jimbrownhome1", "root": "C:\\ProgramData\\SolutionDeploy\\apps\\team-scoreboard", "tasks": [] }
+}
