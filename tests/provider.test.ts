@@ -151,14 +151,32 @@ describe('window and filters', () => {
         const upcoming = make('up', 16, 'upcoming');
         const final = make('fin', 14, 'final');
         const all = [live, upcoming, final, { ...final, teamIds: ['134949'] }];
-        expect(visibleGames(all, 'live', 'all', []).map((game) => game.id)).toEqual(['live']);
-        expect(visibleGames(all, 'upcoming', 'all', []).map((game) => game.id)).toEqual(['up']);
-        expect(visibleGames(all, 'recent', 'all', [])).toHaveLength(1);
-        expect(visibleGames(all, 'recent', '134949', [])).toHaveLength(1);
-        expect(visibleGames(all, 'recent', 'favorites', ['134949'])).toHaveLength(1);
-        expect(visibleGames(all, 'recent', 'favorites', ['nba-11'])).toHaveLength(0);
-        expect(visibleGames(all, 'recent', 'league:NFL', [])).toHaveLength(1);
-        expect(visibleGames(all, 'recent', 'league:NBA', [])).toHaveLength(0);
+        const on = new Date(2026, 9, 15, 12);
+        expect(visibleGames(all, 'live', 'all', [], on).map((game) => game.id)).toEqual(['live']);
+        expect(visibleGames(all, 'upcoming', 'all', [], on).map((game) => game.id)).toEqual(['up']);
+        expect(visibleGames(all, 'recent', 'all', [], on)).toHaveLength(1);
+        expect(visibleGames(all, 'recent', '134949', [], on)).toHaveLength(1);
+        expect(visibleGames(all, 'recent', 'favorites', ['134949'], on)).toHaveLength(1);
+        expect(visibleGames(all, 'recent', 'favorites', ['nba-11'], on)).toHaveLength(0);
+        expect(visibleGames(all, 'recent', 'league:NFL', [], on)).toHaveLength(1);
+        expect(visibleGames(all, 'recent', 'league:NBA', [], on)).toHaveLength(0);
+    });
+    it('keeps 14 days of results by default and 7 days of upcoming games', () => {
+        const on = new Date(2026, 9, 22, 12);
+        const games = [
+            make('fin-14', 8, 'final'),
+            make('fin-15', 7, 'final'),
+            make('up-7', 29, 'upcoming'),
+            make('up-8', 30, 'upcoming'),
+            { ...make('tba', 23, 'upcoming'), startTime: null, date: null },
+        ];
+        expect(visibleGames(games, 'recent', 'all', [], on).map((game) => game.id)).toEqual(['fin-14']);
+        expect(visibleGames(games, 'recent', 'all', [], on, 3)).toHaveLength(0);
+        expect(
+            visibleGames(games, 'upcoming', 'all', [], on)
+                .map((game) => game.id)
+                .sort()
+        ).toEqual(['tba', 'up-7']);
     });
     it('groups into Purdue then pro league sections, and orders Live today by status', () => {
         const at = (

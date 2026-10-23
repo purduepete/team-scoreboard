@@ -63,6 +63,11 @@ let requestedDays: string[] = [];
 let refreshBodies: unknown[] = [];
 let fullLoads: string[] = [];
 
+const expandSections = async (page: import('@playwright/test').Page) => {
+    const collapsed = page.locator('.section-title button[aria-expanded="false"]');
+    while ((await collapsed.count()) > 0) await collapsed.first().click();
+};
+
 test.beforeEach(async ({ page }) => {
     let favorites = [...defaultFavorites];
     requestedDays = [];
@@ -143,6 +148,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await theme.click();
     await page.mouse.click(8, 180);
     await expect(page.getByRole('listbox')).toHaveCount(0);
+    await expandSections(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.locator('header')).toHaveCSS('position', 'sticky');
     await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveCount(0);
@@ -162,7 +168,15 @@ test('favorite edits survive reload, live scores and source errors are visible',
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
     await expect(tabs).toHaveText(['Live', 'Recent results', 'Upcoming']);
     await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    const nba = page.locator('.section-title button', { hasText: 'NBA' });
+    await expect(nba).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByText('Q3 4:12')).toBeHidden();
+    await nba.click();
+    await expect(nba).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByText('Q3 4:12')).toBeVisible();
+    await nba.click();
+    await expect(page.getByText('Q3 4:12')).toBeHidden();
+    await nba.click();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(page.getByText('Fixture upstream failure')).toHaveCount(0);
     await page.getByRole('link', { name: 'Source status' }).click();
@@ -194,6 +208,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
 test('favorites lead each day, refresh posts the window and the window is remembered', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+    await expandSections(page);
     const cards = page.locator('.game');
     await expect(cards.first()).toContainText('Indianapolis Colts');
     await expect(cards.first()).toHaveClass(/favorite/);
@@ -214,10 +229,10 @@ test('favorites lead each day, refresh posts the window and the window is rememb
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await expect.poll(() => refreshBodies).toEqual([{ days: 7, scope: 'live' }]);
-    expect(fullLoads).toEqual(['3']);
+    expect(fullLoads).toEqual(['14']);
     await page.reload();
     await expect.poll(() => requestedDays.at(-1)).toBe('7');
-    await expect.poll(() => fullLoads).toEqual(['3', '7']);
+    await expect.poll(() => fullLoads).toEqual(['14', '7']);
     expect(refreshBodies).toHaveLength(1);
     await expect(page.getByRole('button', { name: 'Results', exact: true })).toContainText('Last 7 days');
 });

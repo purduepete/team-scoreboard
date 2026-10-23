@@ -308,17 +308,49 @@ small {
     gap: 16px;
 }
 .league-section + .league-section {
-    margin-top: 40px;
+    margin-top: 12px;
 }
 .section-title {
+    margin: 0 0 18px;
+    font-size: 1.25rem;
+}
+/* Inverted header: panel color with accent text and border, so midnight has no light-blue block. */
+.section-title button {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 0 0 18px;
+    width: 100%;
+    justify-content: flex-start;
     padding: 10px 14px;
-    background: var(--accent);
-    color: var(--accent-text);
-    font-size: 1.25rem;
+    border: 1px solid var(--accent);
+    border-left-width: 4px;
+    border-radius: 0;
+    background: var(--accent-text);
+    color: var(--accent);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+.section-title button:hover {
+    background: color-mix(in srgb, var(--accent) 12%, var(--accent-text));
+}
+.section-title button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.section-title .chevron {
+    flex-shrink: 0;
+    transition: transform 0.15s;
+}
+.section-title .chevron.open {
+    transform: rotate(90deg);
+}
+.league-section:has(.section-title [aria-expanded='false']) .section-title {
+    margin-bottom: 0;
+}
+.league-section:has(.section-title [aria-expanded='true']) + .league-section {
+    margin-top: 32px;
 }
 .section-title small {
     margin-left: auto;
