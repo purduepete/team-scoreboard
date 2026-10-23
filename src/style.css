@@ -260,6 +260,21 @@ small {
     min-width: 0;
     max-width: 100%;
 }
+.section-controls {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: -8px 0 12px;
+}
+.section-controls button {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 0.8125rem;
+}
+.section-controls button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
 .control-label {
     display: block;
     margin-bottom: 6px;

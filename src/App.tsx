@@ -7,6 +7,8 @@ import {
     CalendarDays,
     Check,
     ChevronRight,
+    ChevronsDownUp,
+    ChevronsUpDown,
     Plus,
     RefreshCw,
     Star,
@@ -19,6 +21,8 @@ import { useTheme } from './theme';
 import type { Theme } from './theme';
 import { formatTime, groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
+
+const viewLabels: Record<View, string> = { live: 'Current', recent: 'Recent', upcoming: 'Upcoming' };
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
     const response = await fetch(path, { ...init, signal: AbortSignal.timeout(timeoutMs) });
@@ -42,8 +46,13 @@ export function App() {
     const [view, setView] = useState<View>('live');
     const [team, setTeam] = useState('all');
     // League sections start collapsed on every page load.
-    // Sections the user flipped from their default for the current Show filter; a new filter resets them.
-    const [toggled, setToggled] = useState<{ filter: string; keys: string[] }>({ filter: 'all', keys: [] });
+    // Open/closed state for the current Show filter: a base (all open or all closed) plus the sections
+    // flipped from it. Changing the filter resets it, so All teams starts collapsed and others open.
+    const [toggled, setToggled] = useState<{ filter: string; open: boolean; keys: string[] }>({
+        filter: 'all',
+        open: false,
+        keys: [],
+    });
     const [refreshing, setRefreshing] = useState(false);
     const [editing, setEditing] = useState(false);
     const [search, setSearch] = useState('');
@@ -160,13 +169,16 @@ export function App() {
         team === 'league:NCAA' || !(team === 'all' || team === 'favorites' || team.startsWith('league:'));
     const highlightIds = singleTeam ? [] : favoriteIds;
     const sections = groupGames(games, view, highlightIds);
-    const flipped = toggled.filter === team ? toggled.keys : [];
-    const isOpen = (key: string) => (team !== 'all') !== flipped.includes(key);
+    const current = toggled.filter === team ? toggled : { filter: team, open: team !== 'all', keys: [] };
+    const isOpen = (key: string) => current.open !== current.keys.includes(key);
     const toggleSection = (key: string) =>
         setToggled({
-            filter: team,
-            keys: flipped.includes(key) ? flipped.filter((item) => item !== key) : [...flipped, key],
+            ...current,
+            keys: current.keys.includes(key) ? current.keys.filter((item) => item !== key) : [...current.keys, key],
         });
+    const setAllSections = (open: boolean) => setToggled({ filter: team, open, keys: [] });
+    const allOpen = sections.every((section) => isOpen(section.key));
+    const allClosed = sections.every((section) => !isOpen(section.key));
     const updated = feeds
         .map((feed) => feed.updatedAt)
         .filter((value): value is string => value !== null)
@@ -323,7 +335,7 @@ export function App() {
                                                 className={view === item ? 'selected' : ''}
                                                 onClick={() => setView(item)}
                                             >
-                                                {item.charAt(0).toUpperCase() + item.slice(1)}
+                                                {viewLabels[item]}
                                             </button>
                                         ))}
                                     </div>
@@ -345,6 +357,22 @@ export function App() {
                                         ]}
                                     />
                                 </div>
+                                {sections.length > 0 && (
+                                    <div className="section-controls">
+                                        <button type="button" disabled={allOpen} onClick={() => setAllSections(true)}>
+                                            <ChevronsUpDown size={16} aria-hidden="true" />
+                                            Expand all
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={allClosed}
+                                            onClick={() => setAllSections(false)}
+                                        >
+                                            <ChevronsDownUp size={16} aria-hidden="true" />
+                                            Collapse all
+                                        </button>
+                                    </div>
+                                )}
                                 {sections.map((section) => {
                                     const open = isOpen(section.key);
                                     return (

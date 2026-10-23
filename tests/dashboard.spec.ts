@@ -168,8 +168,8 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
-    await expect(tabs).toHaveText(['Live', 'Recent', 'Upcoming']);
-    await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(tabs).toHaveText(['Current', 'Recent', 'Upcoming']);
+    await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const nba = page.locator('.section-title button', { hasText: 'NBA' });
     await expect(nba).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByText('Q3 4:12')).toBeHidden();
@@ -190,7 +190,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await expect(page.getByText('Official link only', { exact: true }).first()).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(0);
     await page.getByRole('link', { name: 'Back to scores' }).first().click();
-    await page.getByRole('button', { name: 'Live', exact: true }).click();
+    await page.getByRole('button', { name: 'Current', exact: true }).click();
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(1);
     await page.getByRole('button', { name: 'Edit favorites' }).click();
@@ -237,6 +237,14 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     await expect(page.getByRole('button', { name: 'Group by', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'All teams', exact: true }).click();
+    await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
+    const expandAll = page.getByRole('button', { name: 'Expand all', exact: true });
+    const collapseAll = page.getByRole('button', { name: 'Collapse all', exact: true });
+    await expect(collapseAll).toBeDisabled();
+    await expandAll.click();
+    await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
+    await expect(expandAll).toBeDisabled();
+    await collapseAll.click();
     await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
     const titles = await page.locator('.section-title span').allTextContents();
     expect(titles.indexOf('Purdue')).toBeLessThan(titles.indexOf('NFL'));
