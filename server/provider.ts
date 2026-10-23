@@ -36,6 +36,22 @@ const broadcastSchema = z
     .nullable()
     .optional()
     .catch(undefined);
+// Scoreboards send this while a game is live: football down and distance, baseball outs, bases and count.
+const situationSchema = z
+    .object({
+        downDistanceText: z.string().optional(),
+        isRedZone: z.boolean().optional(),
+        possession: z.string().optional(),
+        outs: z.number().int().optional(),
+        balls: z.number().int().optional(),
+        strikes: z.number().int().optional(),
+        onFirst: z.boolean().optional(),
+        onSecond: z.boolean().optional(),
+        onThird: z.boolean().optional(),
+    })
+    .nullable()
+    .optional()
+    .catch(undefined);
 const eventSchema = z.object({
     id: z.string().regex(/^\d+$/),
     name: z.string().min(1),
@@ -48,6 +64,7 @@ const eventSchema = z.object({
             z.object({
                 timeValid: z.boolean().optional(),
                 status: statusSchema.optional(),
+                situation: situationSchema,
                 broadcasts: broadcastSchema,
                 competitors: z.array(
                     z.object({
@@ -100,11 +117,49 @@ function broadcastName(entries: z.infer<typeof broadcastSchema>): string | undef
     return unique.length ? unique.join(', ').slice(0, 60) : undefined;
 }
 
+type Situation = z.infer<typeof situationSchema>;
+
+export function describeSituation(
+    sport: string,
+    situation: Situation,
+    homeId: string | undefined,
+    awayId: string | undefined
+): { situation?: string; possession?: 'home' | 'away' } {
+    if (!situation) return {};
+    if (sport === 'Football') {
+        const text = [situation.downDistanceText?.trim(), situation.isRedZone ? 'Red zone' : '']
+            .filter(Boolean)
+            .join(' · ');
+        const possession =
+            situation.possession && situation.possession === homeId
+                ? 'home'
+                : situation.possession && situation.possession === awayId
+                  ? 'away'
+                  : undefined;
+        return { ...(text ? { situation: text.slice(0, 80) } : {}), ...(possession ? { possession } : {}) };
+    }
+    if (sport === 'Baseball') {
+        if (typeof situation.outs !== 'number') return {};
+        const bases = [situation.onFirst && '1st', situation.onSecond && '2nd', situation.onThird && '3rd'].filter(
+            Boolean
+        );
+        const parts = [
+            `${situation.outs} ${situation.outs === 1 ? 'out' : 'outs'}`,
+            bases.length ? bases.join(', ') : 'Bases empty',
+        ];
+        if (typeof situation.balls === 'number' && typeof situation.strikes === 'number')
+            parts.push(`${situation.balls}-${situation.strikes}`);
+        return { situation: parts.join(' · ') };
+    }
+    return {};
+}
+
 interface EventContext {
     sport: string;
     league: string;
     path: string;
     fallbackUrl: string;
+    origin: 'scoreboard' | 'schedule';
 }
 
 function toGame(
@@ -161,7 +216,11 @@ function toGame(
                       ? 'Status unavailable'
                       : status.charAt(0).toUpperCase() + status.slice(1),
         sourceUrl: source(event.links, context.fallbackUrl),
+        origin: context.origin,
         ...(event.week ? { week: event.week.number } : {}),
+        ...(status === 'live'
+            ? describeSituation(context.sport, competition.situation, home?.team.id, away?.team.id)
+            : {}),
     };
     const broadcast = broadcastName(competition.broadcasts);
     const homeRecord = overall(home);
@@ -180,6 +239,7 @@ export function normalizeEvent(input: unknown, team: Team, currentRecord?: strin
         league: team.league,
         path,
         fallbackUrl: team.officialUrl,
+        origin: 'schedule',
     });
     if (!espnTeamIds.includes(id)) throw new Error('Provider returned an event for a different team.');
     const side = homeId === id ? 'homeRecord' : 'awayRecord';
@@ -196,7 +256,17 @@ export function parseEvents(input: unknown, team: Team): Game[] {
         .parse(input);
     const summary = response.team?.recordSummary?.trim();
     const record = summary && /^\d+(-\d+){1,2}$/.test(summary) ? summary : undefined;
-    return (response.events ?? []).map((value) => normalizeEvent(value, team, record));
+    const events = response.events ?? [];
+    const games: Game[] = [];
+    for (const value of events) {
+        try {
+            games.push(normalizeEvent(value, team, record));
+        } catch (error) {
+            console.warn(`Skipped a ${team.name} event:`, error instanceof Error ? error.message : error);
+        }
+    }
+    if (events.length && !games.length) throw new Error(`Every ${team.name} event failed to parse.`);
+    return games;
 }
 
 const scoreboardSchema = z.object({
@@ -213,6 +283,7 @@ export function parseScoreboard(input: unknown, league: LeagueSource): Game[] {
         league: league.league,
         path: league.path,
         fallbackUrl: league.scoreboardUrl,
+        origin: 'scoreboard' as const,
     };
     const games: Game[] = [];
     for (const value of events) {
@@ -305,6 +376,8 @@ export class SportsProvider {
     private allMark = 0;
     private readonly persisted = new Set<string>();
     private persistTimer: ReturnType<typeof setTimeout> | undefined;
+    private readonly seasons = new Map<string, { games: Game[] | undefined; nextFetchAt: number }>();
+    private readonly seasonFetches = new Map<string, Promise<Game[]>>();
 
     constructor(
         private readonly fetcher: typeof fetch = fetch,
@@ -344,11 +417,42 @@ export class SportsProvider {
     }
 
     async schedule(team: Team): Promise<Game[]> {
+        return selectWindow(await this.fullSchedule(team), this.clock());
+    }
+
+    private async fullSchedule(team: Team): Promise<Game[]> {
         if (!team.providerId) throw new Error('This sport has no configured feed.');
         const { path, id } = parseProviderId(team.providerId);
         let games = parseEvents(await this.request(`${path}/teams/${id}/schedule`), team);
         if (!games.length) games = parseEvents(await this.request(`${path}/teams/${id}/schedule?seasontype=2`), team);
-        return selectWindow([...new Map(games.map((game) => [game.id, game])).values()], this.clock());
+        return [...new Map(games.map((game) => [game.id, game])).values()];
+    }
+
+    // The calendar feed: the last 30 days and everything ahead. Kept 6 hours; after an error the last good
+    // copy is served and the fetch retries in 15 minutes. Throws only when there has never been good data.
+    async season(team: Team): Promise<Game[]> {
+        const now = this.clock();
+        const cached = this.seasons.get(team.id);
+        if (cached && now < cached.nextFetchAt) {
+            if (cached.games) return cached.games;
+            throw new ProviderError(`${team.name} schedule is unavailable.`, cached.nextFetchAt - now);
+        }
+        let pending = this.seasonFetches.get(team.id);
+        if (!pending) {
+            pending = this.fullSchedule(team).finally(() => this.seasonFetches.delete(team.id));
+            this.seasonFetches.set(team.id, pending);
+        }
+        try {
+            const cutoff = new Date(this.clock() - 30 * 86_400_000).toISOString().slice(0, 10);
+            const games = (await pending).filter((game) => !game.date || game.date >= cutoff);
+            this.seasons.set(team.id, { games, nextFetchAt: this.clock() + 6 * 60 * 60_000 });
+            return games;
+        } catch (error) {
+            const nextFetchAt = this.clock() + 15 * 60_000;
+            this.seasons.set(team.id, { games: cached?.games, nextFetchAt });
+            if (cached?.games) return cached.games;
+            throw error;
+        }
     }
 
     // Refresh button: makes only pages with a game in progress or about to start due.

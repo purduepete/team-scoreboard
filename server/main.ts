@@ -49,7 +49,17 @@ const app = createApp({
     allowedOrigins: origins,
     staticDirectory: resolve('dist'),
     contentSecurityPolicy: csp,
+    ...(process.env.CALENDAR_TOKEN
+        ? {
+              calendar: {
+                  token: process.env.CALENDAR_TOKEN,
+                  origin: process.env.CALENDAR_ORIGIN ?? 'https://team-scoreboard.jimlertech.com',
+              },
+          }
+        : {}),
 });
+if (!process.env.CALENDAR_TOKEN || process.env.CALENDAR_TOKEN.length < 32)
+    console.warn('The calendar feed is off: CALENDAR_TOKEN is missing or shorter than 32 characters.');
 const server = app.listen(port, '127.0.0.1', () => console.info(`Team Scoreboard listening on loopback port ${port}`));
 const userKey = process.env.PUSHOVER_USER_KEY;
 const appToken = process.env.PUSHOVER_APP_TOKEN;

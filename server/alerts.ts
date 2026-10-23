@@ -1,4 +1,5 @@
 import type { Game } from '../shared/contracts.js';
+import { reconcile } from '../shared/reconcile.js';
 import { expandFavorites } from './catalog.js';
 
 // Purdue has about 20 varsity programs; only these alert so a busy weekend doesn't flood the phone.
@@ -47,8 +48,8 @@ export class GameAlerts {
     constructor(private readonly send: (alert: Alert) => Promise<void>) {}
 
     observe(games: Game[], watchedIds: string[]): void {
-        // Purdue's Big Ten games arrive from two feeds; ESPN event ids are unique, so key on the id alone.
-        const unique = new Map(games.map((game) => [game.id, game]));
+        // Purdue's Big Ten games arrive from two feeds; the scoreboard copy wins.
+        const unique = reconcile(games);
         for (const game of unique.values()) {
             if (!game.teamIds.some((id) => watchedIds.includes(id))) continue;
             const previous = this.seen.get(game.id);

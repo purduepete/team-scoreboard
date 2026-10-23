@@ -30,6 +30,11 @@ export interface Game {
     broadcast?: string;
     homeRecord?: string;
     awayRecord?: string;
+    // Live only: football down and distance or baseball outs, bases and count.
+    situation?: string;
+    possession?: 'home' | 'away';
+    // 'schedule' marks a team-schedule copy; league scoreboard copies (and older cached ones) leave it unset.
+    origin?: 'scoreboard' | 'schedule';
 }
 
 export interface Feed {

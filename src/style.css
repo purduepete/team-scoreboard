@@ -723,3 +723,50 @@ kbd {
     color: var(--muted);
     font-size: 0.8125rem;
 }
+
+.heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+.situation {
+    margin: -4px 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+.possession {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 6px;
+    background: var(--accent);
+    vertical-align: middle;
+}
+@keyframes score-flash {
+    from {
+        background: var(--accent);
+        box-shadow: 0 0 0 4px var(--accent);
+        color: var(--accent-text);
+    }
+    to {
+        background: transparent;
+        box-shadow: 0 0 0 4px transparent;
+    }
+}
+.score-changed {
+    animation: score-flash 2.5s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .score-changed {
+        outline: 2px solid var(--accent);
+    }
+}

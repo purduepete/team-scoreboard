@@ -1,4 +1,5 @@
 import type { Game } from '../shared/contracts';
+import { reconcile, withLiveFields } from '../shared/reconcile';
 
 export function formatStart(game: Pick<Game, 'startTime' | 'date'>): string {
     if (!game.startTime) return game.date ? `${game.date} · time unannounced` : 'Date and time unannounced';
@@ -71,9 +72,12 @@ export function visibleGames(
         const day = localDay(game);
         return day ? Math.round((day.getTime() - today) / 86_400_000) : null;
     };
-    // Purdue's Big Ten games arrive from both the Purdue and Big Ten feeds; keep one per section.
+    // Purdue's Big Ten games arrive from both the Purdue and Big Ten feeds. Every copy takes the score and
+    // situation from the freshest copy, then each section keeps one.
+    const best = reconcile(games);
     const deduplicated = new Map<string, Game>();
-    for (const game of games) {
+    for (const source of games) {
+        const game = withLiveFields(source, best.get(source.id));
         const key = `${game.league}:${game.id}`;
         const existing = deduplicated.get(key);
         deduplicated.set(

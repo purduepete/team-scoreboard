@@ -1,12 +1,16 @@
 import express from 'express';
 import type { ErrorRequestHandler } from 'express';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { Dashboard, Game, Team } from '../shared/contracts.js';
+import { reconcile } from '../shared/reconcile.js';
 import { expandFavorites, leagues, teams } from './catalog.js';
 import type { LeagueSource } from './catalog.js';
 import type { FeedCache, FeedSource } from './feeds.js';
 import type { FavoritesStore } from './storage.js';
 import { isHot, maxDaysBack } from './provider.js';
+import { alertTeamIds } from './alerts.js';
+import { buildCalendar } from './calendar.js';
 
 export const notice =
     "Every NFL, NBA and MLB game plus Big Ten football and men's basketball from ESPN, with results for the last 14 days and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh every 5 minutes, and Refresh refetches games in progress.";
@@ -14,8 +18,18 @@ export const notice =
 export interface SportsSource {
     league(source: LeagueSource, daysBack: number): Promise<Game[]>;
     schedule(team: Team): Promise<Game[]>;
+    season(team: Team): Promise<Game[]>;
     refreshLive(): void;
     refreshAll(): void;
+}
+
+const digest = (value: string) => createHash('sha256').update(value).digest();
+
+// The calendar URL carries a secret token because Cloudflare Access lets /calendar/* through without
+// sign-in, so calendar apps can fetch it.
+export function calendarTokenMatches(token: string | undefined, file: string): boolean {
+    if (!token || token.length < 32) return false;
+    return timingSafeEqual(digest(file), digest(`${token}.ics`));
 }
 
 const daysSchema = z.coerce.number().int().min(1).max(maxDaysBack).catch(3);
@@ -54,7 +68,11 @@ export function createApp(options: {
     allowedOrigins: string[];
     staticDirectory?: string;
     contentSecurityPolicy?: string;
+    calendar?: { token: string; origin: string };
+    clock?: () => number;
 }) {
+    const clock = options.clock ?? Date.now;
+    const calendarToken = options.calendar && options.calendar.token.length >= 32 ? options.calendar : undefined;
     const app = express();
     app.disable('x-powered-by');
     const allowedHosts = new Set(options.allowedOrigins.map((origin) => new URL(origin).host));
@@ -161,7 +179,41 @@ export function createApp(options: {
         await options.store.remove(req.params.teamId);
         res.status(204).end();
     });
+    app.get('/api/calendar', (_req, res) => {
+        if (!calendarToken) {
+            res.status(404).json({ error: 'The calendar feed is not configured.' });
+            return;
+        }
+        res.json({ url: `${calendarToken.origin}/calendar/${calendarToken.token}.ics` });
+    });
     app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route.' }));
+    app.get('/calendar/:file', async (req, res) => {
+        if (!calendarToken || !calendarTokenMatches(calendarToken.token, req.params.file)) {
+            res.status(404).type('text/plain').send('Not found.');
+            return;
+        }
+        const favorites = await options.store.list();
+        const watched = alertTeamIds(favorites);
+        const watchedTeams = expandFavorites(favorites).filter((team) => watched.includes(team.id) && team.providerId);
+        const seasons = await Promise.allSettled(watchedTeams.map((team) => options.sports.season(team)));
+        // An empty or partial feed would delete events from subscribed calendars, so ask the client to retry.
+        if (seasons.some((result) => result.status === 'rejected')) {
+            res.setHeader('Retry-After', '900');
+            res.status(503).type('text/plain').send('Schedules are temporarily unavailable.');
+            return;
+        }
+        const dashboard = dashboardSources(favorites, options.sports, maxDaysBack).flatMap(
+            (source) => options.feeds.get(source).games
+        );
+        const seasonGames = seasons.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+        const games = [...reconcile([...seasonGames, ...dashboard]).values()].filter((game) =>
+            game.teamIds.some((id) => watched.includes(id))
+        );
+        res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+        res.setHeader('Content-Disposition', 'inline; filename="team-scoreboard.ics"');
+        res.send(buildCalendar(games, clock()));
+    });
+    app.use('/calendar', (_req, res) => res.status(404).type('text/plain').send('Not found.'));
     if (options.staticDirectory) app.use(express.static(options.staticDirectory, { dotfiles: 'deny' }));
     const handleError: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
         if (error instanceof SyntaxError) {

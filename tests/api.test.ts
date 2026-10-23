@@ -20,6 +20,9 @@ const sports = {
     async schedule() {
         return [];
     },
+    async season() {
+        return [];
+    },
     refreshLive() {
         forced += 1;
     },

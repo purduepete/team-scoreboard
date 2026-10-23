@@ -65,6 +65,9 @@ const leagueFeed = (league: string, days: string, games: Game[], error: string |
 let requestedDays: string[] = [];
 let refreshBodies: unknown[] = [];
 let fullLoads: string[] = [];
+let liveHome = 54;
+let liveExtra: Partial<Game> = {};
+let calendarUrl: string | null = null;
 
 const expandSections = async (page: import('@playwright/test').Page) => {
     const collapsed = page.locator('.section-title button[aria-expanded="false"]');
@@ -76,10 +79,15 @@ test.beforeEach(async ({ page }) => {
     requestedDays = [];
     refreshBodies = [];
     fullLoads = [];
+    liveHome = 54;
+    liveExtra = {};
+    calendarUrl = null;
     await page.route('**/api/**', async (route) => {
         const request = route.request();
         const url = new URL(request.url());
-        if (url.pathname === '/api/dashboard') {
+        if (url.pathname === '/api/calendar') {
+            await route.fulfill(calendarUrl ? { json: { url: calendarUrl } } : { status: 404, json: {} });
+        } else if (url.pathname === '/api/dashboard') {
             const days = url.searchParams.get('days') ?? '';
             requestedDays.push(days);
             if (url.searchParams.get('refresh') === 'all') fullLoads.push(days);
@@ -90,7 +98,7 @@ test.beforeEach(async ({ page }) => {
                 notice: 'Fixture data from ESPN-shaped feeds.',
                 feeds: [
                     leagueFeed('NFL', days, [otherGame, game], 'Fixture upstream failure'),
-                    leagueFeed('NBA', days, [liveGame]),
+                    leagueFeed('NBA', days, [{ ...liveGame, homeScore: liveHome, ...liveExtra }]),
                     leagueFeed('MLB', days, []),
                     ...expandFavorites(favorites)
                         .filter((entry) => entry.purdue)
@@ -315,6 +323,43 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
     await page.keyboard.press('?');
     await page.keyboard.press('?');
     await expect(dialog).toHaveCount(0);
+});
+
+test('calendar links appear only when the feed is configured', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Calendar' })).toHaveCount(0);
+
+    calendarUrl = `https://team-scoreboard.jimlertech.com/calendar/${'t'.repeat(43)}.ics`;
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.reload();
+    await expect(page.getByRole('link', { name: 'Calendar' })).toHaveAttribute('href', calendarUrl);
+    await expect(page.getByRole('link', { name: 'Subscribe' })).toHaveAttribute(
+        'href',
+        calendarUrl.replace('https:', 'webcal:')
+    );
+    await page.getByRole('button', { name: 'Copy calendar link' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Copied' })).toHaveCount(1);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(calendarUrl);
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('a changed score flashes once and the live situation shows', async ({ page }) => {
+    liveExtra = { situation: '2 outs · 1st, 3rd · 3-1', possession: 'home' };
+    await page.goto('/');
+    const card = page.locator('.game', { hasText: 'Indiana Pacers' }).first();
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    await expandSections(page);
+    await expect(card).toContainText('2 outs · 1st, 3rd · 3-1');
+    await expect(card.getByRole('img', { name: 'Has possession' })).toHaveCount(1);
+    await expect(page.locator('.score-changed')).toHaveCount(0);
+
+    liveHome = 57;
+    await page.keyboard.press('r');
+    await expect(card.locator('.score-changed')).toHaveText('57');
+    await expect(card.locator('.score-changed')).toHaveCount(1);
+    await expect(page.locator('.score-changed')).toHaveCount(0, { timeout: 5000 });
 });
 
 test('server failures are visible with retry, without fake records', async ({ page }) => {

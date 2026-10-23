@@ -22,6 +22,18 @@ Each card shows the TV channel (ESPN `broadcasts`) and each team's overall recor
 
 Keyboard shortcuts: `1`, `2` and `3` (number row or numpad) open Current, Recent and Upcoming; `X` expands all sections, `C` collapses them and `R` refreshes live scores. They are ignored while typing in a field, while a dropdown is open, and with Ctrl, Alt or Cmd held. Hovering each button shows its key, and `?` opens an overlay listing every shortcut (Esc, `?` or a click outside closes it).
 
+Live cards show the game situation when ESPN sends it: down, distance, red zone and a possession square for football; outs, runners and the count for baseball. When a poll changes a score, that score flashes for 2.5 seconds (a static outline with reduced motion). The two loads at page open only set the starting scores, so nothing flashes then.
+
+Purdue's Big Ten games arrive from both the Purdue schedule and the Big Ten scoreboard. `shared/reconcile.ts` keeps one copy per ESPN event, preferring the scoreboard copy, and every section shows its score and situation.
+
+## Calendar feed
+
+`GET /calendar/<CALENDAR_TOKEN>.ics` serves an iCalendar subscription for the alert teams (pro favorites plus Purdue football and men's basketball): the last 30 days and the rest of the season, one event per game with a stable `UID`, finals titled with the score, and `REFRESH-INTERVAL` of 1 hour. Team seasons are cached 6 hours. If any team's schedule has never loaded, the feed answers 503 with `Retry-After: 900` so a calendar keeps its events instead of receiving an empty feed.
+
+Cloudflare Access bypasses only `team-scoreboard.jimlertech.com/calendar/*` (an Everyone bypass app made by `Set-CloudflareHostnames.ps1 -PublishTeamScoreboardCalendar`), so calendar apps can fetch it. The token is the protection: `CALENDAR_TOKEN` in the host `shared\secrets\app.env` is 32 random bytes in base64url, compared in constant time. A wrong token, or a missing or shorter than 32 character token, returns 404. The page heading shows Calendar, Copy link and Subscribe (`webcal://`) only when the feed is configured; `/api/calendar` stays behind Access. `CALENDAR_ORIGIN` overrides the public origin in that link.
+
+To rotate the token, replace `CALENDAR_TOKEN` in `app.env`, restart the app, and subscribe again with the new link; the old link then returns 404.
+
 ## Game alerts
 
 When `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN` are set, the server sends a Pushover alert when a favorite's game starts (with the channel) and when it ends (with the final score). Purdue alerts cover football and men's basketball only. The first sighting of a game after a restart only records its status, so a deploy never replays alerts. Without both values, alerts are off and the server logs that once. The Pushover application icon is [deploy/pushover-icon.png](deploy/pushover-icon.png) (72×72).

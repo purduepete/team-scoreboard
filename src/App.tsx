@@ -5,10 +5,12 @@ import {
     ArrowLeft,
     ArrowUpRight,
     CalendarDays,
+    CalendarPlus,
     Check,
     ChevronRight,
     ChevronsDownUp,
     ChevronsUpDown,
+    Copy,
     Keyboard,
     Plus,
     RefreshCw,
@@ -18,6 +20,7 @@ import {
     X,
 } from 'lucide-react';
 import type { Dashboard } from '../shared/contracts';
+import { reconcile } from '../shared/reconcile';
 import { SelectField } from './SelectField';
 import { useTheme } from './theme';
 import type { Theme } from './theme';
@@ -72,9 +75,14 @@ export function App() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
     const statusPage = page === 'status';
+    const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+    // Score cells that changed on the last poll, keyed `${id}:home|away`, with a stamp to restart the animation.
+    const [flashes, setFlashes] = useState<Record<string, number>>({});
+    const scores = useRef(new Map<string, { home: number | null; away: number | null }>());
     const version = useRef(0);
     const mounted = useRef(true);
-    const refresh = useCallback(async (full = false) => {
+    const refresh = useCallback(async (full = false, baseline = false) => {
         // A full refetch does not claim a new version, so the cached response that started first still renders.
         const current = full ? version.current : ++version.current;
         try {
@@ -82,6 +90,32 @@ export function App() {
                 ? await request<Dashboard>(`/api/dashboard?days=${resultDays}&refresh=all`, undefined, 30_000)
                 : await request<Dashboard>(`/api/dashboard?days=${resultDays}`);
             if (current === version.current && mounted.current) {
+                const best = reconcile(next.feeds.flatMap((feed) => feed.games));
+                const changed: Record<string, number> = {};
+                const stamp = Date.now();
+                for (const game of best.values()) {
+                    const previous = scores.current.get(game.id);
+                    // Startup loads only set the baseline; a change needs a number on both sides, so no score
+                    // to 0-0 never flashes.
+                    if (!baseline && previous) {
+                        for (const side of ['home', 'away'] as const) {
+                            const before = previous[side];
+                            const after = side === 'home' ? game.homeScore : game.awayScore;
+                            if (typeof before === 'number' && typeof after === 'number' && before !== after)
+                                changed[`${game.id}:${side}`] = stamp;
+                        }
+                    }
+                    scores.current.set(game.id, { home: game.homeScore, away: game.awayScore });
+                }
+                if (Object.keys(changed).length) {
+                    setFlashes((existing) => ({ ...existing, ...changed }));
+                    setTimeout(() => {
+                        if (!mounted.current) return;
+                        setFlashes((existing) =>
+                            Object.fromEntries(Object.entries(existing).filter(([, value]) => value !== stamp))
+                        );
+                    }, 2500);
+                }
                 setData(next);
                 setError(null);
             }
@@ -109,8 +143,27 @@ export function App() {
         };
     }, [refresh]);
     useEffect(() => {
-        void refresh();
+        void refresh(false, true);
     }, [refresh]);
+    useEffect(() => {
+        request<{ url: string }>('/api/calendar')
+            .then((body) => {
+                if (mounted.current && /^https:\/\//.test(body.url)) setCalendarUrl(body.url);
+            })
+            .catch(() => undefined);
+    }, []);
+    const copyCalendar = async () => {
+        if (!calendarUrl) return;
+        try {
+            await navigator.clipboard.writeText(calendarUrl);
+            setCopied(true);
+            setTimeout(() => {
+                if (mounted.current) setCopied(false);
+            }, 2000);
+        } catch {
+            setError('Could not copy the calendar link.');
+        }
+    };
     useEffect(() => {
         const onHash = () => setPage(location.hash === '#status' ? 'status' : 'scores');
         window.addEventListener('hashchange', onHash);
@@ -146,7 +199,7 @@ export function App() {
         if (loaded.current) return;
         loaded.current = true;
         setRefreshing(true);
-        void refresh(true).finally(() => {
+        void refresh(true, true).finally(() => {
             if (mounted.current) setRefreshing(false);
         });
     }, [refresh]);
@@ -316,9 +369,45 @@ export function App() {
                 ) : (
                     <section className="page-heading">
                         <h1>Game day, at a glance</h1>
-                        <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
-                            <Plus size={16} aria-hidden="true" /> Edit favorites
-                        </button>
+                        <div className="heading-actions">
+                            {calendarUrl && (
+                                <>
+                                    <a
+                                        className="button-link"
+                                        href={calendarUrl}
+                                        title="Calendar feed (.ics) for your watched teams"
+                                    >
+                                        <CalendarPlus size={16} aria-hidden="true" /> Calendar
+                                    </a>
+                                    <button
+                                        type="button"
+                                        className="icon-button"
+                                        onClick={() => void copyCalendar()}
+                                        aria-label="Copy calendar link"
+                                        title="Copy calendar link"
+                                    >
+                                        {copied ? (
+                                            <Check size={16} aria-hidden="true" />
+                                        ) : (
+                                            <Copy size={16} aria-hidden="true" />
+                                        )}
+                                    </button>
+                                    <a
+                                        className="button-link"
+                                        href={calendarUrl.replace(/^https:/, 'webcal:')}
+                                        title="Subscribe in your calendar app"
+                                    >
+                                        Subscribe
+                                    </a>
+                                    <span className="sr-only" role="status">
+                                        {copied ? 'Copied' : ''}
+                                    </span>
+                                </>
+                            )}
+                            <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
+                                <Plus size={16} aria-hidden="true" /> Edit favorites
+                            </button>
+                        </div>
                     </section>
                 )}
                 {error && (
@@ -529,6 +618,13 @@ export function App() {
                                                                                 <div>
                                                                                     <span>
                                                                                         {game.away}
+                                                                                        {game.possession === 'away' && (
+                                                                                            <span
+                                                                                                className="possession"
+                                                                                                role="img"
+                                                                                                aria-label="Has possession"
+                                                                                            />
+                                                                                        )}
                                                                                         {game.awayRecord && (
                                                                                             <span className="record">
                                                                                                 {' '}
@@ -537,13 +633,27 @@ export function App() {
                                                                                         )}{' '}
                                                                                         <small>AWAY</small>
                                                                                     </span>
-                                                                                    <strong>
+                                                                                    <strong
+                                                                                        key={`away-${flashes[`${game.id}:away`] ?? 0}`}
+                                                                                        className={
+                                                                                            flashes[`${game.id}:away`]
+                                                                                                ? 'score-changed'
+                                                                                                : undefined
+                                                                                        }
+                                                                                    >
                                                                                         {game.awayScore ?? '—'}
                                                                                     </strong>
                                                                                 </div>
                                                                                 <div>
                                                                                     <span>
                                                                                         {game.home}
+                                                                                        {game.possession === 'home' && (
+                                                                                            <span
+                                                                                                className="possession"
+                                                                                                role="img"
+                                                                                                aria-label="Has possession"
+                                                                                            />
+                                                                                        )}
                                                                                         {game.homeRecord && (
                                                                                             <span className="record">
                                                                                                 {' '}
@@ -552,10 +662,23 @@ export function App() {
                                                                                         )}{' '}
                                                                                         <small>HOME</small>
                                                                                     </span>
-                                                                                    <strong>
+                                                                                    <strong
+                                                                                        key={`home-${flashes[`${game.id}:home`] ?? 0}`}
+                                                                                        className={
+                                                                                            flashes[`${game.id}:home`]
+                                                                                                ? 'score-changed'
+                                                                                                : undefined
+                                                                                        }
+                                                                                    >
                                                                                         {game.homeScore ?? '—'}
                                                                                     </strong>
                                                                                 </div>
+                                                                                {game.status === 'live' &&
+                                                                                    game.situation && (
+                                                                                        <p className="situation">
+                                                                                            {game.situation}
+                                                                                        </p>
+                                                                                    )}
                                                                             </div>
                                                                         ) : (
                                                                             <h4>{game.title}</h4>
