@@ -20,7 +20,7 @@ Caching is in process. Scoreboard pages with a live game or one starting within 
 
 Each card shows the TV channel (ESPN `broadcasts`) and each team's overall record (`records` on scoreboards, `record` on Purdue schedules, and the team's current `recordSummary` on games still to play). Rankings are not shown.
 
-Keyboard shortcuts: `1`, `2` and `3` (number row or numpad) open Current, Recent and Upcoming; `X` expands all sections, `C` collapses them and `R` refreshes live scores. They are ignored while typing in a field, while a dropdown is open, and with Ctrl, Alt or Cmd held. Hovering each button shows its key.
+Keyboard shortcuts: `1`, `2` and `3` (number row or numpad) open Current, Recent and Upcoming; `X` expands all sections, `C` collapses them and `R` refreshes live scores. They are ignored while typing in a field, while a dropdown is open, and with Ctrl, Alt or Cmd held. Hovering each button shows its key, and `?` opens an overlay listing every shortcut (Esc, `?` or a click outside closes it).
 
 ## Game alerts
 

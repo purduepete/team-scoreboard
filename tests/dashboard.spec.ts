@@ -296,6 +296,27 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await expect(pressed('Recent')).toHaveAttribute('title', 'Recent (2)');
 });
 
+test('? opens the shortcut help and Escape or a backdrop click closes it', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    await page.keyboard.press('?');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
+    await expect(dialog).toContainText('Collapse all sections');
+    await page.keyboard.press('2');
+    await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await page.keyboard.press('?');
+    await expect(dialog).toBeVisible();
+    await page.mouse.click(5, 5);
+    await expect(dialog).toHaveCount(0);
+    await page.keyboard.press('?');
+    await page.keyboard.press('?');
+    await expect(dialog).toHaveCount(0);
+});
+
 test('server failures are visible with retry, without fake records', async ({ page }) => {
     await page.unroute('**/api/**');
     await page.route('**/api/**', (route) => route.fulfill({ status: 503, json: { error: 'Database unavailable' } }));

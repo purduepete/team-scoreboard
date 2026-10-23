@@ -9,6 +9,7 @@ import {
     ChevronRight,
     ChevronsDownUp,
     ChevronsUpDown,
+    Keyboard,
     Plus,
     RefreshCw,
     Star,
@@ -24,6 +25,17 @@ import { formatTime, groupGames, isFavorite, resultDays, visibleGames } from './
 import type { View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Current', recent: 'Recent', upcoming: 'Upcoming' };
+
+const shortcutHelp: [string[], string][] = [
+    [['1'], 'Current'],
+    [['2'], 'Recent'],
+    [['3'], 'Upcoming'],
+    [['X'], 'Expand all sections'],
+    [['C'], 'Collapse all sections'],
+    [['R'], 'Refresh live scores'],
+    [['?'], 'Show or hide this help'],
+    [['Esc'], 'Close this help'],
+];
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
     const response = await fetch(path, { ...init, signal: AbortSignal.timeout(timeoutMs) });
@@ -55,6 +67,7 @@ export function App() {
         keys: [],
     });
     const [refreshing, setRefreshing] = useState(false);
+    const [help, setHelp] = useState(false);
     const [editing, setEditing] = useState(false);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
@@ -183,6 +196,15 @@ export function App() {
     const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
     shortcut.current = (event) => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+        if (help) {
+            if (event.key === 'Escape' || event.key === '?') {
+                event.preventDefault();
+                setHelp(false);
+            } else if (event.key === 'Tab') {
+                event.preventDefault();
+            }
+            return;
+        }
         const target = event.target as HTMLElement | null;
         if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
         if (document.querySelector('[role="listbox"]')) return;
@@ -195,7 +217,9 @@ export function App() {
             Numpad3: 'upcoming',
         };
         const key = event.key.toLowerCase();
-        if (key === 'r') {
+        if (key === '?') {
+            setHelp(true);
+        } else if (key === 'r') {
             if (!refreshing) void forceRefresh('live');
         } else if (statusPage) {
             return;
@@ -215,6 +239,13 @@ export function App() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, []);
+    const helpClose = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (!help) return;
+        const previous = document.activeElement as HTMLElement | null;
+        helpClose.current?.focus();
+        return () => previous?.focus();
+    }, [help]);
     const updated = feeds
         .map((feed) => feed.updatedAt)
         .filter((value): value is string => value !== null)
@@ -654,6 +685,49 @@ export function App() {
                     . Coverage and game times may change. No affiliation with the teams or leagues.
                 </footer>
             </main>
+            {help && (
+                <div className="help-backdrop" onClick={() => setHelp(false)}>
+                    <div
+                        className="help-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="help-title"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="help-heading">
+                            <h2 id="help-title">
+                                <Keyboard size={18} aria-hidden="true" /> Keyboard shortcuts
+                            </h2>
+                            <button
+                                ref={helpClose}
+                                type="button"
+                                className="icon-button"
+                                onClick={() => setHelp(false)}
+                                aria-label="Close"
+                                title="Close (Esc)"
+                            >
+                                <X size={16} aria-hidden="true" />
+                            </button>
+                        </div>
+                        <dl className="help-list">
+                            {shortcutHelp.map(([keys, action]) => (
+                                <div key={action}>
+                                    <dt>
+                                        {keys.map((key) => (
+                                            <kbd key={key}>{key}</kbd>
+                                        ))}
+                                    </dt>
+                                    <dd>{action}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                        <p className="help-note">
+                            Number keys work on the number row or numpad. Shortcuts pause while you type in a field or a
+                            dropdown is open.
+                        </p>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
