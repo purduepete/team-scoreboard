@@ -1,6 +1,6 @@
 # Team Scoreboard
 
-Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Favorite teams are highlighted and listed first in each day, and favorites are shared across devices.
+Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Games are grouped into Purdue, NFL, NBA and MLB sections, each split by day. Three tabs run Live, Upcoming and Recent results. Live opens by default and shows all of today's games: in progress first, then still to start, then finals. Favorite teams are highlighted and listed first within each day, and favorites are shared across devices.
 
 ## Status
 

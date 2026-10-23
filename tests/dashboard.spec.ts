@@ -153,6 +153,11 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
 test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
+    const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
+    await expect(tabs).toHaveText(['Live', 'Upcoming', 'Recent results']);
+    await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByText('Q3 4:12')).toBeVisible();
+    await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(page.getByText('Fixture upstream failure')).toBeVisible();
     await expect(page.getByText('Stale data', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: "Purdue · Women's Volleyball", exact: true })).toBeVisible();
@@ -177,6 +182,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
 
 test('favorites lead each day, refresh posts the window and the window is remembered', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     const cards = page.locator('.game');
     await expect(cards.first()).toContainText('Indianapolis Colts');
     await expect(cards.first()).toHaveClass(/favorite/);
@@ -186,9 +192,11 @@ test('favorites lead each day, refresh posts the window and the window is rememb
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'Favorites', exact: true }).click();
     await expect(cards).toHaveCount(1);
-    await page.getByRole('button', { name: 'Group by', exact: true }).click();
-    await page.getByRole('option', { name: 'Week', exact: true }).click();
-    await expect(page.locator('.group-heading').first()).toContainText(/week|Week of/);
+    await expect(page.getByRole('button', { name: 'Group by', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show', exact: true }).click();
+    await page.getByRole('option', { name: 'All teams', exact: true }).click();
+    const titles = await page.locator('.section-title span').allTextContents();
+    expect(titles.indexOf('Purdue')).toBeLessThan(titles.indexOf('NFL'));
     await page.getByRole('button', { name: 'Results', exact: true }).click();
     await page.getByRole('option', { name: 'Last 7 days', exact: true }).click();
     await expect.poll(() => requestedDays.at(-1)).toBe('7');

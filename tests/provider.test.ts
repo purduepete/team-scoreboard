@@ -160,34 +160,61 @@ describe('window and filters', () => {
         expect(visibleGames(all, 'recent', 'league:NFL', [])).toHaveLength(1);
         expect(visibleGames(all, 'recent', 'league:NBA', [])).toHaveLength(0);
     });
-    it('groups by local day and week with favorites first and results newest first', () => {
-        const at = (id: string, day: number, hour: number, teamIds: string[], gameStatus: Game['status']): Game => ({
+    it('groups into Purdue then pro league sections, and orders Live today by status', () => {
+        const at = (
+            id: string,
+            day: number,
+            hour: number,
+            teamIds: string[],
+            gameStatus: Game['status'],
+            league: Game['league'] = 'NBA'
+        ): Game => ({
             ...make(id, day, gameStatus),
+            league,
             teamIds,
             startTime: new Date(2026, 9, day, hour).toISOString(),
         });
         const now = new Date(2026, 9, 22, 9);
-        const games = [
+        const upcoming = [
             at('early', 22, 13, ['nba-1'], 'upcoming'),
             at('fav', 22, 20, ['134927'], 'upcoming'),
             at('tomorrow', 23, 19, ['nba-2'], 'upcoming'),
+            at('mlb', 23, 16, ['mlb-1'], 'upcoming', 'MLB'),
+            at('boiler', 24, 12, ['purdue-football'], 'upcoming', 'NCAA'),
+            at('nfl', 25, 10, ['nfl-1'], 'upcoming', 'NFL'),
             { ...at('tba', 24, 19, ['nba-3'], 'upcoming'), startTime: null, date: null },
         ];
-        const days = groupGames(games, 'upcoming', 'day', ['134927'], now);
-        expect(days.map((group) => group.label.split(' · ')[0])).toEqual(['Today', 'Tomorrow', 'Date to be announced']);
-        expect(days[0].games.map((game) => game.id)).toEqual(['fav', 'early']);
-        const weeks = groupGames(games, 'upcoming', 'week', [], now);
-        expect(weeks[0].label).toMatch(/^This week · /);
-        expect(weeks[0].games.map((game) => game.id)).toEqual(['early', 'fav', 'tomorrow']);
+        const sections = groupGames(upcoming, 'upcoming', ['134927'], now);
+        expect(sections.map((section) => section.label)).toEqual(['Purdue', 'NFL', 'NBA', 'MLB']);
+        const nba = sections[2];
+        expect(nba.count).toBe(4);
+        expect(nba.days.map((group) => group.label.split(' · ')[0])).toEqual([
+            'Today',
+            'Tomorrow',
+            'Date to be announced',
+        ]);
+        expect(nba.days[0].games.map((game) => game.id)).toEqual(['fav', 'early']);
+
+        const today = [
+            at('done', 22, 10, ['nba-1'], 'final'),
+            at('later', 22, 19, ['nba-2'], 'upcoming'),
+            at('later-fav', 22, 21, ['134927'], 'upcoming'),
+            at('now', 22, 11, ['nba-3'], 'live'),
+            at('yesterday', 21, 19, ['nba-4'], 'final'),
+        ];
+        const live = visibleGames(today, 'live', 'all', [], now);
+        expect(live.map((game) => game.id).sort()).toEqual(['done', 'later', 'later-fav', 'now']);
+        const [liveSection] = groupGames(live, 'live', ['134927'], now);
+        expect(liveSection.days[0].games.map((game) => game.id)).toEqual(['now', 'later-fav', 'later', 'done']);
+
         const results = groupGames(
             [at('old', 20, 19, ['nba-1'], 'final'), at('new', 21, 19, ['nba-1'], 'final')],
             'recent',
-            'day',
             [],
             now
         );
-        expect(results.map((group) => group.games[0].id)).toEqual(['new', 'old']);
-        expect(results[0].label).toMatch(/^Yesterday · /);
+        expect(results[0].days.map((group) => group.games[0].id)).toEqual(['new', 'old']);
+        expect(results[0].days[0].label).toMatch(/^Yesterday · /);
     });
     it('expands the umbrella without duplicates and excludes the umbrella feed', () => {
         const expanded = expandFavorites(['purdue-all', 'purdue-football']);

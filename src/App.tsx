@@ -4,8 +4,8 @@ import type { Dashboard } from '../shared/contracts';
 import { SelectField } from './SelectField';
 import { useTheme } from './theme';
 import type { Theme } from './theme';
-import { formatStart, formatTime, groupGames, isFavorite, visibleGames } from './games';
-import type { Grouping, View } from './games';
+import { formatTime, groupGames, isFavorite, visibleGames } from './games';
+import type { View } from './games';
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
     const response = await fetch(path, { ...init, signal: AbortSignal.timeout(timeoutMs) });
@@ -50,9 +50,8 @@ export function App() {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [view, setView] = useState<View>('upcoming');
+    const [view, setView] = useState<View>('live');
     const [team, setTeam] = useState('all');
-    const [grouping, setGrouping] = useStoredSetting<Grouping>('team-scoreboard-grouping', 'day', ['day', 'week']);
     const [days, setDays] = useStoredSetting('team-scoreboard-days', '3', dayOptions);
     const [refreshing, setRefreshing] = useState(false);
     const [editing, setEditing] = useState(false);
@@ -143,7 +142,7 @@ export function App() {
         team,
         favoriteIds
     );
-    const groups = groupGames(games, view, grouping, favoriteIds);
+    const sections = groupGames(games, view, favoriteIds);
     const updated = feeds
         .map((feed) => feed.updatedAt)
         .filter((value): value is string => value !== null)
@@ -266,7 +265,7 @@ export function App() {
                         <section className="panel">
                             <div className="toolbar">
                                 <div className="tabs" role="group" aria-label="Schedule view">
-                                    {(['upcoming', 'recent', 'live'] as View[]).map((item) => (
+                                    {(['live', 'upcoming', 'recent'] as View[]).map((item) => (
                                         <button
                                             type="button"
                                             key={item}
@@ -314,15 +313,6 @@ export function App() {
                                     ]}
                                 />
                                 <SelectField
-                                    label="Group by"
-                                    value={grouping}
-                                    onChange={setGrouping}
-                                    options={[
-                                        { value: 'day', label: 'Day' },
-                                        { value: 'week', label: 'Week' },
-                                    ]}
-                                />
-                                <SelectField
                                     label="Results"
                                     value={days}
                                     onChange={setDays}
@@ -332,74 +322,105 @@ export function App() {
                                     }))}
                                 />
                             </div>
-                            {groups.map((group) => (
-                                <section className="game-group" key={group.key} aria-label={group.label}>
-                                    <h2 className="group-heading">
-                                        <CalendarDays size={18} aria-hidden="true" />
-                                        <span>{group.label}</span>
+                            {sections.map((section) => (
+                                <section className="league-section" key={section.key} aria-label={section.label}>
+                                    <h2 className="section-title">
+                                        <Trophy size={20} aria-hidden="true" />
+                                        <span>{section.label}</span>
                                         <small>
-                                            {group.games.length} {group.games.length === 1 ? 'game' : 'games'}
+                                            {section.count} {section.count === 1 ? 'game' : 'games'}
                                         </small>
                                     </h2>
-                                    <div className="games">
-                                        {group.games.map((game) => {
-                                            const favorite = isFavorite(game, favoriteIds);
-                                            return (
-                                                <article className={`game${favorite ? ' favorite' : ''}`} key={game.id}>
-                                                    <div className="game-meta">
-                                                        <span>
-                                                            {favorite && (
-                                                                <Star
-                                                                    size={12}
-                                                                    aria-label="Favorite"
-                                                                    className="star"
-                                                                />
+                                    {section.days.map((group) => (
+                                        <section
+                                            className="game-group"
+                                            key={group.key}
+                                            aria-label={` · ${group.label}`}
+                                        >
+                                            <h3 className="group-heading">
+                                                <CalendarDays size={16} aria-hidden="true" />
+                                                <span>{group.label}</span>
+                                                <small>
+                                                    {group.games.length} {group.games.length === 1 ? 'game' : 'games'}
+                                                </small>
+                                            </h3>
+                                            <div className="games">
+                                                {group.games.map((game) => {
+                                                    const favorite = isFavorite(game, favoriteIds);
+                                                    return (
+                                                        <article
+                                                            className={`game${favorite ? ' favorite' : ''}`}
+                                                            key={game.id}
+                                                        >
+                                                            <div className="game-meta">
+                                                                <span>
+                                                                    {favorite && (
+                                                                        <Star
+                                                                            size={12}
+                                                                            aria-label="Favorite"
+                                                                            className="star"
+                                                                        />
+                                                                    )}
+                                                                    {game.league} · {game.sport}
+                                                                    {game.week ? ` · Week ${game.week}` : ''}
+                                                                </span>
+                                                                <span
+                                                                    className={
+                                                                        game.status === 'live' ? 'live-label' : ''
+                                                                    }
+                                                                >
+                                                                    {game.statusLabel}
+                                                                </span>
+                                                            </div>
+                                                            {game.home && game.away ? (
+                                                                <div className="score-lines">
+                                                                    <div>
+                                                                        <span>
+                                                                            {game.away} <small>AWAY</small>
+                                                                        </span>
+                                                                        <strong>{game.awayScore ?? '—'}</strong>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span>
+                                                                            {game.home} <small>HOME</small>
+                                                                        </span>
+                                                                        <strong>{game.homeScore ?? '—'}</strong>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <h4>{game.title}</h4>
                                                             )}
-                                                            {game.league} · {game.sport}
-                                                            {game.week ? ` · Week ${game.week}` : ''}
-                                                        </span>
-                                                        <span className={game.status === 'live' ? 'live-label' : ''}>
-                                                            {game.statusLabel}
-                                                        </span>
-                                                    </div>
-                                                    {game.home && game.away ? (
-                                                        <div className="score-lines">
-                                                            <div>
-                                                                <span>
-                                                                    {game.away} <small>AWAY</small>
-                                                                </span>
-                                                                <strong>{game.awayScore ?? '—'}</strong>
+                                                            <div className="game-footer">
+                                                                <time
+                                                                    dateTime={game.startTime ?? game.date ?? undefined}
+                                                                >
+                                                                    {formatTime(game)}
+                                                                </time>
+                                                                <a
+                                                                    href={game.sourceUrl}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                >
+                                                                    Source <ArrowUpRight size={14} />
+                                                                </a>
                                                             </div>
-                                                            <div>
-                                                                <span>
-                                                                    {game.home} <small>HOME</small>
-                                                                </span>
-                                                                <strong>{game.homeScore ?? '—'}</strong>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <h3>{game.title}</h3>
-                                                    )}
-                                                    <div className="game-footer">
-                                                        <time dateTime={game.startTime ?? game.date ?? undefined}>
-                                                            {grouping === 'day' ? formatTime(game) : formatStart(game)}
-                                                        </time>
-                                                        <a href={game.sourceUrl} target="_blank" rel="noreferrer">
-                                                            Source <ArrowUpRight size={14} />
-                                                        </a>
-                                                    </div>
-                                                </article>
-                                            );
-                                        })}
-                                    </div>
+                                                        </article>
+                                                    );
+                                                })}
+                                            </div>
+                                        </section>
+                                    ))}
                                 </section>
                             ))}
                             {!games.length &&
                                 (view === 'live' ? (
                                     <div className="empty-state">
                                         <Trophy size={28} />
-                                        <h2>No games in progress</h2>
-                                        <p>Live scores appear here while any game you can show is being played.</p>
+                                        <h2>No games today</h2>
+                                        <p>
+                                            Today's games, live scores and finals appear here. Check Upcoming for the
+                                            next games.
+                                        </p>
                                     </div>
                                 ) : (
                                     <div className="empty-state">

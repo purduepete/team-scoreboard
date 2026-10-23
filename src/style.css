@@ -289,6 +289,25 @@ small {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
     gap: 16px;
 }
+.league-section + .league-section {
+    margin-top: 40px;
+}
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 18px;
+    padding: 10px 14px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 1.25rem;
+}
+.section-title small {
+    margin-left: auto;
+    font-size: 0.8rem;
+    font-weight: 400;
+    white-space: nowrap;
+}
 .game-group + .game-group {
     margin-top: 28px;
 }

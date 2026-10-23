@@ -20,16 +20,42 @@ export function formatTime(game: Pick<Game, 'startTime' | 'date'>): string {
 }
 
 export type View = 'live' | 'upcoming' | 'recent';
-export type Grouping = 'day' | 'week';
 
-export interface GameGroup {
+export interface DayGroup {
     key: string;
     label: string;
     games: Game[];
 }
 
+export interface LeagueSection {
+    key: string;
+    label: string;
+    days: DayGroup[];
+    count: number;
+}
+
+function localDay(game: Game): Date | null {
+    if (game.startTime) {
+        const start = new Date(game.startTime);
+        return new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    }
+    if (!game.date) return null;
+    const [year, month, day] = game.date.split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
+const startOfDay = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const isToday = (game: Game, now: Date) => localDay(game)?.getTime() === startOfDay(now).getTime();
+
 // filter is 'all', 'favorites', 'league:<NFL|NBA|MLB|NCAA>' or a single team id.
-export function visibleGames(games: Game[], view: View, filter: string, favoriteIds: string[]): Game[] {
+// Live shows every game on today's local date; Upcoming and Recent results split the rest by status.
+export function visibleGames(
+    games: Game[],
+    view: View,
+    filter: string,
+    favoriteIds: string[],
+    now = new Date()
+): Game[] {
     const deduplicated = new Map<string, Game>();
     for (const game of games) {
         const existing = deduplicated.get(game.id);
@@ -46,14 +72,10 @@ export function visibleGames(games: Game[], view: View, filter: string, favorite
                 : filter.startsWith('league:')
                   ? game.league === filter.slice(7)
                   : game.teamIds.includes(filter));
-        return (
-            matches &&
-            (view === 'recent'
-                ? game.status === 'final'
-                : view === 'live'
-                  ? game.status === 'live'
-                  : game.status !== 'final' && game.status !== 'live')
-        );
+        if (!matches) return false;
+        if (view === 'live') return game.status === 'live' || isToday(game, now);
+        if (view === 'recent') return game.status === 'final';
+        return game.status !== 'final' && game.status !== 'live';
     });
 }
 
@@ -61,92 +83,68 @@ export function isFavorite(game: Game, favoriteIds: string[]): boolean {
     return game.teamIds.some((id) => favoriteIds.includes(id));
 }
 
-function localDay(game: Game): Date | null {
-    if (game.startTime) {
-        const start = new Date(game.startTime);
-        return new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    }
-    if (!game.date) return null;
-    const [year, month, day] = game.date.split('-').map(Number);
-    return new Date(year, month - 1, day);
-}
-
-const dayMs = 86_400_000;
-const daysBetween = (from: Date, to: Date) => Math.round((to.getTime() - from.getTime()) / dayMs);
-const shortDate = (value: Date) => value.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const sections = [
+    { key: 'NCAA', label: 'Purdue' },
+    { key: 'NFL', label: 'NFL' },
+    { key: 'NBA', label: 'NBA' },
+    { key: 'MLB', label: 'MLB' },
+];
 
 function dayLabel(day: Date, today: Date): string {
     const full = day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    const offset = daysBetween(today, day);
+    const offset = Math.round((day.getTime() - today.getTime()) / 86_400_000);
     const relative = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : offset === -1 ? 'Yesterday' : '';
     return relative ? `${relative} · ${full}` : full;
 }
 
-// Weeks run Monday to Sunday.
-function weekStart(day: Date): Date {
-    const start = new Date(day);
-    start.setDate(day.getDate() - ((day.getDay() + 6) % 7));
-    return start;
-}
+// Live first, then games still to start, then results.
+const statusRank = (game: Game) => (game.status === 'live' ? 0 : game.status === 'final' ? 2 : 1);
 
-function weekLabel(start: Date, today: Date): string {
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    const range =
-        start.getMonth() === end.getMonth()
-            ? `${shortDate(start)} to ${end.getDate()}`
-            : `${shortDate(start)} to ${shortDate(end)}`;
-    const offset = Math.round(daysBetween(weekStart(today), start) / 7);
-    const relative = offset === 0 ? 'This week' : offset === 1 ? 'Next week' : offset === -1 ? 'Last week' : '';
-    return relative ? `${relative} · ${range}` : `Week of ${range}`;
-}
-
-// Groups by local day or week. Favorites lead each group, then games run in time order
-// (newest first for results).
-export function groupGames(
-    games: Game[],
-    view: View,
-    grouping: Grouping,
-    favoriteIds: string[],
-    now = new Date()
-): GameGroup[] {
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// Sections run Purdue, NFL, NBA, MLB, each split into local days. Within a day, Live orders by
+// status (live, upcoming, final); every view then puts favorites first and sorts by start time,
+// newest first for results.
+export function groupGames(games: Game[], view: View, favoriteIds: string[], now = new Date()): LeagueSection[] {
+    const today = startOfDay(now);
     const newestFirst = view === 'recent';
-    const groups = new Map<string, GameGroup & { order: number }>();
-    for (const game of games) {
-        const day = localDay(game);
-        const anchor = day && grouping === 'week' ? weekStart(day) : day;
-        const key = anchor ? anchor.toISOString() : 'unscheduled';
-        if (!groups.has(key)) {
-            groups.set(key, {
-                key,
-                label: !anchor
-                    ? 'Date to be announced'
-                    : grouping === 'week'
-                      ? weekLabel(anchor, today)
-                      : dayLabel(anchor, today),
-                order: anchor ? anchor.getTime() : Number.MAX_SAFE_INTEGER,
-                games: [],
-            });
-        }
-        groups.get(key)!.games.push(game);
-    }
     const time = (game: Game) => game.startTime ?? game.date ?? '9999';
-    return [...groups.values()]
-        .sort((a, b) =>
-            a.key === 'unscheduled' || b.key === 'unscheduled'
-                ? a.order - b.order
-                : newestFirst
-                  ? b.order - a.order
-                  : a.order - b.order
-        )
-        .map(({ key, label, games: members }) => ({
-            key,
-            label,
-            games: members.sort((a, b) => {
-                const favorite = Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds));
-                if (favorite) return favorite;
-                return newestFirst ? time(b).localeCompare(time(a)) : time(a).localeCompare(time(b));
-            }),
-        }));
+    const order = (a: Game, b: Game) => {
+        if (view === 'live') {
+            const rank = statusRank(a) - statusRank(b);
+            if (rank) return rank;
+        }
+        const favorite = Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds));
+        if (favorite) return favorite;
+        return newestFirst ? time(b).localeCompare(time(a)) : time(a).localeCompare(time(b));
+    };
+    return sections
+        .map((section) => {
+            const days = new Map<string, DayGroup & { order: number }>();
+            for (const game of games.filter((item) => item.league === section.key)) {
+                const day = localDay(game);
+                const key = day ? day.toISOString() : 'unscheduled';
+                if (!days.has(key)) {
+                    days.set(key, {
+                        key: `${section.key}-${key}`,
+                        label: day ? dayLabel(day, today) : 'Date to be announced',
+                        order: day ? day.getTime() : Number.MAX_SAFE_INTEGER,
+                        games: [],
+                    });
+                }
+                days.get(key)!.games.push(game);
+            }
+            const sorted = [...days.values()]
+                .sort((a, b) =>
+                    a.order === Number.MAX_SAFE_INTEGER || b.order === Number.MAX_SAFE_INTEGER || !newestFirst
+                        ? a.order - b.order
+                        : b.order - a.order
+                )
+                .map(({ key, label, games: members }) => ({ key, label, games: members.sort(order) }));
+            return {
+                key: section.key,
+                label: section.label,
+                days: sorted,
+                count: sorted.reduce((total, day) => total + day.games.length, 0),
+            };
+        })
+        .filter((section) => section.count > 0);
 }
