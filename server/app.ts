@@ -6,15 +6,16 @@ import { expandFavorites, leagues, teams } from './catalog.js';
 import type { LeagueSource } from './catalog.js';
 import type { FeedCache, FeedSource } from './feeds.js';
 import type { FavoritesStore } from './storage.js';
-import { maxDaysBack } from './provider.js';
+import { isHot, maxDaysBack } from './provider.js';
 
 export const notice =
-    'Every NFL, NBA and MLB game from ESPN, with results for the days you choose and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Live scores refresh every 5 minutes; use Refresh for the latest.';
+    'Every NFL, NBA and MLB game from ESPN, with results for the days you choose and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh every 5 minutes, and Refresh refetches games in progress.';
 
 export interface SportsSource {
     league(source: LeagueSource, daysBack: number): Promise<Game[]>;
     schedule(team: Team): Promise<Game[]>;
     refreshLive(): void;
+    refreshAll(): void;
 }
 
 const daysSchema = z.coerce.number().int().min(1).max(maxDaysBack).catch(3);
@@ -93,18 +94,29 @@ export function createApp(options: {
             res.status(503).json({ ok: false, error: 'Database unavailable or schema not initialized.' });
         }
     });
-    let lastForced = 0;
+    const lastForced = { live: 0, all: 0 };
     app.post('/api/refresh', async (req, res) => {
-        const parsed = z.object({ days: daysSchema }).strict().safeParse(req.body);
+        const parsed = z
+            .object({ days: daysSchema, scope: z.enum(['live', 'all']).default('live') })
+            .strict()
+            .safeParse(req.body);
         if (!parsed.success) {
             res.status(400).json({ error: 'Send the results window in days.' });
             return;
         }
-        // At most one forced ESPN fetch per 30 seconds; later presses reuse the fresh data.
-        if (Date.now() - lastForced > 30_000) {
-            lastForced = Date.now();
-            options.sports.refreshLive();
-            options.feeds.invalidate();
+        // "all" (page load) refetches every page and feed; "live" (Refresh button) only games in
+        // progress. Each scope forces at most one ESPN fetch per 30 seconds.
+        const scope = parsed.data.scope;
+        if (Date.now() - lastForced[scope] > 30_000) {
+            lastForced[scope] = Date.now();
+            if (scope === 'all') {
+                options.sports.refreshAll();
+                options.feeds.invalidate();
+            } else {
+                options.sports.refreshLive();
+                // League feeds ask the provider, which refetches only its hot pages.
+                options.feeds.invalidate((id, games) => id.startsWith('league-') || isHot(games, Date.now()));
+            }
         }
         const favorites = await options.store.list();
         for (const source of dashboardSources(favorites, options.sports, parsed.data.days)) options.feeds.get(source);

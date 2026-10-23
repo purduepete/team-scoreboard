@@ -10,6 +10,7 @@ let origin: string;
 let favorites = [...defaultFavorites];
 let failed = false;
 let forced = 0;
+let forcedAll = 0;
 const daysSeen: number[] = [];
 const sports = {
     async league(_source: unknown, daysBack: number) {
@@ -21,6 +22,9 @@ const sports = {
     },
     refreshLive() {
         forced += 1;
+    },
+    refreshAll() {
+        forcedAll += 1;
     },
 };
 const store = {
@@ -117,6 +121,10 @@ describe('API with in-memory test double (no database writes)', () => {
         expect((await write('/api/refresh', 'POST', { days: 7 })).status).toBe(204);
         expect(forced - before).toBe(1);
         expect(daysSeen).toContain(7);
+        expect((await write('/api/refresh', 'POST', { days: 3, scope: 'all' })).status).toBe(204);
+        expect(forcedAll).toBe(1);
+        expect(forced - before).toBe(1);
+        expect((await write('/api/refresh', 'POST', { days: 3, scope: 'old' })).status).toBe(400);
         expect((await write('/api/refresh', 'POST', { days: 7, extra: 1 })).status).toBe(400);
         expect((await write('/api/refresh', 'POST', { days: 7 }, 'https://evil.test')).status).toBe(403);
     });

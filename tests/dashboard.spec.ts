@@ -148,20 +148,29 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     expect((await icon.body()).readUInt32BE(16)).toBe(180);
     expect((await icon.body()).readUInt32BE(20)).toBe(180);
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
+    await page.getByRole('link', { name: 'Source status' }).click();
+    await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
-    await expect(tabs).toHaveText(['Live', 'Upcoming', 'Recent results']);
+    await expect(tabs).toHaveText(['Live', 'Recent results', 'Upcoming']);
     await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+    await expect(page.getByText('Fixture upstream failure')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Source status' }).click();
+    await expect(page).toHaveURL(/#status$/);
+    await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
     await expect(page.getByText('Fixture upstream failure')).toBeVisible();
-    await expect(page.getByText('Stale data', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: "Purdue · Women's Volleyball", exact: true })).toBeVisible();
+    await expect(page.getByText('Stale data', { exact: true })).toBeVisible();
     await expect(page.getByText('Official link only', { exact: true }).first()).toBeVisible();
+    await expect(page.locator('.game')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Back to scores' }).first().click();
     await page.getByRole('button', { name: 'Live', exact: true }).click();
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(1);
@@ -170,7 +179,6 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.getByRole('button', { name: 'Add Arizona Cardinals' }).click();
     await expect(page.getByRole('button', { name: 'Remove Arizona Cardinals' })).toBeVisible();
     await page.reload();
-    await expect(page.getByLabel('Your favorite teams').getByText('Arizona Cardinals')).toBeVisible();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('Arizona Cardinals');
     await page.getByRole('button', { name: 'Remove Arizona Cardinals' }).click();
@@ -200,10 +208,17 @@ test('favorites lead each day, refresh posts the window and the window is rememb
     await page.getByRole('button', { name: 'Results', exact: true }).click();
     await page.getByRole('option', { name: 'Last 7 days', exact: true }).click();
     await expect.poll(() => requestedDays.at(-1)).toBe('7');
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
-    await expect.poll(() => refreshBodies).toEqual([{ days: 7 }]);
+    await expect
+        .poll(() => refreshBodies)
+        .toEqual([
+            { days: 3, scope: 'all' },
+            { days: 7, scope: 'live' },
+        ]);
     await page.reload();
     await expect.poll(() => requestedDays.at(-1)).toBe('7');
+    await expect.poll(() => refreshBodies.at(-1)).toEqual({ days: 7, scope: 'all' });
     await expect(page.getByRole('button', { name: 'Results', exact: true })).toContainText('Last 7 days');
 });
 

@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowUpRight, CalendarDays, Check, Plus, RefreshCw, Star, Trophy, X } from 'lucide-react';
+import {
+    Activity,
+    AlertCircle,
+    ArrowLeft,
+    ArrowUpRight,
+    CalendarDays,
+    Check,
+    Plus,
+    RefreshCw,
+    Star,
+    Trophy,
+    X,
+} from 'lucide-react';
 import type { Dashboard } from '../shared/contracts';
 import { SelectField } from './SelectField';
 import { useTheme } from './theme';
@@ -56,6 +68,8 @@ export function App() {
     const [refreshing, setRefreshing] = useState(false);
     const [editing, setEditing] = useState(false);
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
+    const statusPage = page === 'status';
     const version = useRef(0);
     const mounted = useRef(true);
     const daysRef = useRef(days);
@@ -94,26 +108,42 @@ export function App() {
     useEffect(() => {
         void refresh();
     }, [days, refresh]);
+    useEffect(() => {
+        const onHash = () => setPage(location.hash === '#status' ? 'status' : 'scores');
+        window.addEventListener('hashchange', onHash);
+        return () => window.removeEventListener('hashchange', onHash);
+    }, []);
 
-    const forceRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await request<void>(
-                '/api/refresh',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ days: Number(days) }),
-                },
-                30_000
-            );
-            await refresh();
-        } catch (failure) {
-            setError(failure instanceof Error ? failure.message : 'Could not refresh scores.');
-        } finally {
-            if (mounted.current) setRefreshing(false);
-        }
-    };
+    // "live" (Refresh button) refetches games in progress; "all" (page load) refetches everything.
+    const forceRefresh = useCallback(
+        async (scope: 'live' | 'all') => {
+            setRefreshing(true);
+            try {
+                await request<void>(
+                    '/api/refresh',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ days: Number(daysRef.current), scope }),
+                    },
+                    30_000
+                );
+                await refresh();
+            } catch (failure) {
+                setError(failure instanceof Error ? failure.message : 'Could not refresh scores.');
+            } finally {
+                if (mounted.current) setRefreshing(false);
+            }
+        },
+        [refresh]
+    );
+    // Cached scores render first; the full refetch replaces them when it finishes.
+    const loaded = useRef(false);
+    useEffect(() => {
+        if (loaded.current) return;
+        loaded.current = true;
+        void forceRefresh('all');
+    }, [forceRefresh]);
 
     const changeFavorite = async (id: string, remove: boolean) => {
         setSaving(true);
@@ -157,29 +187,45 @@ export function App() {
                         <Trophy size={22} aria-hidden="true" />
                         <span>Team Scoreboard</span>
                     </a>
-                    <SelectField
-                        label="Theme"
-                        value={theme}
-                        onChange={(value) => setTheme(value as Theme)}
-                        options={[
-                            { value: 'midnight', label: 'Midnight' },
-                            { value: 'light', label: 'Light' },
-                            { value: 'system', label: 'System' },
-                        ]}
-                    />
+                    <div className="header-actions">
+                        <a
+                            className="header-link"
+                            href={statusPage ? '#' : '#status'}
+                            aria-label={statusPage ? 'Back to scores' : 'Source status'}
+                            title={statusPage ? 'Back to scores' : 'Source status'}
+                            aria-current={statusPage ? 'page' : undefined}
+                        >
+                            <Activity size={18} aria-hidden="true" />
+                        </a>
+                        <SelectField
+                            label="Theme"
+                            value={theme}
+                            onChange={(value) => setTheme(value as Theme)}
+                            options={[
+                                { value: 'midnight', label: 'Midnight' },
+                                { value: 'light', label: 'Light' },
+                                { value: 'system', label: 'System' },
+                            ]}
+                        />
+                    </div>
                 </div>
             </header>
             <main>
-                <section className="page-heading">
-                    <div>
-                        <p className="eyebrow">YOUR TEAMS. ONE PAGE.</p>
+                {statusPage ? (
+                    <section className="page-heading">
+                        <h1>Source status</h1>
+                        <a className="button-link" href="#">
+                            <ArrowLeft size={16} aria-hidden="true" /> Back to scores
+                        </a>
+                    </section>
+                ) : (
+                    <section className="page-heading">
                         <h1>Game day, at a glance</h1>
-                        <p className="muted">Schedules and results · Times local to {timeZone}</p>
-                    </div>
-                    <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
-                        <Plus size={16} aria-hidden="true" /> Edit favorites
-                    </button>
-                </section>
+                        <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
+                            <Plus size={16} aria-hidden="true" /> Edit favorites
+                        </button>
+                    </section>
+                )}
                 {error && (
                     <div className="notice error" role="alert">
                         <AlertCircle size={18} aria-hidden="true" />
@@ -194,19 +240,7 @@ export function App() {
                 {loading && <p role="status">Loading saved favorites…</p>}
                 {data && (
                     <>
-                        <div className="notice">
-                            <CalendarDays size={18} aria-hidden="true" />
-                            <p>{data.notice}</p>
-                        </div>
-                        <section className="favorites-strip" aria-label="Your favorite teams">
-                            {favoriteTeams.map((item) => (
-                                <span className="tag" key={item.id}>
-                                    {item.name}
-                                </span>
-                            ))}
-                            {!favoriteTeams.length && <p>No favorites yet. Add a team below.</p>}
-                        </section>
-                        {editing && (
+                        {!statusPage && editing && (
                             <section className="panel" aria-label="Edit favorite teams">
                                 <div className="section-heading">
                                     <div>
@@ -262,226 +296,243 @@ export function App() {
                                 {saving && <p role="status">Saving favorites…</p>}
                             </section>
                         )}
-                        <section className="panel">
-                            <div className="toolbar">
-                                <div className="tabs" role="group" aria-label="Schedule view">
-                                    {(['live', 'upcoming', 'recent'] as View[]).map((item) => (
+                        {!statusPage && (
+                            <section className="panel">
+                                <div className="toolbar">
+                                    <div className="tabs" role="group" aria-label="Schedule view">
+                                        {(['live', 'recent', 'upcoming'] as View[]).map((item) => (
+                                            <button
+                                                type="button"
+                                                key={item}
+                                                aria-pressed={view === item}
+                                                className={view === item ? 'selected' : ''}
+                                                onClick={() => setView(item)}
+                                            >
+                                                {item === 'recent'
+                                                    ? 'Recent results'
+                                                    : item.charAt(0).toUpperCase() + item.slice(1)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="refresh">
+                                        {updated && (
+                                            <small className="muted">
+                                                Updated{' '}
+                                                {new Date(updated).toLocaleTimeString(undefined, {
+                                                    hour: 'numeric',
+                                                    minute: '2-digit',
+                                                })}
+                                            </small>
+                                        )}
                                         <button
                                             type="button"
-                                            key={item}
-                                            aria-pressed={view === item}
-                                            className={view === item ? 'selected' : ''}
-                                            onClick={() => setView(item)}
+                                            onClick={() => void forceRefresh('live')}
+                                            disabled={refreshing}
                                         >
-                                            {item === 'recent'
-                                                ? 'Recent results'
-                                                : item.charAt(0).toUpperCase() + item.slice(1)}
+                                            <RefreshCw
+                                                size={16}
+                                                aria-hidden="true"
+                                                className={refreshing ? 'spin' : ''}
+                                            />
+                                            {refreshing ? 'Refreshing…' : 'Refresh'}
                                         </button>
-                                    ))}
+                                    </div>
                                 </div>
-                                <div className="refresh">
-                                    {updated && (
-                                        <small className="muted">
-                                            Updated{' '}
-                                            {new Date(updated).toLocaleTimeString(undefined, {
-                                                hour: 'numeric',
-                                                minute: '2-digit',
-                                            })}
-                                        </small>
-                                    )}
-                                    <button type="button" onClick={() => void forceRefresh()} disabled={refreshing}>
-                                        <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'spin' : ''} />
-                                        {refreshing ? 'Refreshing…' : 'Refresh'}
-                                    </button>
+                                <div className="filters">
+                                    <SelectField
+                                        label="Show"
+                                        value={team}
+                                        onChange={setTeam}
+                                        options={[
+                                            { value: 'all', label: 'All teams' },
+                                            { value: 'favorites', label: 'Favorites' },
+                                            { value: 'league:NFL', label: 'NFL' },
+                                            { value: 'league:NBA', label: 'NBA' },
+                                            { value: 'league:MLB', label: 'MLB' },
+                                            { value: 'league:NCAA', label: 'Purdue' },
+                                            ...favoriteTeams
+                                                .filter((item) => !item.umbrella)
+                                                .map((item) => ({ value: item.id, label: item.name })),
+                                        ]}
+                                    />
+                                    <SelectField
+                                        label="Results"
+                                        value={days}
+                                        onChange={setDays}
+                                        options={dayOptions.map((item) => ({
+                                            value: item,
+                                            label: item === '1' ? 'Last day' : `Last ${item} days`,
+                                        }))}
+                                    />
                                 </div>
-                            </div>
-                            <div className="filters">
-                                <SelectField
-                                    label="Show"
-                                    value={team}
-                                    onChange={setTeam}
-                                    options={[
-                                        { value: 'all', label: 'All teams' },
-                                        { value: 'favorites', label: 'Favorites' },
-                                        { value: 'league:NFL', label: 'NFL' },
-                                        { value: 'league:NBA', label: 'NBA' },
-                                        { value: 'league:MLB', label: 'MLB' },
-                                        { value: 'league:NCAA', label: 'Purdue' },
-                                        ...favoriteTeams
-                                            .filter((item) => !item.umbrella)
-                                            .map((item) => ({ value: item.id, label: item.name })),
-                                    ]}
-                                />
-                                <SelectField
-                                    label="Results"
-                                    value={days}
-                                    onChange={setDays}
-                                    options={dayOptions.map((item) => ({
-                                        value: item,
-                                        label: item === '1' ? 'Last day' : `Last ${item} days`,
-                                    }))}
-                                />
-                            </div>
-                            {sections.map((section) => (
-                                <section className="league-section" key={section.key} aria-label={section.label}>
-                                    <h2 className="section-title">
-                                        <Trophy size={20} aria-hidden="true" />
-                                        <span>{section.label}</span>
-                                        <small>
-                                            {section.count} {section.count === 1 ? 'game' : 'games'}
-                                        </small>
-                                    </h2>
-                                    {section.days.map((group) => (
-                                        <section
-                                            className="game-group"
-                                            key={group.key}
-                                            aria-label={` · ${group.label}`}
-                                        >
-                                            <h3 className="group-heading">
-                                                <CalendarDays size={16} aria-hidden="true" />
-                                                <span>{group.label}</span>
-                                                <small>
-                                                    {group.games.length} {group.games.length === 1 ? 'game' : 'games'}
-                                                </small>
-                                            </h3>
-                                            <div className="games">
-                                                {group.games.map((game) => {
-                                                    const favorite = isFavorite(game, favoriteIds);
-                                                    return (
-                                                        <article
-                                                            className={`game${favorite ? ' favorite' : ''}`}
-                                                            key={game.id}
-                                                        >
-                                                            <div className="game-meta">
-                                                                <span>
-                                                                    {favorite && (
-                                                                        <Star
-                                                                            size={12}
-                                                                            aria-label="Favorite"
-                                                                            className="star"
-                                                                        />
-                                                                    )}
-                                                                    {game.league} · {game.sport}
-                                                                    {game.week ? ` · Week ${game.week}` : ''}
-                                                                </span>
-                                                                <span
-                                                                    className={
-                                                                        game.status === 'live' ? 'live-label' : ''
-                                                                    }
-                                                                >
-                                                                    {game.statusLabel}
-                                                                </span>
-                                                            </div>
-                                                            {game.home && game.away ? (
-                                                                <div className="score-lines">
-                                                                    <div>
-                                                                        <span>
-                                                                            {game.away} <small>AWAY</small>
-                                                                        </span>
-                                                                        <strong>{game.awayScore ?? '—'}</strong>
-                                                                    </div>
-                                                                    <div>
-                                                                        <span>
-                                                                            {game.home} <small>HOME</small>
-                                                                        </span>
-                                                                        <strong>{game.homeScore ?? '—'}</strong>
-                                                                    </div>
+                                {sections.map((section) => (
+                                    <section className="league-section" key={section.key} aria-label={section.label}>
+                                        <h2 className="section-title">
+                                            <Trophy size={20} aria-hidden="true" />
+                                            <span>{section.label}</span>
+                                            <small>
+                                                {section.count} {section.count === 1 ? 'game' : 'games'}
+                                            </small>
+                                        </h2>
+                                        {section.days.map((group) => (
+                                            <section
+                                                className="game-group"
+                                                key={group.key}
+                                                aria-label={` · ${group.label}`}
+                                            >
+                                                <h3 className="group-heading">
+                                                    <CalendarDays size={16} aria-hidden="true" />
+                                                    <span>{group.label}</span>
+                                                    <small>
+                                                        {group.games.length}{' '}
+                                                        {group.games.length === 1 ? 'game' : 'games'}
+                                                    </small>
+                                                </h3>
+                                                <div className="games">
+                                                    {group.games.map((game) => {
+                                                        const favorite = isFavorite(game, favoriteIds);
+                                                        return (
+                                                            <article
+                                                                className={`game${favorite ? ' favorite' : ''}`}
+                                                                key={game.id}
+                                                            >
+                                                                <div className="game-meta">
+                                                                    <span>
+                                                                        {favorite && (
+                                                                            <Star
+                                                                                size={12}
+                                                                                aria-label="Favorite"
+                                                                                className="star"
+                                                                            />
+                                                                        )}
+                                                                        {game.league} · {game.sport}
+                                                                        {game.week ? ` · Week ${game.week}` : ''}
+                                                                    </span>
+                                                                    <span
+                                                                        className={
+                                                                            game.status === 'live' ? 'live-label' : ''
+                                                                        }
+                                                                    >
+                                                                        {game.statusLabel}
+                                                                    </span>
                                                                 </div>
-                                                            ) : (
-                                                                <h4>{game.title}</h4>
-                                                            )}
-                                                            <div className="game-footer">
-                                                                <time
-                                                                    dateTime={game.startTime ?? game.date ?? undefined}
-                                                                >
-                                                                    {formatTime(game)}
-                                                                </time>
-                                                                <a
-                                                                    href={game.sourceUrl}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                >
-                                                                    Source <ArrowUpRight size={14} />
-                                                                </a>
-                                                            </div>
-                                                        </article>
-                                                    );
-                                                })}
-                                            </div>
-                                        </section>
-                                    ))}
-                                </section>
-                            ))}
-                            {!games.length &&
-                                (view === 'live' ? (
-                                    <div className="empty-state">
-                                        <Trophy size={28} />
-                                        <h2>No games today</h2>
-                                        <p>
-                                            Today's games, live scores and finals appear here. Check Upcoming for the
-                                            next games.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="empty-state">
-                                        <CalendarDays size={28} />
-                                        <h2>No {view === 'recent' ? 'final results' : 'upcoming games'} returned</h2>
-                                        <p>
-                                            Some feeds may still be refreshing, and off-season sports have no games. See
-                                            source status below.
-                                        </p>
-                                    </div>
-                                ))}
-                        </section>
-                        <section className="panel">
-                            <h2>Coverage and source status</h2>
-                            <p className="muted">
-                                Live scores refresh every 5 minutes. Finished days stay cached. Purdue programs without
-                                an ESPN feed link to the official schedule.
-                            </p>
-                            <div className="coverage">
-                                {feeds.map((feed) => (
-                                    <article key={feed.id} className="coverage-row">
-                                        <div>
-                                            <h3>{feed.label}</h3>
-                                            <p>{feed.note}</p>
-                                            {feed.error && (
-                                                <p className="error-text" role="status">
-                                                    {feed.error}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="source-status">
-                                            <span className="status">
-                                                {!feed.available
-                                                    ? 'Official link only'
-                                                    : feed.pending
-                                                      ? 'Refreshing…'
-                                                      : feed.error
-                                                        ? feed.stale
-                                                            ? 'Stale data'
-                                                            : 'Feed error'
-                                                        : feed.updatedAt
-                                                          ? 'Fetched'
-                                                          : 'Not fetched'}
-                                            </span>
-                                            {feed.updatedAt && (
-                                                <small>
-                                                    Last successful fetch:{' '}
-                                                    {new Date(feed.updatedAt).toLocaleString(undefined, {
-                                                        timeZoneName: 'short',
+                                                                {game.home && game.away ? (
+                                                                    <div className="score-lines">
+                                                                        <div>
+                                                                            <span>
+                                                                                {game.away} <small>AWAY</small>
+                                                                            </span>
+                                                                            <strong>{game.awayScore ?? '—'}</strong>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span>
+                                                                                {game.home} <small>HOME</small>
+                                                                            </span>
+                                                                            <strong>{game.homeScore ?? '—'}</strong>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <h4>{game.title}</h4>
+                                                                )}
+                                                                <div className="game-footer">
+                                                                    <time
+                                                                        dateTime={
+                                                                            game.startTime ?? game.date ?? undefined
+                                                                        }
+                                                                    >
+                                                                        {formatTime(game)}
+                                                                    </time>
+                                                                    <a
+                                                                        href={game.sourceUrl}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                    >
+                                                                        Source <ArrowUpRight size={14} />
+                                                                    </a>
+                                                                </div>
+                                                            </article>
+                                                        );
                                                     })}
-                                                </small>
-                                            )}
-                                            <a href={feed.officialUrl} target="_blank" rel="noreferrer">
-                                                {feed.purdue ? 'Official schedule' : 'ESPN scoreboard'}{' '}
-                                                <ArrowUpRight size={14} />
-                                            </a>
-                                        </div>
-                                    </article>
+                                                </div>
+                                            </section>
+                                        ))}
+                                    </section>
                                 ))}
-                            </div>
-                        </section>
+                                {!games.length &&
+                                    (view === 'live' ? (
+                                        <div className="empty-state">
+                                            <Trophy size={28} />
+                                            <h2>No games today</h2>
+                                            <p>
+                                                Today's games, live scores and finals appear here. Check Upcoming for
+                                                the next games.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="empty-state">
+                                            <CalendarDays size={28} />
+                                            <h2>
+                                                No {view === 'recent' ? 'final results' : 'upcoming games'} returned
+                                            </h2>
+                                            <p>
+                                                Some feeds may still be refreshing, and off-season sports have no games.
+                                                Check source status from the header.
+                                            </p>
+                                        </div>
+                                    ))}
+                            </section>
+                        )}
+                        {statusPage && (
+                            <section className="panel">
+                                <h2>Coverage</h2>
+                                <p className="muted">
+                                    {data.notice} Purdue programs without an ESPN feed link to the official schedule.
+                                    Times are local to {timeZone}.
+                                </p>
+                                <div className="coverage">
+                                    {feeds.map((feed) => (
+                                        <article key={feed.id} className="coverage-row">
+                                            <div>
+                                                <h3>{feed.label}</h3>
+                                                <p>{feed.note}</p>
+                                                {feed.error && (
+                                                    <p className="error-text" role="status">
+                                                        {feed.error}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="source-status">
+                                                <span className="status">
+                                                    {!feed.available
+                                                        ? 'Official link only'
+                                                        : feed.pending
+                                                          ? 'Refreshing…'
+                                                          : feed.error
+                                                            ? feed.stale
+                                                                ? 'Stale data'
+                                                                : 'Feed error'
+                                                            : feed.updatedAt
+                                                              ? 'Fetched'
+                                                              : 'Not fetched'}
+                                                </span>
+                                                {feed.updatedAt && (
+                                                    <small>
+                                                        Last successful fetch:{' '}
+                                                        {new Date(feed.updatedAt).toLocaleString(undefined, {
+                                                            timeZoneName: 'short',
+                                                        })}
+                                                    </small>
+                                                )}
+                                                <a href={feed.officialUrl} target="_blank" rel="noreferrer">
+                                                    {feed.purdue ? 'Official schedule' : 'ESPN scoreboard'}{' '}
+                                                    <ArrowUpRight size={14} />
+                                                </a>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                     </>
                 )}
                 <footer>

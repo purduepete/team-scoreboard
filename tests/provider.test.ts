@@ -205,7 +205,7 @@ describe('window and filters', () => {
         const live = visibleGames(today, 'live', 'all', [], now);
         expect(live.map((game) => game.id).sort()).toEqual(['done', 'later', 'later-fav', 'now']);
         const [liveSection] = groupGames(live, 'live', ['134927'], now);
-        expect(liveSection.days[0].games.map((game) => game.id)).toEqual(['now', 'later-fav', 'later', 'done']);
+        expect(liveSection.days[0].games.map((game) => game.id)).toEqual(['now', 'done', 'later-fav', 'later']);
 
         const results = groupGames(
             [at('old', 20, 19, ['nba-1'], 'final'), at('new', 21, 19, ['nba-1'], 'final')],
@@ -378,6 +378,10 @@ describe('league scoreboards', () => {
         run.espn.refreshLive();
         await run.espn.league(nba, 1);
         expect(run.urls.slice(second).map((url) => url.slice(-8))).toEqual(['20261022']);
+        const third = run.urls.length;
+        run.espn.refreshAll();
+        await run.espn.league(nba, 1);
+        expect(run.urls.length - third).toBe(first);
     });
 });
 
@@ -424,6 +428,10 @@ describe('feed cache', () => {
         const cache = new FeedCache(() => 0);
         cache.get(feed);
         await cache.settle();
+        cache.get(feed);
+        await cache.settle();
+        expect(calls).toBe(1);
+        cache.invalidate((id) => id !== feed.id);
         cache.get(feed);
         await cache.settle();
         expect(calls).toBe(1);

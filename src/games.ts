@@ -97,11 +97,11 @@ function dayLabel(day: Date, today: Date): string {
     return relative ? `${relative} · ${full}` : full;
 }
 
-// Live first, then games still to start, then results.
-const statusRank = (game: Game) => (game.status === 'live' ? 0 : game.status === 'final' ? 2 : 1);
+// Live first, then today's results, then games still to start.
+const statusRank = (game: Game) => (game.status === 'live' ? 0 : game.status === 'final' ? 1 : 2);
 
 // Sections run Purdue, NFL, NBA, MLB, each split into local days. Within a day, Live orders by
-// status (live, upcoming, final); every view then puts favorites first and sorts by start time,
+// status (live, final, upcoming); every view then puts favorites first and sorts by start time,
 // newest first for results.
 export function groupGames(games: Game[], view: View, favoriteIds: string[], now = new Date()): LeagueSection[] {
     const today = startOfDay(now);

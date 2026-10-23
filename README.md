@@ -1,6 +1,6 @@
 # Team Scoreboard
 
-Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Games are grouped into Purdue, NFL, NBA and MLB sections, each split by day. Three tabs run Live, Upcoming and Recent results. Live opens by default and shows all of today's games: in progress first, then still to start, then finals. Favorite teams are highlighted and listed first within each day, and favorites are shared across devices.
+Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Games are grouped into Purdue, NFL, NBA and MLB sections, each split by day. Three tabs run Live, Recent results and Upcoming. Live opens by default and shows all of today's games: in progress first, then finals, then games still to start. Feed coverage and fetch status are on a separate Source status page (#status), opened from the header. Favorite teams are highlighted and listed first within each day, and favorites are shared across devices.
 
 ## Status
 
@@ -16,7 +16,7 @@ Purdue programs use the team schedule endpoint (`/teams/{id}/schedule`) and show
 
 The catalog lists all 92 pro teams. The 34 teams from the first release keep their original IDs because favorites are stored in PostgreSQL; new teams use `<league>-<espnId>`. Each team's `providerId` holds the ESPN `sport/league/teamId` path.
 
-Caching is in process. Scoreboard pages with a live game or one starting within 30 minutes refetch every 5 minutes, today's page every 10 minutes and future pages every 30 minutes. Past days whose games are all final stay cached for 24 hours. Purdue feeds refresh every 5 minutes while hot and every 15 minutes otherwise. The Refresh button (`POST /api/refresh`) refetches live and current pages, at most once per 30 seconds; finished days stay cached. Requests share a queue with 500 ms between calls, bounded timeouts and rate-limit backoff, so a cold load of all three leagues takes about 15 seconds. Restarting clears the cache; favorites remain in PostgreSQL. The browser polls every 20 seconds and pauses while hidden.
+Caching is in process. Scoreboard pages with a live game or one starting within 30 minutes refetch every 5 minutes, today's page every 10 minutes and future pages every 30 minutes. Past days whose games are all final stay cached for 24 hours. Purdue feeds refresh every 5 minutes while hot and every 15 minutes otherwise. Opening or reloading the page shows cached scores, then posts `/api/refresh` with `scope: all`, which refetches every page and Purdue feed. The Refresh button posts `scope: live` and refetches only pages and feeds with a game in progress or starting within 30 minutes. Each scope forces at most one ESPN fetch per 30 seconds. Requests share a queue with 500 ms between calls, bounded timeouts and rate-limit backoff, so a cold load of all three leagues takes about 15 seconds. Restarting clears the cache; favorites remain in PostgreSQL. The browser polls every 20 seconds and pauses while hidden.
 
 Terms: [Disney terms of use section 2.B.x](https://disneytermsofuse.com/english/) limits automated extraction. This is a personal app behind Cloudflare Access, used with that risk accepted. No ESPN artwork is used.
 

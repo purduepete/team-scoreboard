@@ -94,9 +94,9 @@ export class FeedCache {
         return { ...details, ...current.feed, games: [...current.feed.games] };
     }
 
-    // Makes every feed due now; entries already loading keep their pending request.
-    invalidate(): void {
-        for (const entry of this.entries.values()) entry.nextAttempt = 0;
+    // Makes matching feeds due now (all by default); entries already loading keep their pending request.
+    invalidate(match: (id: string, games: Game[]) => boolean = () => true): void {
+        for (const [id, entry] of this.entries) if (match(id, entry.feed.games)) entry.nextAttempt = 0;
     }
 
     async settle(): Promise<void> {

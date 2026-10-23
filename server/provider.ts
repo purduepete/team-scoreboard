@@ -228,6 +228,8 @@ export class SportsProvider {
     private blockedUntil = 0;
     private readonly scoreboards = new Map<string, ScoreboardEntry>();
     private generation = 0;
+    private liveMark = 0;
+    private allMark = 0;
 
     constructor(
         private readonly fetcher: typeof fetch = fetch,
@@ -270,9 +272,14 @@ export class SportsProvider {
         return selectWindow([...new Map(games.map((game) => [game.id, game])).values()], this.clock());
     }
 
-    // Makes live and current pages due on the next load; finished past pages stay cached.
+    // Refresh button: makes only pages with a game in progress or about to start due.
     refreshLive(): void {
-        this.generation += 1;
+        this.liveMark = ++this.generation;
+    }
+
+    // Page load: makes every page due, including finished past days.
+    refreshAll(): void {
+        this.allMark = ++this.generation;
     }
 
     // Refetches only pages that are due. Live or about-to-start pages refresh every 5 minutes, the
@@ -288,7 +295,7 @@ export class SportsProvider {
             const settled =
                 past && cached.games.every((game) => ['final', 'postponed', 'canceled'].includes(game.status));
             const age = hot ? liveRefreshMs : settled ? 24 * 60 * 60_000 : current ? 10 * 60_000 : 30 * 60_000;
-            const forced = (hot || current) && cached.generation < this.generation;
+            const forced = cached.generation < this.allMark || (hot && cached.generation < this.liveMark);
             if (!forced && now - cached.fetchedAt < age) return cached;
         }
         const generation = this.generation;
