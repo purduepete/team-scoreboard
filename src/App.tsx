@@ -558,7 +558,7 @@ export function App() {
                                                                 const favorite = isFavorite(game, highlightIds);
                                                                 return (
                                                                     <article
-                                                                        className={`game${favorite ? ' favorite' : ''}`}
+                                                                        className={`game${favorite ? ' favorite' : ''}${view === 'live' && game.status === 'final' ? ' ended' : ''}`}
                                                                         key={game.id}
                                                                     >
                                                                         <div className="game-meta">

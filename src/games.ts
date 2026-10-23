@@ -130,20 +130,20 @@ function dayLabel(day: Date, today: Date): string {
 // Live first, then today's results, then games still to start.
 const statusRank = (game: Game) => (game.status === 'live' ? 0 : game.status === 'final' ? 1 : 2);
 
-// Sections run Purdue, Big Ten, NFL, NBA, MLB, each split into local days. Within a day, Live orders by
-// status (live, final, upcoming); every view then puts favorites first and sorts by start time,
-// newest first for results.
+// Sections run Purdue, Big Ten, NFL, NBA, MLB, each split into local days. Within a day, favorites
+// lead in every view, then Live orders by status (live, final, upcoming). Start times run oldest
+// first except in Recent.
 export function groupGames(games: Game[], view: View, favoriteIds: string[], now = new Date()): LeagueSection[] {
     const today = startOfDay(now);
     const newestFirst = view === 'recent';
     const time = (game: Game) => game.startTime ?? game.date ?? '9999';
     const order = (a: Game, b: Game) => {
+        const favorite = Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds));
+        if (favorite) return favorite;
         if (view === 'live') {
             const rank = statusRank(a) - statusRank(b);
             if (rank) return rank;
         }
-        const favorite = Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds));
-        if (favorite) return favorite;
         return newestFirst ? time(b).localeCompare(time(a)) : time(a).localeCompare(time(b));
     };
     return sections

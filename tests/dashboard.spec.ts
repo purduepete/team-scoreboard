@@ -274,6 +274,75 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     expect(new Set(requestedDays)).toEqual(new Set(['14']));
 });
 
+for (const theme of ['midnight', 'light']) {
+    test(`Current favorites lead and final cards are hatched only in Current (${theme})`, async ({ page }) => {
+        await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+        await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
+        const fixture = (id: string, status: Game['status'], hour: number, favorite = false): Game => ({
+            ...game,
+            id,
+            teamIds: favorite ? ['134927'] : ['nfl-1', 'nfl-2'],
+            home: id,
+            startTime: new Date(2026, 9, 25, hour).toISOString(),
+            status,
+            statusLabel: status === 'final' ? 'Final' : status === 'live' ? 'In progress' : 'Scheduled',
+        });
+        const fixtures = [
+            fixture('scheduled', 'upcoming', 20),
+            fixture('final-late', 'final', 12),
+            fixture('live-late', 'live', 16),
+            fixture('favorite-scheduled', 'upcoming', 22, true),
+            fixture('final-early', 'final', 10),
+            fixture('live-early', 'live', 14),
+            fixture('favorite-final', 'final', 11, true),
+        ];
+        await page.route('**/api/dashboard?**', (route) =>
+            route.fulfill({
+                json: {
+                    favorites: ['134927'],
+                    teams,
+                    liveAvailable: true,
+                    notice: '',
+                    feeds: [leagueFeed('NFL', '14', fixtures)],
+                } satisfies Dashboard,
+            })
+        );
+        await page.goto('/');
+        const cards = page.locator('.game');
+        await expect(cards).toHaveCount(7);
+        await expandSections(page);
+        await expect(cards.first()).toBeVisible();
+        const expected = [
+            'favorite-final',
+            'favorite-scheduled',
+            'live-early',
+            'live-late',
+            'final-early',
+            'final-late',
+            'scheduled',
+        ];
+        for (const [index, id] of expected.entries()) await expect(cards.nth(index)).toContainText(id);
+        await expect(page.locator('.game.ended')).toHaveCount(3);
+        await expect(page.locator('.game.favorite.ended')).toHaveCSS('border-left-width', '4px');
+        for (const card of await cards.all()) {
+            const background = await card.evaluate((element) => getComputedStyle(element).backgroundImage);
+            expect(background.includes('repeating-linear-gradient')).toBe(
+                (await card.getAttribute('class'))!.includes('ended')
+            );
+        }
+        await expect(page.locator('.game.ended').first()).toContainText('Final');
+        await page.screenshot({ path: `test-results/current-ended-${theme}.png`, fullPage: true });
+        await page.getByRole('button', { name: 'Recent', exact: true }).click();
+        await expect(cards).toHaveCount(3);
+        await expect(page.locator('.game.ended')).toHaveCount(0);
+        await expect(cards.first()).toHaveCSS('background-image', 'none');
+        await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+        await expect(cards).toHaveCount(2);
+        await expect(cards.first()).toContainText('favorite-scheduled');
+        await expect(page.locator('.game.ended')).toHaveCount(0);
+    });
+}
+
 test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();

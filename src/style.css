@@ -448,6 +448,13 @@ small {
     border-left: 4px solid var(--accent);
     background: var(--raised);
 }
+.game.ended {
+    background-image: repeating-linear-gradient(
+        135deg,
+        transparent 0 6px,
+        color-mix(in srgb, var(--muted) 8%, transparent) 6px 7px
+    );
+}
 .game-meta .star {
     color: var(--accent);
     fill: var(--accent);
