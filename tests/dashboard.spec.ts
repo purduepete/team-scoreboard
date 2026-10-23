@@ -148,6 +148,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await theme.click();
     await page.mouse.click(8, 180);
     await expect(page.getByRole('listbox')).toHaveCount(0);
+    await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     await expandSections(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.locator('header')).toHaveCSS('position', 'sticky');
@@ -159,6 +160,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
     await page.getByRole('link', { name: 'Source status' }).click();
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

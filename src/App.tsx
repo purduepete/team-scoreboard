@@ -199,6 +199,26 @@ export function App() {
                         <span>Team Scoreboard</span>
                     </a>
                     <div className="header-actions">
+                        {updated && (
+                            <small className="updated" title="Last updated">
+                                <span className="updated-label">Updated </span>
+                                {new Date(updated).toLocaleTimeString(undefined, {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                })}
+                            </small>
+                        )}
+                        <button
+                            type="button"
+                            className="refresh-button"
+                            onClick={() => void forceRefresh('live')}
+                            disabled={refreshing}
+                            aria-label="Refresh"
+                            title="Refresh live scores"
+                        >
+                            <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'spin' : ''} />
+                            <span className="refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+                        </button>
                         <a
                             className="header-link"
                             href={statusPage ? '#' : '#status'}
@@ -324,29 +344,6 @@ export function App() {
                                                     : item.charAt(0).toUpperCase() + item.slice(1)}
                                             </button>
                                         ))}
-                                    </div>
-                                    <div className="refresh">
-                                        {updated && (
-                                            <small className="muted">
-                                                Updated{' '}
-                                                {new Date(updated).toLocaleTimeString(undefined, {
-                                                    hour: 'numeric',
-                                                    minute: '2-digit',
-                                                })}
-                                            </small>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => void forceRefresh('live')}
-                                            disabled={refreshing}
-                                        >
-                                            <RefreshCw
-                                                size={16}
-                                                aria-hidden="true"
-                                                className={refreshing ? 'spin' : ''}
-                                            />
-                                            {refreshing ? 'Refreshing…' : 'Refresh'}
-                                        </button>
                                     </div>
                                 </div>
                                 <div className="filters">

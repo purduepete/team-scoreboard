@@ -382,10 +382,15 @@ small {
     font-weight: 400;
     white-space: nowrap;
 }
-.refresh {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
+.refresh-button {
+    height: var(--header-control-height);
+    min-height: 0;
+    flex-shrink: 0;
+}
+.updated {
+    align-self: center;
+    white-space: nowrap;
+    font-size: 0.8rem;
 }
 .spin {
     animation: spin 1s linear infinite;
@@ -583,6 +588,14 @@ footer {
     }
     .filters .select-trigger {
         width: 100%;
+    }
+    .updated-label,
+    .refresh-label {
+        display: none;
+    }
+    .refresh-button {
+        width: var(--header-control-height);
+        padding: 0;
     }
 }
 @media (prefers-reduced-motion: reduce) {
