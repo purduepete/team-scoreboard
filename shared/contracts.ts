@@ -27,6 +27,9 @@ export interface Game {
     statusLabel: string;
     sourceUrl: string;
     week?: number;
+    broadcast?: string;
+    homeRecord?: string;
+    awayRecord?: string;
 }
 
 export interface Feed {

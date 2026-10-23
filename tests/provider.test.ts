@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 import type { Game } from '../shared/contracts.js';
 import { teams, expandFavorites, leagues } from '../server/catalog.js';
 import {
@@ -444,7 +447,99 @@ describe('league scoreboards', () => {
         const third = run.urls.length;
         run.espn.refreshAll();
         await run.espn.league(nba, 1);
-        expect(run.urls.length - third).toBe(first);
+        // The settled past day (20261021) keeps its scores; everything else is fetched again.
+        expect(run.urls.slice(third).map((url) => url.slice(-8))).not.toContain('20261021');
+        expect(run.urls.length - third).toBe(first - 1);
+    });
+    it('saves settled past days to disk and reloads them after a restart', async () => {
+        const directory = mkdtempSync(join(tmpdir(), 'scoreboard-'));
+        const file = join(directory, 'cache.json');
+        const body = (url: string) =>
+            url.includes('dates=20261021')
+                ? { events: [scoreboardEvent('300', 'post', ['1', '2'], '2026-10-21T15:00Z')] }
+                : { events: [] };
+        let clock = Date.parse('2026-10-22T16:00Z');
+        const urls: string[] = [];
+        const make = () =>
+            new SportsProvider(
+                async (url) => {
+                    urls.push(String(url));
+                    return new Response(JSON.stringify(body(String(url))));
+                },
+                () => clock,
+                async (delay) => {
+                    clock += delay;
+                },
+                file
+            );
+        try {
+            await make().league(nba, 1);
+            await vi.waitFor(() => expect(existsSync(file)).toBe(true), { timeout: 5000 });
+            const saved = JSON.parse(readFileSync(file, 'utf8'));
+            expect(Object.keys(saved.pages)).toEqual([`${nba.id}?dates=20261021`]);
+            urls.length = 0;
+            const games = await make().league(nba, 1);
+            expect(urls.map((url) => url.slice(-8))).not.toContain('20261021');
+            expect(games.map((game) => game.id)).toContain('300');
+        } finally {
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
+    it('reads records and the TV channel from both ESPN shapes', () => {
+        const [game] = parseScoreboard(
+            {
+                events: [
+                    {
+                        ...scoreboardEvent('400', 'pre', null),
+                        competitions: [
+                            {
+                                ...scoreboardEvent('400', 'pre', null).competitions[0],
+                                broadcasts: [{ market: 'national', names: ['ESPN', 'ABC', 'ESPN'] }],
+                                competitors: [
+                                    {
+                                        ...competitor('away', '17', 'New England Patriots'),
+                                        records: [
+                                            { name: 'overall', type: 'total', summary: '5-2' },
+                                            { name: 'Home', type: 'home', summary: '3-0' },
+                                        ],
+                                    },
+                                    {
+                                        ...competitor('home', '3', 'Chicago Bears'),
+                                        records: [{ type: 'total', summary: 'n/a' }],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            nfl
+        );
+        expect(game).toMatchObject({ broadcast: 'ESPN, ABC', awayRecord: '5-2' });
+        expect(game.homeRecord).toBeUndefined();
+
+        const scheduled = {
+            ...event,
+            competitions: [
+                {
+                    ...event.competitions[0],
+                    broadcasts: [{ media: { shortName: 'Fox' } }],
+                    competitors: event.competitions[0].competitors.map((entry, index) => ({
+                        ...entry,
+                        record: index ? [{ type: 'total', displayValue: '3-4' }] : null,
+                    })),
+                },
+            ],
+        };
+        expect(normalizeEvent(scheduled, team)).toMatchObject({ broadcast: 'Fox', homeRecord: '3-4' });
+    });
+    it("fills the favorite's current record on games still to play", () => {
+        const upcoming = withStatus(status('STATUS_SCHEDULED', 'pre', 'Sun, Sep 13'));
+        const [game] = parseEvents({ events: [upcoming], team: { recordSummary: '6-1' } }, team);
+        expect(game).toMatchObject({ status: 'upcoming', homeRecord: '6-1' });
+        expect(game.awayRecord).toBeUndefined();
+        const [final] = parseEvents({ events: [event], team: { recordSummary: '6-1' } }, team);
+        expect(final.homeRecord).toBeUndefined();
     });
 });
 

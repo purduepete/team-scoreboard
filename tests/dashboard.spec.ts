@@ -41,6 +41,9 @@ const liveGame: Game = {
     away: 'Chicago Bulls',
     homeScore: 54,
     awayScore: 50,
+    homeRecord: '2-0',
+    awayRecord: '1-1',
+    broadcast: 'ESPN',
     week: undefined,
     status: 'live',
     statusLabel: 'Q3 4:12',
@@ -176,6 +179,9 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await nba.click();
     await expect(nba).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByText('Q3 4:12')).toBeVisible();
+    const liveCard = page.locator('.game', { hasText: 'Indiana Pacers' });
+    await expect(liveCard.locator('.record')).toHaveText([' (1-1)', ' (2-0)']);
+    await expect(liveCard.locator('.broadcast')).toHaveText('ESPN');
     await nba.click();
     await expect(page.getByText('Q3 4:12')).toBeHidden();
     await nba.click();

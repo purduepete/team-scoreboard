@@ -25,6 +25,7 @@
     "environment": {
       "PORT": "8801",
       "STORAGE_BACKEND": "postgresql",
+      "SCOREBOARD_CACHE_FILE": "C:\\ProgramData\\SolutionDeploy\\apps\\team-scoreboard\\shared\\data\\scoreboard-cache.json",
       "ALLOWED_ORIGINS": "https://team-scoreboard.jimlertech.com,https://jimbrownhome1.tail8ad282.ts.net:8801,http://127.0.0.1:8801"
     },
     "secretFile": "app.env",

@@ -483,6 +483,22 @@ small {
     align-items: center;
     gap: 4px;
 }
+.game-footer .when {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+}
+.broadcast {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.score-lines .record {
+    color: var(--muted);
+    font-size: 0.8em;
+    font-weight: 400;
+}
 .empty-state {
     text-align: center;
     padding: 36px 12px;

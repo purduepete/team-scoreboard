@@ -13,6 +13,7 @@ import {
     RefreshCw,
     Star,
     Trophy,
+    Tv,
     X,
 } from 'lucide-react';
 import type { Dashboard } from '../shared/contracts';
@@ -450,7 +451,14 @@ export function App() {
                                                                             <div className="score-lines">
                                                                                 <div>
                                                                                     <span>
-                                                                                        {game.away} <small>AWAY</small>
+                                                                                        {game.away}
+                                                                                        {game.awayRecord && (
+                                                                                            <span className="record">
+                                                                                                {' '}
+                                                                                                ({game.awayRecord})
+                                                                                            </span>
+                                                                                        )}{' '}
+                                                                                        <small>AWAY</small>
                                                                                     </span>
                                                                                     <strong>
                                                                                         {game.awayScore ?? '—'}
@@ -458,7 +466,14 @@ export function App() {
                                                                                 </div>
                                                                                 <div>
                                                                                     <span>
-                                                                                        {game.home} <small>HOME</small>
+                                                                                        {game.home}
+                                                                                        {game.homeRecord && (
+                                                                                            <span className="record">
+                                                                                                {' '}
+                                                                                                ({game.homeRecord})
+                                                                                            </span>
+                                                                                        )}{' '}
+                                                                                        <small>HOME</small>
                                                                                     </span>
                                                                                     <strong>
                                                                                         {game.homeScore ?? '—'}
@@ -469,15 +484,26 @@ export function App() {
                                                                             <h4>{game.title}</h4>
                                                                         )}
                                                                         <div className="game-footer">
-                                                                            <time
-                                                                                dateTime={
-                                                                                    game.startTime ??
-                                                                                    game.date ??
-                                                                                    undefined
-                                                                                }
-                                                                            >
-                                                                                {formatTime(game)}
-                                                                            </time>
+                                                                            <span className="when">
+                                                                                <time
+                                                                                    dateTime={
+                                                                                        game.startTime ??
+                                                                                        game.date ??
+                                                                                        undefined
+                                                                                    }
+                                                                                >
+                                                                                    {formatTime(game)}
+                                                                                </time>
+                                                                                {game.broadcast && (
+                                                                                    <span className="broadcast">
+                                                                                        <Tv
+                                                                                            size={12}
+                                                                                            aria-hidden="true"
+                                                                                        />
+                                                                                        {game.broadcast}
+                                                                                    </span>
+                                                                                )}
+                                                                            </span>
                                                                             <a
                                                                                 href={game.sourceUrl}
                                                                                 target="_blank"

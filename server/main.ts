@@ -2,10 +2,11 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import pg from 'pg';
-import { createApp } from './app.js';
-import { SportsProvider } from './provider.js';
+import { createApp, dashboardSources } from './app.js';
+import { SportsProvider, maxDaysBack as resultDays } from './provider.js';
 import { FeedCache } from './feeds.js';
 import { PostgresFavorites } from './storage.js';
+import { GameAlerts, alertTeamIds, pushoverSender } from './alerts.js';
 
 if (!process.env.DATABASE_URL || process.env.STORAGE_BACKEND !== 'postgresql') {
     throw new Error('DATABASE_URL and STORAGE_BACKEND=postgresql are required. There is no file-storage fallback.');
@@ -38,21 +39,43 @@ const csp = [
 ].join('; ');
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000, max: 4 });
 pool.on('error', (error) => console.error('Idle PostgreSQL connection error:', error.message));
-const provider = new SportsProvider();
+const provider = new SportsProvider(fetch, Date.now, undefined, process.env.SCOREBOARD_CACHE_FILE || undefined);
+const store = new PostgresFavorites(pool);
+const feeds = new FeedCache();
 const app = createApp({
-    store: new PostgresFavorites(pool),
-    feeds: new FeedCache(),
+    store,
+    feeds,
     sports: provider,
     allowedOrigins: origins,
     staticDirectory: resolve('dist'),
     contentSecurityPolicy: csp,
 });
 const server = app.listen(port, '127.0.0.1', () => console.info(`Team Scoreboard listening on loopback port ${port}`));
+const userKey = process.env.PUSHOVER_USER_KEY;
+const appToken = process.env.PUSHOVER_APP_TOKEN;
+const alerts = userKey && appToken ? new GameAlerts(pushoverSender(userKey, appToken)) : null;
+if (!alerts) console.warn('Game alerts are off: PUSHOVER_USER_KEY and PUSHOVER_APP_TOKEN are not set.');
+// Keeps scores current with no page open, so favorite alerts fire on time. Each feed still follows
+// its own refresh timer; this only asks for the feeds a 14-day dashboard would show.
+const watcher = setInterval(() => {
+    void (async () => {
+        try {
+            const favorites = await store.list();
+            const games = dashboardSources(favorites, provider, resultDays).flatMap(
+                (source) => feeds.get(source).games
+            );
+            alerts?.observe(games, alertTeamIds(favorites));
+        } catch (error) {
+            console.error('Background refresh failed:', error instanceof Error ? error.message : error);
+        }
+    })();
+}, 60_000);
 let stopping = false;
 async function stop() {
     if (stopping) return;
     stopping = true;
     clearInterval(stopWatcher);
+    clearInterval(watcher);
     const deadline = setTimeout(() => {
         console.error('Graceful stop exceeded 15 seconds.');
         process.exit(1);
