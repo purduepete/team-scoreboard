@@ -5,12 +5,10 @@ import {
     ArrowLeft,
     ArrowUpRight,
     CalendarDays,
-    CalendarPlus,
     Check,
     ChevronRight,
     ChevronsDownUp,
     ChevronsUpDown,
-    Copy,
     Keyboard,
     Plus,
     RefreshCw,
@@ -21,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { Dashboard } from '../shared/contracts';
 import { reconcile } from '../shared/reconcile';
+import { CalendarMenu } from './CalendarMenu';
 import { SelectField } from './SelectField';
 import { useTheme } from './theme';
 import type { Theme } from './theme';
@@ -76,7 +75,6 @@ export function App() {
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
     const statusPage = page === 'status';
     const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
     // Score cells that changed on the last poll, keyed `${id}:home|away`, with a stamp to restart the animation.
     const [flashes, setFlashes] = useState<Record<string, number>>({});
     const scores = useRef(new Map<string, { home: number | null; away: number | null }>());
@@ -152,18 +150,6 @@ export function App() {
             })
             .catch(() => undefined);
     }, []);
-    const copyCalendar = async () => {
-        if (!calendarUrl) return;
-        try {
-            await navigator.clipboard.writeText(calendarUrl);
-            setCopied(true);
-            setTimeout(() => {
-                if (mounted.current) setCopied(false);
-            }, 2000);
-        } catch {
-            setError('Could not copy the calendar link.');
-        }
-    };
     useEffect(() => {
         const onHash = () => setPage(location.hash === '#status' ? 'status' : 'scores');
         window.addEventListener('hashchange', onHash);
@@ -260,7 +246,7 @@ export function App() {
         }
         const target = event.target as HTMLElement | null;
         if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
-        if (document.querySelector('[role="listbox"]')) return;
+        if (document.querySelector('[role="listbox"], [role="menu"]')) return;
         const views: Record<string, View> = {
             Digit1: 'live',
             Numpad1: 'live',
@@ -371,38 +357,10 @@ export function App() {
                         <h1>Game day, at a glance</h1>
                         <div className="heading-actions">
                             {calendarUrl && (
-                                <>
-                                    <a
-                                        className="button-link"
-                                        href={calendarUrl}
-                                        title="Calendar feed (.ics) for your watched teams"
-                                    >
-                                        <CalendarPlus size={16} aria-hidden="true" /> Calendar
-                                    </a>
-                                    <button
-                                        type="button"
-                                        className="icon-button"
-                                        onClick={() => void copyCalendar()}
-                                        aria-label="Copy calendar link"
-                                        title="Copy calendar link"
-                                    >
-                                        {copied ? (
-                                            <Check size={16} aria-hidden="true" />
-                                        ) : (
-                                            <Copy size={16} aria-hidden="true" />
-                                        )}
-                                    </button>
-                                    <a
-                                        className="button-link"
-                                        href={calendarUrl.replace(/^https:/, 'webcal:')}
-                                        title="Subscribe in your calendar app"
-                                    >
-                                        Subscribe
-                                    </a>
-                                    <span className="sr-only" role="status">
-                                        {copied ? 'Copied' : ''}
-                                    </span>
-                                </>
+                                <CalendarMenu
+                                    url={calendarUrl}
+                                    onCopyError={() => setError('Could not copy the calendar link.')}
+                                />
                             )}
                             <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
                                 <Plus size={16} aria-hidden="true" /> Edit favorites

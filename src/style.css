@@ -320,6 +320,27 @@ small {
 .select-option svg {
     flex-shrink: 0;
 }
+.menu-popup {
+    padding: 4px 0;
+}
+.menu-item {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 0.875rem;
+    text-align: left;
+    text-decoration: none;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+    background: var(--raised);
+    outline: 1px solid var(--accent);
+    outline-offset: -2px;
+}
 .games {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));

@@ -325,23 +325,41 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
     await expect(dialog).toHaveCount(0);
 });
 
-test('calendar links appear only when the feed is configured', async ({ page }) => {
+test('calendar menu appears only when the feed is configured', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Calendar' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Calendar' })).toHaveCount(0);
 
     calendarUrl = `https://team-scoreboard.jimlertech.com/calendar/${'t'.repeat(43)}.ics`;
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.reload();
-    await expect(page.getByRole('link', { name: 'Calendar' })).toHaveAttribute('href', calendarUrl);
-    await expect(page.getByRole('link', { name: 'Subscribe' })).toHaveAttribute(
+    const trigger = page.getByRole('button', { name: 'Calendar' });
+    await expect(page.getByRole('link', { name: 'Subscribe' })).toHaveCount(0);
+    await trigger.click();
+    const menu = page.getByRole('menu', { name: 'Calendar' });
+    await expect(menu.getByRole('menuitem')).toHaveText(['Download', 'Copy link', 'Subscribe']);
+    await expect(menu.getByRole('menuitem', { name: 'Download' })).toHaveAttribute('href', calendarUrl);
+    await expect(menu.getByRole('menuitem', { name: 'Subscribe' })).toHaveAttribute(
         'href',
         calendarUrl.replace('https:', 'webcal:')
     );
-    await page.getByRole('button', { name: 'Copy calendar link' }).click();
-    await expect(page.getByRole('status').filter({ hasText: 'Copied' })).toHaveCount(1);
+    await expect(menu.getByRole('menuitem', { name: 'Download' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitem', { name: 'Copy link' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(menu).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'Calendar link copied' })).toHaveCount(1);
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(calendarUrl);
+
+    await trigger.click();
+    await page.keyboard.press('3');
+    await expect(page.getByRole('button', { name: 'Upcoming' })).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
+    await trigger.click();
+    await expect(menu).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
