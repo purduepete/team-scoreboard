@@ -229,8 +229,19 @@ small {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
+    align-items: center;
     gap: 14px;
     margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.toolbar .control-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
 }
 .tabs {
     display: inline-flex;
@@ -244,14 +255,6 @@ small {
 }
 .selected:hover {
     background: var(--accent);
-}
-.filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
-    margin-bottom: 20px;
 }
 .select-field {
     min-width: 0;
@@ -583,11 +586,24 @@ footer {
         align-items: flex-start;
         text-align: left;
     }
-    .filters .select-field {
-        width: 100%;
+    .toolbar {
+        flex-wrap: nowrap;
+        gap: 8px;
     }
-    .filters .select-trigger {
+    .toolbar .tabs {
+        flex-wrap: nowrap;
+        flex-shrink: 0;
+    }
+    .toolbar .tabs button {
+        padding: 7px 9px;
+    }
+    .toolbar .select-field {
+        flex: 1;
+        min-width: 0;
+    }
+    .toolbar .select-trigger {
         width: 100%;
+        min-width: 0;
     }
     .updated-label,
     .refresh-label {

@@ -168,7 +168,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
-    await expect(tabs).toHaveText(['Live', 'Recent results', 'Upcoming']);
+    await expect(tabs).toHaveText(['Live', 'Recent', 'Upcoming']);
     await expect(page.getByRole('button', { name: 'Live', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const nba = page.locator('.section-title button', { hasText: 'NBA' });
     await expect(nba).toHaveAttribute('aria-expanded', 'false');
@@ -207,7 +207,9 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.screenshot({ path: 'test-results/scoreboard-midnight-desktop.png', fullPage: false });
 });
 
-test('favorites lead each day, refresh posts the window and the window is remembered', async ({ page }) => {
+test('favorites lead each day, Show sits on the tab row and refresh posts the fixed 14-day window', async ({
+    page,
+}) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expandSections(page);
@@ -225,18 +227,15 @@ test('favorites lead each day, refresh posts the window and the window is rememb
     await page.getByRole('option', { name: 'All teams', exact: true }).click();
     const titles = await page.locator('.section-title span').allTextContents();
     expect(titles.indexOf('Purdue')).toBeLessThan(titles.indexOf('NFL'));
-    await page.getByRole('button', { name: 'Results', exact: true }).click();
-    await page.getByRole('option', { name: 'Last 7 days', exact: true }).click();
-    await expect.poll(() => requestedDays.at(-1)).toBe('7');
+    await expect(page.getByRole('button', { name: 'Results', exact: true })).toHaveCount(0);
+    const tabRow = await page.locator('.tabs').boundingBox();
+    const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
+    expect(Math.abs((show?.y ?? 0) - (tabRow?.y ?? 99))).toBeLessThan(4);
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
-    await expect.poll(() => refreshBodies).toEqual([{ days: 7, scope: 'live' }]);
+    await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
     expect(fullLoads).toEqual(['14']);
-    await page.reload();
-    await expect.poll(() => requestedDays.at(-1)).toBe('7');
-    await expect.poll(() => fullLoads).toEqual(['14', '7']);
-    expect(refreshBodies).toHaveLength(1);
-    await expect(page.getByRole('button', { name: 'Results', exact: true })).toContainText('Last 7 days');
+    expect(new Set(requestedDays)).toEqual(new Set(['14']));
 });
 
 test('server failures are visible with retry, without fake records', async ({ page }) => {

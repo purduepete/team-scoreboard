@@ -49,16 +49,17 @@ const isToday = (game: Game, now: Date) => localDay(game)?.getTime() === startOf
 
 // filter is 'all', 'favorites', 'league:<NFL|NBA|MLB|NCAA>' or a single team id.
 export const upcomingDays = 7;
+export const resultDays = 14;
 
-// Live shows every game on today's local date; Upcoming and Recent results split the rest by status.
-// Recent keeps finals from the last resultDays local days; Upcoming keeps the next 7 days and undated games.
+// Live shows every game on today's local date; Upcoming and Recent split the rest by status.
+// Recent keeps finals from the last 14 local days; Upcoming keeps the next 7 days and undated games.
 export function visibleGames(
     games: Game[],
     view: View,
     filter: string,
     favoriteIds: string[],
     now = new Date(),
-    resultDays = 14
+    windowDays = resultDays
 ): Game[] {
     const today = startOfDay(now).getTime();
     const offset = (game: Game) => {
@@ -84,7 +85,7 @@ export function visibleGames(
         if (!matches) return false;
         if (view === 'live') return game.status === 'live' || isToday(game, now);
         const days = offset(game);
-        if (view === 'recent') return game.status === 'final' && days !== null && days >= -resultDays;
+        if (view === 'recent') return game.status === 'final' && days !== null && days >= -windowDays;
         return game.status !== 'final' && game.status !== 'live' && (days === null || days <= upcomingDays);
     });
 }

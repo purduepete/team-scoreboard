@@ -17,7 +17,7 @@ import type { Dashboard } from '../shared/contracts';
 import { SelectField } from './SelectField';
 import { useTheme } from './theme';
 import type { Theme } from './theme';
-import { formatTime, groupGames, isFavorite, visibleGames } from './games';
+import { formatTime, groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
@@ -33,30 +33,6 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000):
     return response.json() as Promise<T>;
 }
 
-const dayOptions = ['1', '3', '7', '14'];
-
-// A per-device display preference kept in localStorage; unknown stored values fall back to the default.
-function useStoredSetting<T extends string>(key: string, fallback: T, allowed: string[]) {
-    const [value, setValue] = useState<T>(() => {
-        try {
-            const stored = localStorage.getItem(key);
-            return stored && allowed.includes(stored) ? (stored as T) : fallback;
-        } catch {
-            return fallback;
-        }
-    });
-    const update = (next: string) => {
-        if (!allowed.includes(next)) return;
-        setValue(next as T);
-        try {
-            localStorage.setItem(key, next);
-        } catch {
-            // Private browsing can block storage; the choice still applies for this visit.
-        }
-    };
-    return [value, update] as const;
-}
-
 export function App() {
     const { theme, setTheme } = useTheme();
     const [data, setData] = useState<Dashboard | null>(null);
@@ -65,7 +41,6 @@ export function App() {
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
     const [team, setTeam] = useState('all');
-    const [days, setDays] = useStoredSetting('team-scoreboard-results-days', '14', dayOptions);
     // League sections start collapsed on every page load.
     const [expanded, setExpanded] = useState<string[]>([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -75,15 +50,13 @@ export function App() {
     const statusPage = page === 'status';
     const version = useRef(0);
     const mounted = useRef(true);
-    const daysRef = useRef(days);
-    daysRef.current = days;
     const refresh = useCallback(async (full = false) => {
         // A full refetch does not claim a new version, so the cached response that started first still renders.
         const current = full ? version.current : ++version.current;
         try {
             const next = full
-                ? await request<Dashboard>(`/api/dashboard?days=${daysRef.current}&refresh=all`, undefined, 30_000)
-                : await request<Dashboard>(`/api/dashboard?days=${daysRef.current}`);
+                ? await request<Dashboard>(`/api/dashboard?days=${resultDays}&refresh=all`, undefined, 30_000)
+                : await request<Dashboard>(`/api/dashboard?days=${resultDays}`);
             if (current === version.current && mounted.current) {
                 setData(next);
                 setError(null);
@@ -113,7 +86,7 @@ export function App() {
     }, [refresh]);
     useEffect(() => {
         void refresh();
-    }, [days, refresh]);
+    }, [refresh]);
     useEffect(() => {
         const onHash = () => setPage(location.hash === '#status' ? 'status' : 'scores');
         window.addEventListener('hashchange', onHash);
@@ -130,7 +103,7 @@ export function App() {
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ days: Number(daysRef.current), scope }),
+                        body: JSON.stringify({ days: resultDays, scope }),
                     },
                     30_000
                 );
@@ -179,9 +152,7 @@ export function App() {
         feeds.flatMap((feed) => feed.games),
         view,
         team,
-        favoriteIds,
-        new Date(),
-        Number(days)
+        favoriteIds
     );
     const sections = groupGames(games, view, favoriteIds);
     const updated = feeds
@@ -339,14 +310,10 @@ export function App() {
                                                 className={view === item ? 'selected' : ''}
                                                 onClick={() => setView(item)}
                                             >
-                                                {item === 'recent'
-                                                    ? 'Recent results'
-                                                    : item.charAt(0).toUpperCase() + item.slice(1)}
+                                                {item.charAt(0).toUpperCase() + item.slice(1)}
                                             </button>
                                         ))}
                                     </div>
-                                </div>
-                                <div className="filters">
                                     <SelectField
                                         label="Show"
                                         value={team}
@@ -362,15 +329,6 @@ export function App() {
                                                 .filter((item) => !item.umbrella)
                                                 .map((item) => ({ value: item.id, label: item.name })),
                                         ]}
-                                    />
-                                    <SelectField
-                                        label="Results"
-                                        value={days}
-                                        onChange={setDays}
-                                        options={dayOptions.map((item) => ({
-                                            value: item,
-                                            label: item === '1' ? 'Last day' : `Last ${item} days`,
-                                        }))}
                                     />
                                 </div>
                                 {sections.map((section) => {
