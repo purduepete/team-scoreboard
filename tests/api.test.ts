@@ -121,7 +121,8 @@ describe('API with in-memory test double (no database writes)', () => {
         expect((await write('/api/refresh', 'POST', { days: 7 })).status).toBe(204);
         expect(forced - before).toBe(1);
         expect(daysSeen).toContain(7);
-        expect((await write('/api/refresh', 'POST', { days: 3, scope: 'all' })).status).toBe(204);
+        expect((await fetch(origin + '/api/dashboard?days=3&refresh=all')).status).toBe(200);
+        expect((await fetch(origin + '/api/dashboard?days=3&refresh=all')).status).toBe(200);
         expect(forcedAll).toBe(1);
         expect(forced - before).toBe(1);
         expect((await write('/api/refresh', 'POST', { days: 3, scope: 'old' })).status).toBe(400);

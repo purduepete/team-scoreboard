@@ -74,10 +74,13 @@ export function App() {
     const mounted = useRef(true);
     const daysRef = useRef(days);
     daysRef.current = days;
-    const refresh = useCallback(async () => {
-        const current = ++version.current;
+    const refresh = useCallback(async (full = false) => {
+        // A full refetch does not claim a new version, so the cached response that started first still renders.
+        const current = full ? version.current : ++version.current;
         try {
-            const next = await request<Dashboard>(`/api/dashboard?days=${daysRef.current}`);
+            const next = full
+                ? await request<Dashboard>(`/api/dashboard?days=${daysRef.current}&refresh=all`, undefined, 30_000)
+                : await request<Dashboard>(`/api/dashboard?days=${daysRef.current}`);
             if (current === version.current && mounted.current) {
                 setData(next);
                 setError(null);
@@ -114,9 +117,9 @@ export function App() {
         return () => window.removeEventListener('hashchange', onHash);
     }, []);
 
-    // "live" (Refresh button) refetches games in progress; "all" (page load) refetches everything.
+    // "live" (Refresh button) refetches games in progress.
     const forceRefresh = useCallback(
-        async (scope: 'live' | 'all') => {
+        async (scope: 'live') => {
             setRefreshing(true);
             try {
                 await request<void>(
@@ -137,13 +140,16 @@ export function App() {
         },
         [refresh]
     );
-    // Cached scores render first; the full refetch replaces them when it finishes.
+    // Cached scores render first; the full refetch (a GET) replaces them when it finishes.
     const loaded = useRef(false);
     useEffect(() => {
         if (loaded.current) return;
         loaded.current = true;
-        void forceRefresh('all');
-    }, [forceRefresh]);
+        setRefreshing(true);
+        void refresh(true).finally(() => {
+            if (mounted.current) setRefreshing(false);
+        });
+    }, [refresh]);
 
     const changeFavorite = async (id: string, remove: boolean) => {
         setSaving(true);

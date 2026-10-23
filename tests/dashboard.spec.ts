@@ -61,17 +61,20 @@ const leagueFeed = (league: string, days: string, games: Game[], error: string |
 
 let requestedDays: string[] = [];
 let refreshBodies: unknown[] = [];
+let fullLoads: string[] = [];
 
 test.beforeEach(async ({ page }) => {
     let favorites = [...defaultFavorites];
     requestedDays = [];
     refreshBodies = [];
+    fullLoads = [];
     await page.route('**/api/**', async (route) => {
         const request = route.request();
         const url = new URL(request.url());
         if (url.pathname === '/api/dashboard') {
             const days = url.searchParams.get('days') ?? '';
             requestedDays.push(days);
+            if (url.searchParams.get('refresh') === 'all') fullLoads.push(days);
             const body: Dashboard = {
                 favorites,
                 teams,
@@ -210,15 +213,12 @@ test('favorites lead each day, refresh posts the window and the window is rememb
     await expect.poll(() => requestedDays.at(-1)).toBe('7');
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
-    await expect
-        .poll(() => refreshBodies)
-        .toEqual([
-            { days: 3, scope: 'all' },
-            { days: 7, scope: 'live' },
-        ]);
+    await expect.poll(() => refreshBodies).toEqual([{ days: 7, scope: 'live' }]);
+    expect(fullLoads).toEqual(['3']);
     await page.reload();
     await expect.poll(() => requestedDays.at(-1)).toBe('7');
-    await expect.poll(() => refreshBodies.at(-1)).toEqual({ days: 7, scope: 'all' });
+    await expect.poll(() => fullLoads).toEqual(['3', '7']);
+    expect(refreshBodies).toHaveLength(1);
     await expect(page.getByRole('button', { name: 'Results', exact: true })).toContainText('Last 7 days');
 });
 

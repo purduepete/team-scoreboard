@@ -95,18 +95,9 @@ export function createApp(options: {
         }
     });
     const lastForced = { live: 0, all: 0 };
-    app.post('/api/refresh', async (req, res) => {
-        const parsed = z
-            .object({ days: daysSchema, scope: z.enum(['live', 'all']).default('live') })
-            .strict()
-            .safeParse(req.body);
-        if (!parsed.success) {
-            res.status(400).json({ error: 'Send the results window in days.' });
-            return;
-        }
-        // "all" (page load) refetches every page and feed; "live" (Refresh button) only games in
-        // progress. Each scope forces at most one ESPN fetch per 30 seconds.
-        const scope = parsed.data.scope;
+    // "all" (page load) refetches every page and feed; "live" (Refresh button) only games in
+    // progress. Each scope forces at most one ESPN fetch per 30 seconds.
+    const forceRefresh = async (scope: 'live' | 'all', days: number) => {
         if (Date.now() - lastForced[scope] > 30_000) {
             lastForced[scope] = Date.now();
             if (scope === 'all') {
@@ -119,14 +110,28 @@ export function createApp(options: {
             }
         }
         const favorites = await options.store.list();
-        for (const source of dashboardSources(favorites, options.sports, parsed.data.days)) options.feeds.get(source);
+        for (const source of dashboardSources(favorites, options.sports, days)) options.feeds.get(source);
         let timer: NodeJS.Timeout | undefined;
         await Promise.race([options.feeds.settle(), new Promise((resolve) => (timer = setTimeout(resolve, 20_000)))]);
         clearTimeout(timer);
+    };
+    app.post('/api/refresh', async (req, res) => {
+        const parsed = z
+            .object({ days: daysSchema, scope: z.enum(['live', 'all']).default('live') })
+            .strict()
+            .safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({ error: 'Send the results window in days.' });
+            return;
+        }
+        await forceRefresh(parsed.data.scope, parsed.data.days);
         res.status(204).end();
     });
     app.get('/api/dashboard', async (req, res) => {
         const days = daysSchema.parse(req.query.days);
+        // Page load asks for a full refetch with a GET so it stays a read; the refetch only
+        // replaces cached public scores and is throttled like the POST.
+        if (req.query.refresh === 'all') await forceRefresh('all', days);
         const favorites = await options.store.list();
         const unknown = favorites.filter((id) => !teams.some((team) => team.id === id));
         if (unknown.length) throw new Error('Stored favorites contain unsupported team identifiers.');
