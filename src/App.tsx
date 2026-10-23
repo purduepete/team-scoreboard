@@ -251,67 +251,63 @@ export function App() {
                                     ]}
                                 />
                             </div>
-                            {view === 'live' ? (
-                                <div className="empty-state">
-                                    <Trophy size={28} />
-                                    <h2>Live scores aren’t included</h2>
-                                    <p>
-                                        This version uses free schedules and final results. Open a team’s official
-                                        schedule below for other coverage.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="games">
-                                    {games.map((game) => (
-                                        <article className="game" key={game.id}>
-                                            <div className="game-meta">
-                                                <span>
-                                                    {game.league} · {game.sport}
-                                                </span>
-                                                <span>{game.statusLabel}</span>
-                                            </div>
-                                            {game.home && game.away ? (
-                                                <div className="score-lines">
-                                                    <div>
-                                                        <span>
-                                                            {game.away} <small>AWAY</small>
-                                                        </span>
-                                                        <strong>{game.awayScore ?? '—'}</strong>
-                                                    </div>
-                                                    <div>
-                                                        <span>
-                                                            {game.home} <small>HOME</small>
-                                                        </span>
-                                                        <strong>{game.homeScore ?? '—'}</strong>
-                                                    </div>
+                            <div className="games">
+                                {games.map((game) => (
+                                    <article className="game" key={game.id}>
+                                        <div className="game-meta">
+                                            <span>
+                                                {game.league} · {game.sport}
+                                            </span>
+                                            <span>{game.statusLabel}</span>
+                                        </div>
+                                        {game.home && game.away ? (
+                                            <div className="score-lines">
+                                                <div>
+                                                    <span>
+                                                        {game.away} <small>AWAY</small>
+                                                    </span>
+                                                    <strong>{game.awayScore ?? '—'}</strong>
                                                 </div>
-                                            ) : (
-                                                <h3>{game.title}</h3>
-                                            )}
-                                            <div className="game-footer">
-                                                <time dateTime={game.startTime ?? game.date ?? undefined}>
-                                                    {formatStart(game)}
-                                                </time>
-                                                <a href={game.sourceUrl} target="_blank" rel="noreferrer">
-                                                    Source <ArrowUpRight size={14} />
-                                                </a>
+                                                <div>
+                                                    <span>
+                                                        {game.home} <small>HOME</small>
+                                                    </span>
+                                                    <strong>{game.homeScore ?? '—'}</strong>
+                                                </div>
                                             </div>
-                                        </article>
-                                    ))}
-                                    {!games.length && (
+                                        ) : (
+                                            <h3>{game.title}</h3>
+                                        )}
+                                        <div className="game-footer">
+                                            <time dateTime={game.startTime ?? game.date ?? undefined}>
+                                                {formatStart(game)}
+                                            </time>
+                                            <a href={game.sourceUrl} target="_blank" rel="noreferrer">
+                                                Source <ArrowUpRight size={14} />
+                                            </a>
+                                        </div>
+                                    </article>
+                                ))}
+                                {!games.length &&
+                                    (view === 'live' ? (
+                                        <div className="empty-state">
+                                            <Trophy size={28} />
+                                            <h2>No games in progress</h2>
+                                            <p>Live scores appear here while a favorite team is playing.</p>
+                                        </div>
+                                    ) : (
                                         <div className="empty-state">
                                             <CalendarDays size={28} />
                                             <h2>
-                                                No {view === 'recent' ? 'final results' : 'schedule entries'} returned
+                                                No {view === 'recent' ? 'final results' : 'upcoming games'} returned
                                             </h2>
                                             <p>
-                                                Some feeds may still be refreshing. Free feed limits and unsupported
-                                                sports can leave gaps. See source status below.
+                                                Some feeds may still be refreshing, and off-season sports have no games.
+                                                See source status below.
                                             </p>
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                    ))}
+                            </div>
                         </section>
                         <section className="panel">
                             <h2>Coverage and source status</h2>
@@ -356,7 +352,7 @@ export function App() {
                                                     </small>
                                                 )}
                                                 <a href={item.officialUrl} target="_blank" rel="noreferrer">
-                                                    {item.purdue ? 'Official schedule' : 'Team source'}{' '}
+                                                    {item.purdue ? 'Official schedule' : 'ESPN team page'}{' '}
                                                     <ArrowUpRight size={14} />
                                                 </a>
                                             </div>
@@ -369,8 +365,8 @@ export function App() {
                 )}
                 <footer>
                     Data from{' '}
-                    <a href="https://www.thesportsdb.com" target="_blank" rel="noreferrer">
-                        TheSportsDB
+                    <a href="https://www.espn.com" target="_blank" rel="noreferrer">
+                        ESPN
                     </a>
                     . Coverage and game times may change. No affiliation with the teams or leagues.
                 </footer>

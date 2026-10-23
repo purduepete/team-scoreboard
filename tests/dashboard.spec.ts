@@ -16,7 +16,21 @@ const game: Game = {
     date: '2026-10-25',
     status: 'upcoming',
     statusLabel: 'Scheduled',
-    sourceUrl: 'https://www.thesportsdb.com',
+    sourceUrl: 'https://www.espn.com/nfl/game/_/gameId/1',
+};
+const liveGame: Game = {
+    ...game,
+    id: 'fixture-live',
+    title: 'Fixture Pacers vs Bulls',
+    teamIds: ['134873'],
+    sport: 'Basketball',
+    league: 'NBA',
+    home: 'Indiana Pacers',
+    away: 'Chicago Bulls',
+    homeScore: 54,
+    awayScore: 50,
+    status: 'live',
+    statusLabel: 'Q3 4:12',
 };
 
 test.beforeEach(async ({ page }) => {
@@ -27,11 +41,11 @@ test.beforeEach(async ({ page }) => {
             const body: Dashboard = {
                 favorites,
                 teams,
-                liveAvailable: false,
-                notice: 'Fixture data. Free feeds have at most one upcoming game and one result; no live scores.',
+                liveAvailable: true,
+                notice: 'Fixture data from ESPN-shaped feeds.',
                 feeds: expandFavorites(favorites).map((entry) => ({
                     teamId: entry.id,
-                    games: entry.id === '134927' ? [game] : [],
+                    games: entry.id === '134927' ? [game] : entry.id === '134873' ? [liveGame] : [],
                     updatedAt: entry.providerId ? '2026-10-22T23:00:00Z' : null,
                     stale: entry.id === '134927',
                     error: entry.id === '134927' ? 'Fixture upstream failure' : null,
@@ -88,7 +102,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
 });
 
-test('favorite edits survive reload, free live limitation and source errors are visible', async ({ page }) => {
+test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
     await expect(page.getByText('Fixture upstream failure')).toBeVisible();
@@ -96,7 +110,8 @@ test('favorite edits survive reload, free live limitation and source errors are 
     await expect(page.getByRole('heading', { name: "Purdue · Women's Volleyball", exact: true })).toBeVisible();
     await expect(page.getByText('Official link only', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: 'Live', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Live scores aren’t included' })).toBeVisible();
+    await expect(page.getByText('Q3 4:12')).toBeVisible();
+    await expect(page.locator('.game')).toHaveCount(1);
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('Arizona Cardinals');
     await page.getByRole('button', { name: 'Add Arizona Cardinals' }).click();

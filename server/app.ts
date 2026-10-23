@@ -7,7 +7,7 @@ import type { FeedCache } from './feeds.js';
 import type { FavoritesStore } from './storage.js';
 
 export const notice =
-    'Free schedules/results only, not live scores. At most one upcoming game and one recent result per team; the provider documents possible home-game-only restrictions. Empty feeds do not establish that a team has no games. Refreshes are cached for 15 minutes.';
+    'Schedules and scores from ESPN. Each team shows live games, its last 3 results and its next 5 games. Feeds refresh every 15 minutes; an off-season sport shows no games.';
 
 export function createApp(options: {
     store: FavoritesStore;
@@ -63,7 +63,7 @@ export function createApp(options: {
             favorites,
             teams,
             feeds: expandFavorites(favorites).map((team) => options.feeds.get(team)),
-            liveAvailable: false,
+            liveAvailable: true,
             notice,
         };
         res.json(dashboard);

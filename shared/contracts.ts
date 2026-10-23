@@ -23,7 +23,7 @@ export interface Game {
     awayScore: number | null;
     startTime: string | null;
     date: string | null;
-    status: 'upcoming' | 'final' | 'postponed' | 'canceled' | 'unknown';
+    status: 'upcoming' | 'live' | 'final' | 'postponed' | 'canceled' | 'unknown';
     statusLabel: string;
     sourceUrl: string;
 }
@@ -41,6 +41,6 @@ export interface Dashboard {
     favorites: string[];
     teams: Team[];
     feeds: Feed[];
-    liveAvailable: false;
+    liveAvailable: boolean;
     notice: string;
 }

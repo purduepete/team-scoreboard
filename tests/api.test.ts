@@ -60,7 +60,7 @@ describe('API with in-memory test double (no database writes)', () => {
         expect(response.status).toBe(200);
         expect(dashboard.favorites).toEqual(defaultFavorites);
         expect(dashboard.feeds).toHaveLength(24);
-        expect(dashboard.liveAvailable).toBe(false);
+        expect(dashboard.liveAvailable).toBe(true);
     });
     it('adds once, removes only the requested favorite, preserves across reads', async () => {
         expect((await write('/api/favorites', 'POST', { teamId: '134946' })).status).toBe(204);

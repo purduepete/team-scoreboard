@@ -37,7 +37,11 @@ export function visibleGames(
             return (
                 teamMatches &&
                 (sport === 'all' || sport === game.sport) &&
-                (view === 'recent' ? game.status === 'final' : game.status !== 'final')
+                (view === 'recent'
+                    ? game.status === 'final'
+                    : view === 'live'
+                      ? game.status === 'live'
+                      : game.status !== 'final' && game.status !== 'live')
             );
         })
         .sort((a, b) => {

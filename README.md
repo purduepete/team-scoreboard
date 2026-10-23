@@ -1,6 +1,6 @@
 # Team Scoreboard
 
-Personal schedules and recent results for the Colts, Seahawks, Pacers, Giants, and Purdue varsity sports, with editable favorites shared across devices.
+Personal schedules, live scores and recent results for the Colts, Seahawks, Pacers, Giants, and Purdue varsity sports, with editable favorites shared across devices.
 
 ## Status
 
@@ -8,13 +8,15 @@ Local application implemented with passing unit and browser tests. Not deployed.
 
 ## Data and coverage
 
-The app uses [TheSportsDB's documented free API](https://www.thesportsdb.com/documentation). No live scores, full-season schedules, or complete team coverage are promised. The free endpoints return at most **one upcoming event and one previous result** and document possible home-game-only restrictions. Empty results do not mean that a team has no games. Data can be missing, delayed, or changed.
+The app reads ESPN's public, undocumented `site.api.espn.com` team schedule endpoint (`/apis/site/v2/sports/{sport}/{league}/teams/{id}/schedule`). It needs no key. ESPN can change or remove it without notice, so a broken feed shows an error and keeps the last good data.
 
-The initial professional teams and Purdue football returned usable data during read-only probes. The Giants returned a recent result but no upcoming event. Other Purdue programs have verified official schedule links, with no configured free score feed. The editable catalog includes a limited selection of NFL, NBA, and MLB teams obtained from the provider's free league listings, plus the Purdue programs. It is deliberately not a worldwide team search.
+Each team shows live games, its last 3 results and its next 5 games. When the default schedule is empty (for example MLB in October or college basketball before its season), the server retries once with `?seasontype=2`. Postseason games outside the default schedule may be missing. ESPN answers HTTP 400 for some sports with no current season; that is treated as no games.
 
-Each feed is cached in process for 15 minutes and refreshed on demand. Requests share a queue with at least 6 seconds between calls (10/minute), bounded timeouts, and rate-limit backoff. First fetches can take a minute or longer. A failed refresh retains prior data and shows an error/stale label. Restarting clears this cache; favorites remain in PostgreSQL. The browser pauses refresh while hidden.
+ESPN feeds cover the pro teams and Purdue football, men's and women's basketball, volleyball, women's soccer (team 20519), baseball (189) and softball (601, under `baseball/college-softball`). Other Purdue programs link to their official schedule. The catalog keeps its original app IDs, which are stored in PostgreSQL; each team's `providerId` holds the ESPN `sport/league/teamId` path.
 
-Source permissions: [API terms](https://www.thesportsdb.com/docs_terms_of_use.php), [pricing and free-tier limits](https://www.thesportsdb.com/pricing). The free API key `123` is the documented public development key, not a secret. No provider artwork is used. The undocumented ESPN endpoints are excluded because permission for automated extraction has not been established under [Disney section 2.B.x](https://disneytermsofuse.com/english/).
+Each feed is cached in process for 15 minutes. Requests share a queue with 500 ms between calls, bounded timeouts and rate-limit backoff. A failed refresh keeps prior data and shows an error/stale label. Restarting clears this cache; favorites remain in PostgreSQL. The browser pauses refresh while hidden.
+
+Terms: [Disney terms of use section 2.B.x](https://disneytermsofuse.com/english/) limits automated extraction. This is a personal app behind Cloudflare Access, used with that risk accepted. No ESPN artwork is used.
 
 ## Development
 
