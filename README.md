@@ -1,6 +1,6 @@
 # Team Scoreboard
 
-Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Games are grouped into Purdue, NFL, NBA and MLB sections, each split by day. Three tabs run Live, Recent results and Upcoming. Live opens by default and shows all of today's games: in progress first, then finals, then games still to start. Feed coverage and fetch status are on a separate Source status page (#status), opened from the header. Favorite teams are highlighted and listed first within each day, and favorites are shared across devices.
+Personal schedules, live scores and recent results for every NFL, NBA and MLB game plus Purdue varsity sports. Games are grouped into Purdue, NFL, NBA and MLB sections, each split by day. Sections start collapsed on every page load; select a section header to expand it. Three tabs run Live, Recent results and Upcoming. Live opens by default and shows all of today's games: in progress first, then finals, then games still to start. Feed coverage and fetch status are on a separate Source status page (#status), opened from the header. Favorite teams are highlighted and listed first within each day, and favorites are shared across devices.
 
 ## Status
 
@@ -10,7 +10,7 @@ Deployed on jimbrownhome1 through the solution-deploy framework: https://team-sc
 
 The app reads ESPN's public, undocumented `site.api.espn.com` endpoints. They need no key. ESPN can change or remove them without notice, so a broken feed shows an error and keeps the last good data.
 
-NFL, NBA and MLB come from each league's scoreboard (`/apis/site/v2/sports/{sport}/{league}/scoreboard`), which carries live scores. NBA and MLB are fetched one Eastern day per request (`?dates=YYYYMMDD`) from the chosen number of days back through 7 days ahead. NFL is fetched by week (`?week=N&seasontype=T`): the current week, enough past weeks to cover the chosen days, and next week. The Results control picks 1, 3, 7 or 14 days back; it is a per-device setting in localStorage.
+NFL, NBA and MLB come from each league's scoreboard (`/apis/site/v2/sports/{sport}/{league}/scoreboard`), which carries live scores. NBA and MLB are fetched one Eastern day per request (`?dates=YYYYMMDD`) from the chosen number of days back through 7 days ahead. NFL is fetched by week (`?week=N&seasontype=T`): the current week, enough past weeks to cover the chosen days, and next week. The Results control picks 1, 3, 7 or 14 days back (default 14); it is a per-device setting in localStorage. Recent results show finals inside that window, and Upcoming shows the next 7 days plus games without a date.
 
 Purdue programs use the team schedule endpoint (`/teams/{id}/schedule`) and show live games, the last 3 results and the next 5 games. When the default schedule is empty the server retries once with `?seasontype=2`. ESPN answers HTTP 400 for some sports with no current season; that is treated as no games. Purdue feeds cover football, men's and women's basketball, volleyball, women's soccer (team 20519), baseball (189) and softball (601, under `baseball/college-softball`). Other Purdue programs link to their official schedule.
 
