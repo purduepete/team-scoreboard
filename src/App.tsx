@@ -180,6 +180,41 @@ export function App() {
     const setAllSections = (open: boolean) => setToggled({ filter: team, open, keys: [] });
     const allOpen = sections.every((section) => isOpen(section.key));
     const allClosed = sections.every((section) => !isOpen(section.key));
+    const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
+    shortcut.current = (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+        if (document.querySelector('[role="listbox"]')) return;
+        const views: Record<string, View> = {
+            Digit1: 'live',
+            Numpad1: 'live',
+            Digit2: 'recent',
+            Numpad2: 'recent',
+            Digit3: 'upcoming',
+            Numpad3: 'upcoming',
+        };
+        const key = event.key.toLowerCase();
+        if (key === 'r') {
+            if (!refreshing) void forceRefresh('live');
+        } else if (statusPage) {
+            return;
+        } else if (views[event.code]) {
+            setView(views[event.code]);
+        } else if (key === 'x') {
+            setAllSections(true);
+        } else if (key === 'c') {
+            setAllSections(false);
+        } else {
+            return;
+        }
+        event.preventDefault();
+    };
+    useEffect(() => {
+        const onKey = (event: globalThis.KeyboardEvent) => shortcut.current(event);
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
     const updated = feeds
         .map((feed) => feed.updatedAt)
         .filter((value): value is string => value !== null)
@@ -211,7 +246,8 @@ export function App() {
                             onClick={() => void forceRefresh('live')}
                             disabled={refreshing}
                             aria-label="Refresh"
-                            title="Refresh live scores"
+                            aria-keyshortcuts="R"
+                            title="Refresh live scores (R)"
                         >
                             <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'spin' : ''} />
                             <span className="refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
@@ -328,11 +364,13 @@ export function App() {
                             <section className="panel">
                                 <div className="toolbar">
                                     <div className="tabs" role="group" aria-label="Schedule view">
-                                        {(['live', 'recent', 'upcoming'] as View[]).map((item) => (
+                                        {(['live', 'recent', 'upcoming'] as View[]).map((item, index) => (
                                             <button
                                                 type="button"
                                                 key={item}
                                                 aria-pressed={view === item}
+                                                aria-keyshortcuts={String(index + 1)}
+                                                title={`${viewLabels[item]} (${index + 1})`}
                                                 className={view === item ? 'selected' : ''}
                                                 onClick={() => setView(item)}
                                             >
@@ -360,13 +398,21 @@ export function App() {
                                 </div>
                                 {sections.length > 0 && (
                                     <div className="section-controls">
-                                        <button type="button" disabled={allOpen} onClick={() => setAllSections(true)}>
+                                        <button
+                                            type="button"
+                                            disabled={allOpen}
+                                            aria-keyshortcuts="X"
+                                            title="Expand all (X)"
+                                            onClick={() => setAllSections(true)}
+                                        >
                                             <ChevronsUpDown size={16} aria-hidden="true" />
                                             Expand all
                                         </button>
                                         <button
                                             type="button"
                                             disabled={allClosed}
+                                            aria-keyshortcuts="C"
+                                            title="Collapse all (C)"
                                             onClick={() => setAllSections(false)}
                                         >
                                             <ChevronsDownUp size={16} aria-hidden="true" />

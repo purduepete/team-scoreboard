@@ -266,6 +266,36 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     expect(new Set(requestedDays)).toEqual(new Set(['14']));
 });
 
+test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    const pressed = (name: string) => page.getByRole('button', { name, exact: true });
+    await page.keyboard.press('2');
+    await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Numpad3');
+    await expect(pressed('Upcoming')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Numpad1');
+    await expect(pressed('Current')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('3');
+    const closed = page.locator('.section-title button[aria-expanded="false"]');
+    const open = page.locator('.section-title button[aria-expanded="true"]');
+    await page.keyboard.press('x');
+    await expect(closed).toHaveCount(0);
+    await page.keyboard.press('c');
+    await expect(open).toHaveCount(0);
+    await page.keyboard.press('Control+c');
+    await expect(open).toHaveCount(0);
+    await page.keyboard.press('r');
+    await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
+
+    await page.getByRole('button', { name: 'Edit favorites' }).click();
+    await page.getByLabel('Find a team or sport').fill('x2');
+    await expect(page.getByLabel('Find a team or sport')).toHaveValue('x2');
+    await expect(closed).toHaveCount(await page.locator('.section-title button').count());
+    await expect(pressed('Upcoming')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pressed('Recent')).toHaveAttribute('title', 'Recent (2)');
+});
+
 test('server failures are visible with retry, without fake records', async ({ page }) => {
     await page.unroute('**/api/**');
     await page.route('**/api/**', (route) => route.fulfill({ status: 503, json: { error: 'Database unavailable' } }));
