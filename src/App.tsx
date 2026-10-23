@@ -27,11 +27,23 @@ import { formatTime, groupGames, isFavorite, resultDays, visibleGames } from './
 import type { View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Current', recent: 'Recent', upcoming: 'Upcoming' };
+const filterKeys: Record<string, string> = {
+    a: 'all',
+    p: 'league:NCAA',
+    f: 'league:NFL',
+    k: 'league:NBA',
+    b: 'league:MLB',
+};
 
 const shortcutHelp: [string[], string][] = [
     [['1'], 'Current'],
     [['2'], 'Recent'],
     [['3'], 'Upcoming'],
+    [['A'], 'Show all teams'],
+    [['P'], 'Show Purdue'],
+    [['F'], 'Show NFL'],
+    [['K'], 'Show NBA'],
+    [['B'], 'Show MLB'],
     [['X'], 'Expand all sections'],
     [['C'], 'Collapse all sections'],
     [['R'], 'Refresh live scores'],
@@ -264,6 +276,8 @@ export function App() {
             return;
         } else if (views[event.code]) {
             setView(views[event.code]);
+        } else if (filterKeys[key]) {
+            setTeam(filterKeys[key]);
         } else if (key === 'x') {
             setAllSections(true);
         } else if (key === 'c') {

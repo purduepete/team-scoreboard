@@ -20,7 +20,7 @@ Caching is in process. Scoreboard pages with a live game or one starting within 
 
 Each card shows the TV channel (ESPN `broadcasts`) and each team's overall record (`records` on scoreboards, `record` on Purdue schedules, and the team's current `recordSummary` on games still to play). Rankings are not shown.
 
-Keyboard shortcuts: `1`, `2` and `3` (number row or numpad) open Current, Recent and Upcoming; `X` expands all sections, `C` collapses them and `R` refreshes live scores. They are ignored while typing in a field, while a dropdown is open, and with Ctrl, Alt or Cmd held. Hovering each button shows its key, and `?` opens an overlay listing every shortcut (Esc, `?` or a click outside closes it).
+Keyboard shortcuts: `1`, `2` and `3` (number row or numpad) open Current, Recent and Upcoming; `A`, `P`, `F`, `K` and `B` set Show to All teams, Purdue, NFL, NBA and MLB; `X` expands all sections, `C` collapses them and `R` refreshes live scores. They are ignored while typing in a field, while a dropdown is open, and with Ctrl, Alt or Cmd held. Hovering each button shows its key, and `?` opens an overlay listing every shortcut (Esc, `?` or a click outside closes it).
 
 Live cards show the game situation when ESPN sends it: down, distance, red zone and a possession square for football; outs, runners and the count for baseball. When a poll changes a score, that score flashes for 2.5 seconds (a static outline with reduced motion). The two loads at page open only set the starting scores, so nothing flashes then.
 

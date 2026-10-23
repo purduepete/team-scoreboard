@@ -304,6 +304,26 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await expect(pressed('Recent')).toHaveAttribute('title', 'Recent (2)');
 });
 
+test('letter shortcuts set the Show filter', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    const show = page.getByRole('button', { name: 'Show', exact: true });
+    for (const [key, label] of [
+        ['p', 'Purdue'],
+        ['k', 'NBA'],
+        ['f', 'NFL'],
+        ['b', 'MLB'],
+        ['a', 'All teams'],
+    ]) {
+        await page.keyboard.press(key);
+        await expect(show).toHaveText(label);
+    }
+    await page.keyboard.press('?');
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toContainText('Show Purdue');
+    await page.keyboard.press('k');
+    await expect(show).toHaveText('All teams');
+});
+
 test('? opens the shortcut help and Escape or a backdrop click closes it', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
