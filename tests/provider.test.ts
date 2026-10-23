@@ -184,6 +184,26 @@ describe('window and filters', () => {
                 .sort()
         ).toEqual(['tba', 'up-7']);
     });
+    it('keeps past postponed and canceled games out of Upcoming and lists them in Recent', () => {
+        const on = new Date(2026, 9, 22, 12);
+        const games = [
+            make('ppd', 17, 'postponed'),
+            make('cxl', 20, 'canceled'),
+            make('stale', 21, 'upcoming'),
+            make('today', 22, 'upcoming'),
+            make('ppd-next', 24, 'postponed'),
+        ];
+        expect(
+            visibleGames(games, 'upcoming', 'all', [], on)
+                .map((game) => game.id)
+                .sort()
+        ).toEqual(['ppd-next', 'today']);
+        expect(
+            visibleGames(games, 'recent', 'all', [], on)
+                .map((game) => game.id)
+                .sort()
+        ).toEqual(['cxl', 'ppd', 'stale']);
+    });
     it('groups into Purdue then pro league sections, and orders Live today by status', () => {
         const at = (
             id: string,

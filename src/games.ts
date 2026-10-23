@@ -56,7 +56,8 @@ export const upcomingDays = 7;
 export const resultDays = 14;
 
 // Live shows every game on today's local date; Upcoming and Recent split the rest by status.
-// Recent keeps finals from the last 14 local days; Upcoming keeps the next 7 days and undated games.
+// Recent keeps finals from the last 14 local days plus past postponed or canceled games; Upcoming keeps
+// today through the next 7 days and undated games, never a past date.
 export function visibleGames(
     games: Game[],
     view: View,
@@ -91,8 +92,15 @@ export function visibleGames(
         if (!matches) return false;
         if (view === 'live') return game.status === 'live' || isToday(game, now);
         const days = offset(game);
-        if (view === 'recent') return game.status === 'final' && days !== null && days >= -windowDays;
-        return game.status !== 'final' && game.status !== 'live' && (days === null || days <= upcomingDays);
+        if (view === 'recent')
+            return (
+                days !== null &&
+                days >= -windowDays &&
+                (game.status === 'final' || (days < 0 && game.status !== 'live'))
+            );
+        return (
+            game.status !== 'final' && game.status !== 'live' && (days === null || (days >= 0 && days <= upcomingDays))
+        );
     });
 }
 
