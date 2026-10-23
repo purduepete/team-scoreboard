@@ -42,7 +42,8 @@ export function App() {
     const [view, setView] = useState<View>('live');
     const [team, setTeam] = useState('all');
     // League sections start collapsed on every page load.
-    const [expanded, setExpanded] = useState<string[]>([]);
+    // Sections the user flipped from their default for the current Show filter; a new filter resets them.
+    const [toggled, setToggled] = useState<{ filter: string; keys: string[] }>({ filter: 'all', keys: [] });
     const [refreshing, setRefreshing] = useState(false);
     const [editing, setEditing] = useState(false);
     const [search, setSearch] = useState('');
@@ -154,7 +155,18 @@ export function App() {
         team,
         favoriteIds
     );
-    const sections = groupGames(games, view, favoriteIds);
+    // One team or Purdue alone: every card would match, so skip favorite highlighting and ordering.
+    const singleTeam =
+        team === 'league:NCAA' || !(team === 'all' || team === 'favorites' || team.startsWith('league:'));
+    const highlightIds = singleTeam ? [] : favoriteIds;
+    const sections = groupGames(games, view, highlightIds);
+    const flipped = toggled.filter === team ? toggled.keys : [];
+    const isOpen = (key: string) => (team !== 'all') !== flipped.includes(key);
+    const toggleSection = (key: string) =>
+        setToggled({
+            filter: team,
+            keys: flipped.includes(key) ? flipped.filter((item) => item !== key) : [...flipped, key],
+        });
     const updated = feeds
         .map((feed) => feed.updatedAt)
         .filter((value): value is string => value !== null)
@@ -334,7 +346,7 @@ export function App() {
                                     />
                                 </div>
                                 {sections.map((section) => {
-                                    const open = expanded.includes(section.key);
+                                    const open = isOpen(section.key);
                                     return (
                                         <section
                                             className="league-section"
@@ -346,13 +358,7 @@ export function App() {
                                                     type="button"
                                                     aria-expanded={open}
                                                     aria-controls={`section-${section.key}`}
-                                                    onClick={() =>
-                                                        setExpanded((current) =>
-                                                            open
-                                                                ? current.filter((key) => key !== section.key)
-                                                                : [...current, section.key]
-                                                        )
-                                                    }
+                                                    onClick={() => toggleSection(section.key)}
                                                 >
                                                     <ChevronRight
                                                         size={20}
@@ -382,7 +388,7 @@ export function App() {
                                                         </h3>
                                                         <div className="games">
                                                             {group.games.map((game) => {
-                                                                const favorite = isFavorite(game, favoriteIds);
+                                                                const favorite = isFavorite(game, highlightIds);
                                                                 return (
                                                                     <article
                                                                         className={`game${favorite ? ' favorite' : ''}`}
