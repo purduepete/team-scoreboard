@@ -2,13 +2,8 @@ import type { Game } from '../shared/contracts.js';
 import { reconcile } from '../shared/reconcile.js';
 import { expandFavorites } from './catalog.js';
 
-// Purdue has about 20 varsity programs; only these alert so a busy weekend doesn't flood the phone.
-export const purdueAlertTeams = ['purdue-football', 'purdue-mens-basketball'];
-
 export function alertTeamIds(favorites: string[]): string[] {
-    return expandFavorites(favorites)
-        .filter((team) => !team.purdue || purdueAlertTeams.includes(team.id))
-        .map((team) => team.id);
+    return expandFavorites(favorites).map((team) => team.id);
 }
 
 export interface Alert {

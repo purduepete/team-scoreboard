@@ -206,6 +206,16 @@ describe('calendar route', () => {
     let origin: string;
     let failSeason = false;
     const shared: Game = { ...base, status: 'upcoming', origin: 'schedule', teamIds: [colts.id, seahawks.id] };
+    const volleyball: Game = {
+        ...shared,
+        id: 'volleyball-401',
+        teamIds: ['purdue-volleyball'],
+        sport: "Women's Volleyball",
+        league: 'NCAA',
+        home: 'Purdue Boilermakers',
+        away: 'Minnesota Golden Gophers',
+        title: 'Minnesota Golden Gophers at Purdue Boilermakers',
+    };
     const sports = {
         async league() {
             return [];
@@ -215,6 +225,7 @@ describe('calendar route', () => {
         },
         async season(team: Team) {
             if (failSeason) throw new Error('ESPN down');
+            if (team.id === 'purdue-volleyball') return [volleyball];
             return team.id === colts.id || team.id === seahawks.id ? [shared] : [];
         },
         refreshLive() {},
@@ -250,6 +261,8 @@ describe('calendar route', () => {
         expect(response.headers.get('content-type')).toBe('text/calendar; charset=utf-8');
         const text = await response.text();
         expect(text.match(/UID:401@/g)).toHaveLength(1);
+        expect(text.match(/UID:volleyball-401@/g)).toHaveLength(1);
+        expect(text).toContain('Minnesota Golden Gophers at Purdue Boilermakers');
         for (const path of [`/calendar/${'y'.repeat(43)}.ics`, `/calendar/${token}`, '/calendar', '/calendar/a/b'])
             expect((await fetch(`${origin}${path}`)).status).toBe(404);
     });

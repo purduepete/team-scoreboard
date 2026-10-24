@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Game } from '../shared/contracts.js';
 import { GameAlerts, alertTeamIds, pushoverSender } from '../server/alerts.js';
 import type { Alert } from '../server/alerts.js';
+import { expandFavorites } from '../server/catalog.js';
 
 const game = (status: Game['status'], overrides: Partial<Game> = {}): Game => ({
     id: '401',
@@ -53,13 +54,33 @@ describe('game alerts', () => {
         alerts.observe([game('live')], ['999']);
         expect(sent).toHaveLength(0);
     });
-    it('limits Purdue alerts to football and men’s basketball', () => {
-        const ids = alertTeamIds(['134927', 'purdue-all']);
-        expect(ids).toContain('134927');
-        expect(ids.filter((id) => id.startsWith('purdue-')).sort()).toEqual([
-            'purdue-football',
-            'purdue-mens-basketball',
-        ]);
+    it('includes every favorite, expanding Purdue All Varsity without duplicates', () => {
+        const favorites = ['134927', 'purdue-all', 'purdue-volleyball'];
+        const ids = alertTeamIds(favorites);
+        expect(ids).toEqual(expandFavorites(favorites).map((team) => team.id));
+        expect(ids).toContain('purdue-volleyball');
+        expect(ids.filter((id) => id === 'purdue-volleyball')).toHaveLength(1);
+        expect(ids).not.toContain('purdue-all');
+        expect(alertTeamIds([])).toEqual([]);
+    });
+    it.each([['purdue-all'], ['purdue-volleyball']])('alerts for favorite volleyball via %s', (favorite) => {
+        const { sent, alerts } = setup();
+        const watched = alertTeamIds([favorite]);
+        const volleyball = (status: Game['status']) =>
+            game(status, {
+                teamIds: ['purdue-volleyball'],
+                sport: "Women's Volleyball",
+                league: 'NCAA',
+                home: 'Purdue Boilermakers',
+                away: 'Minnesota Golden Gophers',
+            });
+        alerts.observe([volleyball('upcoming')], watched);
+        alerts.observe([volleyball('live')], watched);
+        alerts.observe([volleyball('final')], watched);
+        alerts.observe([volleyball('final')], watched);
+        expect(sent).toHaveLength(2);
+        expect(sent[0].title).toBe('Minnesota Golden Gophers at Purdue Boilermakers started');
+        expect(sent[1].title).toMatch(/^Final:/);
     });
     it('posts to Pushover with the ESPN link', async () => {
         let request: RequestInit | undefined;

@@ -30,7 +30,7 @@ Purdue's Big Ten games arrive from both the Purdue schedule and the Big Ten scor
 
 ## Calendar feed
 
-`GET /calendar/<CALENDAR_TOKEN>.ics` serves an iCalendar subscription for the alert teams (pro favorites plus Purdue football and men's basketball): the last 30 days and the rest of the season, one event per game with a stable `UID`, finals titled with the score, and `REFRESH-INTERVAL` of 1 hour. Team seasons are cached 6 hours. If any team's schedule has never loaded, the feed answers 503 with `Retry-After: 900` so a calendar keeps its events instead of receiving an empty feed.
+`GET /calendar/<CALENDAR_TOKEN>.ics` serves an iCalendar subscription for all favorites with ESPN coverage, including Purdue volleyball and every covered program in Purdue All Varsity: the last 30 days and the rest of the season, one event per game with a stable `UID`, finals titled with the score, and `REFRESH-INTERVAL` of 1 hour. Team seasons are cached 6 hours. If any team's schedule has never loaded, the feed answers 503 with `Retry-After: 900` so a calendar keeps its events instead of receiving an empty feed.
 
 Cloudflare Access bypasses only `team-scoreboard.jimlertech.com/calendar/*` (an Everyone bypass app made by `Set-CloudflareHostnames.ps1 -PublishTeamScoreboardCalendar`), so calendar apps can fetch it. The token is the protection: `CALENDAR_TOKEN` in the host `shared\secrets\app.env` is 32 random bytes in base64url, compared in constant time. A wrong token, or a missing or shorter than 32 character token, returns 404. The page heading shows a Calendar menu with Download, Copy link and Subscribe (`webcal://`) only when the feed is configured; `/api/calendar` stays behind Access. `CALENDAR_ORIGIN` overrides the public origin in that link.
 
@@ -38,7 +38,7 @@ To rotate the token, replace `CALENDAR_TOKEN` in `app.env`, restart the app, and
 
 ## Game alerts
 
-When `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN` are set, the server sends a Pushover alert when a favorite's game starts (with the channel) and when it ends (with the final score). Purdue alerts cover football and men's basketball only. The first sighting of a game after a restart only records its status, so a deploy never replays alerts. Without both values, alerts are off and the server logs that once. The Pushover application icon is [deploy/pushover-icon.png](deploy/pushover-icon.png) (72×72).
+When `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN` are set, the server sends a Pushover alert when a favorite's game starts (with the channel) and when it ends (with the final score). Alerts follow all saved favorites, including individually selected Purdue programs and every program in Purdue All Varsity; programs without ESPN coverage cannot generate alerts. The first sighting of a game after a restart only records its status, so a deploy never replays alerts. Without both values, alerts are off and the server logs that once. The Pushover application icon is [deploy/pushover-icon.png](deploy/pushover-icon.png) (72×72).
 
 Terms: [Disney terms of use section 2.B.x](https://disneytermsofuse.com/english/) limits automated extraction. This is a personal app behind Cloudflare Access, used with that risk accepted. No ESPN artwork is used.
 
