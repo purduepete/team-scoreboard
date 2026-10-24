@@ -35,7 +35,8 @@ const csp = [
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    "frame-ancestors 'self'",
+    // Site Dock embeds this app from both of its access paths.
+    "frame-ancestors 'self' https://site-dock.jimlertech.com https://jimbrownhome1.tail8ad282.ts.net:8790",
 ].join('; ');
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000, max: 4 });
 pool.on('error', (error) => console.error('Idle PostgreSQL connection error:', error.message));
