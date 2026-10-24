@@ -134,6 +134,12 @@ describe('API with in-memory test double (no database writes)', () => {
         expect((await write('/api/refresh', 'POST', { days: 7, extra: 1 })).status).toBe(400);
         expect((await write('/api/refresh', 'POST', { days: 7 }, 'https://evil.test')).status).toBe(403);
     });
+    it('returns scores from a refetch that the same poll started', async () => {
+        const dashboard = await (await fetch(origin + '/api/dashboard?days=5')).json();
+        const nfl = dashboard.feeds.find((feed: { id: string }) => feed.id === 'league-nfl-5d');
+        expect(nfl).toMatchObject({ pending: false, error: null });
+        expect(nfl.updatedAt).not.toBeNull();
+    });
     it('rejects malformed JSON rather than returning success', async () => {
         const response = await fetch(origin + '/api/favorites', {
             method: 'POST',

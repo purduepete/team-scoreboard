@@ -39,8 +39,17 @@ export class FeedCache {
             available: Boolean(source.load),
             ...(source.purdue ? { purdue: true } : {}),
         };
+        if (!source.load) return { ...details, games: [], updatedAt: null, stale: false, error: null, pending: false };
+        this.load(source);
+        const current = this.entries.get(source.id)!;
+        return { ...details, ...current.feed, games: [...current.feed.games] };
+    }
+
+    // Starts a refetch when the feed is due and returns it; null when nothing new started (not due,
+    // already loading, or no feed).
+    load(source: FeedSource): Promise<void> | null {
         const load = source.load;
-        if (!load) return { ...details, games: [], updatedAt: null, stale: false, error: null, pending: false };
+        if (!load) return null;
         let entry = this.entries.get(source.id);
         if (!entry) {
             entry = {
@@ -52,46 +61,46 @@ export class FeedCache {
             this.entries.set(source.id, entry);
         }
         const current = entry;
-        if (this.clock() >= current.nextAttempt && !current.pending) {
-            current.feed = { ...current.feed, pending: true, stale: current.feed.updatedAt !== null };
-            current.pending = load()
-                .then((games) => {
-                    const now = this.clock();
-                    current.feed = {
-                        id: source.id,
-                        games,
-                        updatedAt: new Date(now).toISOString(),
-                        stale: false,
-                        error: null,
-                        pending: false,
-                    };
-                    current.failures = 0;
-                    current.nextAttempt = now + (source.interval ?? hotInterval)(games, now);
-                })
-                .catch((error: unknown) => {
-                    this.report(error);
-                    current.failures++;
-                    current.nextAttempt =
-                        this.clock() +
-                        Math.max(
-                            error instanceof ProviderError ? error.retryAfterMs : 0,
-                            Math.min(15 * 60_000, 60_000 * 2 ** current.failures)
-                        );
-                    current.feed = {
-                        ...current.feed,
-                        pending: false,
-                        stale: current.feed.updatedAt !== null,
-                        error:
-                            error instanceof ProviderError
-                                ? error.message
-                                : 'Could not refresh this feed. Previously fetched results may be out of date.',
-                    };
-                })
-                .finally(() => {
-                    current.pending = null;
-                });
-        }
-        return { ...details, ...current.feed, games: [...current.feed.games] };
+        if (this.clock() < current.nextAttempt || current.pending) return null;
+        current.feed = { ...current.feed, pending: true, stale: current.feed.updatedAt !== null };
+        const pending = load()
+            .then((games) => {
+                const now = this.clock();
+                current.feed = {
+                    id: source.id,
+                    games,
+                    updatedAt: new Date(now).toISOString(),
+                    stale: false,
+                    error: null,
+                    pending: false,
+                };
+                current.failures = 0;
+                current.nextAttempt = now + (source.interval ?? hotInterval)(games, now);
+            })
+            .catch((error: unknown) => {
+                this.report(error);
+                current.failures++;
+                current.nextAttempt =
+                    this.clock() +
+                    Math.max(
+                        error instanceof ProviderError ? error.retryAfterMs : 0,
+                        Math.min(15 * 60_000, 60_000 * 2 ** current.failures)
+                    );
+                current.feed = {
+                    ...current.feed,
+                    pending: false,
+                    stale: current.feed.updatedAt !== null,
+                    error:
+                        error instanceof ProviderError
+                            ? error.message
+                            : 'Could not refresh this feed. Previously fetched results may be out of date.',
+                };
+            })
+            .finally(() => {
+                current.pending = null;
+            });
+        current.pending = pending;
+        return pending;
     }
 
     // Makes matching feeds due now (all by default); entries already loading keep their pending request.

@@ -28,11 +28,15 @@ export interface Game {
     sourceUrl: string;
     week?: number;
     broadcast?: string;
+    // National broadcast networks (ESPN market "national", excluding NBA TV and League Pass).
+    national?: string;
     homeRecord?: string;
     awayRecord?: string;
     // Live only: football down and distance or baseball outs, bases and count.
     situation?: string;
     possession?: 'home' | 'away';
+    // Live football only: the team with the ball is inside the opponent's 20.
+    redZone?: boolean;
     // 'schedule' marks a team-schedule copy; league scoreboard copies (and older cached ones) leave it unset.
     origin?: 'scoreboard' | 'schedule';
 }

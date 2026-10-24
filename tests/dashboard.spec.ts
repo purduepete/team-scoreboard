@@ -67,6 +67,7 @@ let refreshBodies: unknown[] = [];
 let fullLoads: string[] = [];
 let liveHome = 54;
 let liveExtra: Partial<Game> = {};
+let extraGames: Game[] = [];
 let calendarUrl: string | null = null;
 
 const expandSections = async (page: import('@playwright/test').Page) => {
@@ -81,6 +82,7 @@ test.beforeEach(async ({ page }) => {
     fullLoads = [];
     liveHome = 54;
     liveExtra = {};
+    extraGames = [];
     calendarUrl = null;
     await page.route('**/api/**', async (route) => {
         const request = route.request();
@@ -97,8 +99,16 @@ test.beforeEach(async ({ page }) => {
                 liveAvailable: true,
                 notice: 'Fixture data from ESPN-shaped feeds.',
                 feeds: [
-                    leagueFeed('NFL', days, [otherGame, game], 'Fixture upstream failure'),
-                    leagueFeed('NBA', days, [{ ...liveGame, homeScore: liveHome, ...liveExtra }]),
+                    leagueFeed(
+                        'NFL',
+                        days,
+                        [otherGame, game, ...extraGames.filter((entry) => entry.league === 'NFL')],
+                        'Fixture upstream failure'
+                    ),
+                    leagueFeed('NBA', days, [
+                        { ...liveGame, homeScore: liveHome, ...liveExtra },
+                        ...extraGames.filter((entry) => entry.league === 'NBA'),
+                    ]),
                     leagueFeed('MLB', days, []),
                     ...expandFavorites(favorites)
                         .filter((entry) => entry.purdue)
@@ -179,7 +189,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
-    await expect(tabs).toHaveText(['Current', 'Recent', 'Upcoming']);
+    await expect(tabs).toHaveText(['Current', 'Upcoming', 'Recent']);
     await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const nba = page.locator('.section-title button', { hasText: 'NBA' });
     await expect(nba).toHaveAttribute('aria-expanded', 'false');
@@ -354,9 +364,9 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     const pressed = (name: string) => page.getByRole('button', { name, exact: true });
     await page.keyboard.press('2');
-    await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
-    await page.keyboard.press('Numpad3');
     await expect(pressed('Upcoming')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Numpad3');
+    await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('Numpad1');
     await expect(pressed('Current')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('3');
@@ -375,8 +385,9 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await page.getByLabel('Find a team or sport').fill('x2');
     await expect(page.getByLabel('Find a team or sport')).toHaveValue('x2');
     await expect(closed).toHaveCount(await page.locator('.section-title button').count());
-    await expect(pressed('Upcoming')).toHaveAttribute('aria-pressed', 'true');
-    await expect(pressed('Recent')).toHaveAttribute('title', 'Recent (2)');
+    await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pressed('Upcoming')).toHaveAttribute('title', 'Upcoming (2)');
+    await expect(pressed('Recent')).toHaveAttribute('title', 'Recent (3)');
 });
 
 test('letter shortcuts set the Show filter', async ({ page }) => {
@@ -448,7 +459,7 @@ test('calendar menu appears only when the feed is configured', async ({ page }) 
 
     await trigger.click();
     await page.keyboard.press('3');
-    await expect(page.getByRole('button', { name: 'Upcoming' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('button', { name: 'Recent' })).toHaveAttribute('aria-pressed', 'false');
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -473,6 +484,55 @@ test('a changed score flashes once and the live situation shows', async ({ page 
     await expect(card.locator('.score-changed')).toHaveText('57');
     await expect(card.locator('.score-changed')).toHaveCount(1);
     await expect(page.locator('.score-changed')).toHaveCount(0, { timeout: 5000 });
+});
+
+test('football shows a ball for possession and a red zone pill; NBA marks national games', async ({ page }) => {
+    liveExtra = { national: 'ESPN' };
+    extraGames = [
+        {
+            ...game,
+            id: 'fixture-football-live',
+            title: 'Fixture Bears at Packers',
+            teamIds: ['nfl-3', 'nfl-9'],
+            home: 'Green Bay Packers',
+            away: 'Chicago Bears',
+            homeScore: 14,
+            awayScore: 10,
+            status: 'live',
+            statusLabel: 'Q2 2:00',
+            situation: '2nd & 4 at GB 12',
+            possession: 'away',
+            redZone: true,
+        },
+        {
+            ...liveGame,
+            id: 'fixture-nba-tv',
+            title: 'Fixture Heat at Hornets',
+            teamIds: ['nba-14', 'nba-30'],
+            home: 'Charlotte Hornets',
+            away: 'Miami Heat',
+            broadcast: 'NBA TV',
+            national: undefined,
+        },
+    ];
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    await expandSections(page);
+    const football = page.locator('.game', { hasText: 'Green Bay Packers' });
+    await expect(football.locator('.red-zone')).toHaveText('Red zone');
+    await expect(football.locator('.situation')).toContainText('2nd & 4 at GB 12');
+    await expect(football.locator('svg.possession-ball')).toHaveCount(1);
+    await expect(football.getByRole('img', { name: 'Has possession' })).toHaveCount(1);
+    await expect(football.getByText('AWAY', { exact: true })).toHaveCount(0);
+    await expect(football.getByText('HOME', { exact: true })).toHaveCount(0);
+    await expect(football.locator('.national-badge')).toHaveCount(0);
+
+    const national = page.locator('.game', { hasText: 'Indiana Pacers' });
+    await expect(national.getByRole('img', { name: 'National broadcast: ESPN' })).toHaveCount(1);
+    await expect(national.getByText('HOME', { exact: true })).toHaveCount(1);
+    await expect(page.locator('.game', { hasText: 'Charlotte Hornets' }).locator('.national-badge')).toHaveCount(0);
+    await football.screenshot({ path: 'test-results/football-red-zone.png' });
+    await national.screenshot({ path: 'test-results/nba-national.png' });
 });
 
 test('server failures are visible with retry, without fake records', async ({ page }) => {

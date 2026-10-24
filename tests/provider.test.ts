@@ -6,6 +6,7 @@ import type { Game } from '../shared/contracts.js';
 import { teams, expandFavorites, leagues } from '../server/catalog.js';
 import {
     isHot,
+    nationalName,
     normalizeEvent,
     parseEvents,
     parseScoreboard,
@@ -543,7 +544,7 @@ describe('league scoreboards', () => {
             },
             nfl
         );
-        expect(game).toMatchObject({ broadcast: 'ESPN, ABC', awayRecord: '5-2' });
+        expect(game).toMatchObject({ broadcast: 'ESPN, ABC', awayRecord: '5-2', national: 'ESPN, ABC' });
         expect(game.homeRecord).toBeUndefined();
 
         const scheduled = {
@@ -560,6 +561,22 @@ describe('league scoreboards', () => {
             ],
         };
         expect(normalizeEvent(scheduled, team)).toMatchObject({ broadcast: 'Fox', homeRecord: '3-4' });
+        expect(normalizeEvent(scheduled, team).national).toBeUndefined();
+    });
+    it('marks national networks but not NBA TV, League Pass, NBCSN or local markets', () => {
+        expect(nationalName([{ market: 'national', names: ['ESPN', 'ABC'] }])).toBe('ESPN, ABC');
+        expect(nationalName([{ market: 'national', names: ['NBA TV'] }])).toBeUndefined();
+        expect(nationalName([{ market: 'national', names: ['ESPN', 'NBA TV'] }])).toBe('ESPN');
+        expect(nationalName([{ market: 'national', names: ['NBCSN'] }])).toBeUndefined();
+        expect(nationalName([{ market: 'national', names: ['NBCSN', 'NBC'] }])).toBe('NBC');
+        expect(
+            nationalName([
+                { market: 'away', names: ['NBA League Pass', 'Peacock'] },
+                { market: 'home', names: ['KFAA-TV'] },
+            ])
+        ).toBeUndefined();
+        expect(nationalName([{ names: ['ESPN'] }, { media: { shortName: 'NBC' } }])).toBeUndefined();
+        expect(nationalName([{ market: 'National', names: ['League Pass', 'Peacock'] }])).toBe('Peacock');
     });
     it("fills the favorite's current record on games still to play", () => {
         const upcoming = withStatus(status('STATUS_SCHEDULED', 'pre', 'Sun, Sep 13'));
@@ -629,5 +646,27 @@ describe('feed cache', () => {
     it('returns a link-only feed for sports without a loader', () => {
         const cache = new FeedCache();
         expect(cache.get(source())).toMatchObject({ games: [], error: null, pending: false, available: false });
+        expect(cache.load(source())).toBeNull();
+    });
+    it('returns the load it starts, and null when the feed is loading or not due', async () => {
+        let now = 0;
+        let calls = 0;
+        const feed: FeedSource = {
+            ...source(async () => {
+                calls += 1;
+                return [];
+            }),
+            interval: () => 30_000,
+        };
+        const cache = new FeedCache(() => now);
+        const started = cache.load(feed);
+        expect(started).toBeInstanceOf(Promise);
+        expect(cache.load(feed)).toBeNull();
+        await started;
+        expect(cache.load(feed)).toBeNull();
+        now = 30_000;
+        expect(cache.load(feed)).toBeInstanceOf(Promise);
+        await cache.settle();
+        expect(calls).toBe(2);
     });
 });

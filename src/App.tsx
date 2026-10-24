@@ -26,7 +26,8 @@ import type { Theme } from './theme';
 import { formatTime, groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
 
-const viewLabels: Record<View, string> = { live: 'Current', recent: 'Recent', upcoming: 'Upcoming' };
+const viewLabels: Record<View, string> = { live: 'Current', upcoming: 'Upcoming', recent: 'Recent' };
+const viewOrder: View[] = ['live', 'upcoming', 'recent'];
 const filterKeys: Record<string, string> = {
     a: 'all',
     p: 'league:NCAA',
@@ -37,8 +38,8 @@ const filterKeys: Record<string, string> = {
 
 const shortcutHelp: [string[], string][] = [
     [['1'], 'Current'],
-    [['2'], 'Recent'],
-    [['3'], 'Upcoming'],
+    [['2'], 'Upcoming'],
+    [['3'], 'Recent'],
     [['A'], 'Show all teams'],
     [['P'], 'Show Purdue'],
     [['F'], 'Show NFL'],
@@ -50,6 +51,29 @@ const shortcutHelp: [string[], string][] = [
     [['?'], 'Show or hide this help'],
     [['Esc'], 'Close this help'],
 ];
+
+// Lucide has no American football, so this is a Lucide-style stroke glyph for football possession.
+function Possession({ football }: { football: boolean }) {
+    if (!football) return <span className="possession" role="img" aria-label="Has possession" />;
+    return (
+        <svg
+            className="possession-ball"
+            role="img"
+            aria-label="Has possession"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M5 19A14 14 0 0 1 19 5a14 14 0 0 1-14 14Z" />
+            <path d="m9.5 14.5 5-5M9.5 12.5l2 2M11 11l2 2M12.5 9.5l2 2" />
+        </svg>
+    );
+}
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
     const response = await fetch(path, { ...init, signal: AbortSignal.timeout(timeoutMs) });
@@ -262,10 +286,10 @@ export function App() {
         const views: Record<string, View> = {
             Digit1: 'live',
             Numpad1: 'live',
-            Digit2: 'recent',
-            Numpad2: 'recent',
-            Digit3: 'upcoming',
-            Numpad3: 'upcoming',
+            Digit2: 'upcoming',
+            Numpad2: 'upcoming',
+            Digit3: 'recent',
+            Numpad3: 'recent',
         };
         const key = event.key.toLowerCase();
         if (key === '?') {
@@ -456,7 +480,7 @@ export function App() {
                             <section className="panel">
                                 <div className="toolbar">
                                     <div className="tabs" role="group" aria-label="Schedule view">
-                                        {(['live', 'recent', 'upcoming'] as View[]).map((item, index) => (
+                                        {viewOrder.map((item, index) => (
                                             <button
                                                 type="button"
                                                 key={item}
@@ -556,11 +580,20 @@ export function App() {
                                                         <div className="games">
                                                             {group.games.map((game) => {
                                                                 const favorite = isFavorite(game, highlightIds);
+                                                                const football = game.sport === 'Football';
                                                                 return (
                                                                     <article
                                                                         className={`game${favorite ? ' favorite' : ''}`}
                                                                         key={game.id}
                                                                     >
+                                                                        {game.league === 'NBA' && game.national && (
+                                                                            <span
+                                                                                className="national-badge"
+                                                                                role="img"
+                                                                                aria-label={`National broadcast: ${game.national}`}
+                                                                                title={`National broadcast: ${game.national}`}
+                                                                            />
+                                                                        )}
                                                                         <div className="game-meta">
                                                                             <span>
                                                                                 {favorite && (
@@ -594,10 +627,8 @@ export function App() {
                                                                                     <span>
                                                                                         {game.away}
                                                                                         {game.possession === 'away' && (
-                                                                                            <span
-                                                                                                className="possession"
-                                                                                                role="img"
-                                                                                                aria-label="Has possession"
+                                                                                            <Possession
+                                                                                                football={football}
                                                                                             />
                                                                                         )}
                                                                                         {game.awayRecord && (
@@ -605,8 +636,13 @@ export function App() {
                                                                                                 {' '}
                                                                                                 ({game.awayRecord})
                                                                                             </span>
-                                                                                        )}{' '}
-                                                                                        <small>AWAY</small>
+                                                                                        )}
+                                                                                        {!football && (
+                                                                                            <>
+                                                                                                {' '}
+                                                                                                <small>AWAY</small>
+                                                                                            </>
+                                                                                        )}
                                                                                     </span>
                                                                                     <strong
                                                                                         key={`away-${flashes[`${game.id}:away`] ?? 0}`}
@@ -623,10 +659,8 @@ export function App() {
                                                                                     <span>
                                                                                         {game.home}
                                                                                         {game.possession === 'home' && (
-                                                                                            <span
-                                                                                                className="possession"
-                                                                                                role="img"
-                                                                                                aria-label="Has possession"
+                                                                                            <Possession
+                                                                                                football={football}
                                                                                             />
                                                                                         )}
                                                                                         {game.homeRecord && (
@@ -634,8 +668,13 @@ export function App() {
                                                                                                 {' '}
                                                                                                 ({game.homeRecord})
                                                                                             </span>
-                                                                                        )}{' '}
-                                                                                        <small>HOME</small>
+                                                                                        )}
+                                                                                        {!football && (
+                                                                                            <>
+                                                                                                {' '}
+                                                                                                <small>HOME</small>
+                                                                                            </>
+                                                                                        )}
                                                                                     </span>
                                                                                     <strong
                                                                                         key={`home-${flashes[`${game.id}:home`] ?? 0}`}
@@ -649,8 +688,14 @@ export function App() {
                                                                                     </strong>
                                                                                 </div>
                                                                                 {game.status === 'live' &&
-                                                                                    game.situation && (
+                                                                                    (game.situation ||
+                                                                                        game.redZone) && (
                                                                                         <p className="situation">
+                                                                                            {game.redZone && (
+                                                                                                <span className="red-zone">
+                                                                                                    Red zone
+                                                                                                </span>
+                                                                                            )}
                                                                                             {game.situation}
                                                                                         </p>
                                                                                     )}

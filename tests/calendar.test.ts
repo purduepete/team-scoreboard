@@ -63,6 +63,20 @@ describe('reconcile', () => {
         expect(game.homeScore).toBe(31);
         expect(game.situation).toBeUndefined();
     });
+    it('takes the red zone flag from the winning copy and clears it when the drive ends', () => {
+        const inside: Game = { ...scoreboard, redZone: true };
+        for (const games of [
+            [schedule, inside],
+            [inside, schedule],
+        ])
+            expect(reconcile(games).get('401')!.redZone).toBe(true);
+        const later: Game = { ...scoreboard, situation: '1st & 10 at SEA 25' };
+        expect(reconcile([inside, later]).get('401')!.redZone).toBeUndefined();
+        const purdue: Game = { ...base, league: 'NCAA', origin: 'schedule' };
+        const bigTen: Game = { ...base, league: 'Big Ten', origin: 'scoreboard', redZone: true };
+        const now = new Date('2026-10-25T18:00:00Z');
+        for (const game of visibleGames([purdue, bigTen], 'live', 'all', [], now)) expect(game.redZone).toBe(true);
+    });
     it('gives a Purdue schedule copy the Big Ten scoreboard score in its own section', () => {
         const purdue: Game = { ...base, league: 'NCAA', origin: 'schedule', homeScore: 0, awayScore: 0 };
         const bigTen: Game = { ...base, league: 'Big Ten', origin: 'scoreboard', homeScore: 14, awayScore: 7 };
@@ -82,7 +96,14 @@ describe('situation', () => {
                 '11',
                 '26'
             )
-        ).toEqual({ situation: '3rd & 2 at SEA 8 · Red zone', possession: 'home' });
+        ).toEqual({ situation: '3rd & 2 at SEA 8', possession: 'home', redZone: true });
+        expect(describeSituation('Football', { isRedZone: true, possession: '26' }, '11', '26')).toEqual({
+            possession: 'away',
+            redZone: true,
+        });
+        expect(describeSituation('Football', { downDistanceText: '1st & 10', isRedZone: false }, '11', '26')).toEqual({
+            situation: '1st & 10',
+        });
     });
     it('reads baseball outs, runners and the count, and needs outs', () => {
         expect(

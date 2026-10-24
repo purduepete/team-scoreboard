@@ -11,6 +11,8 @@
     --accent: #2f477b;
     --accent-text: #f8fafc;
     --error: #b91c1c;
+    --red-zone: #b91c1c;
+    --red-zone-text: #ffffff;
     --header-control-height: 36px;
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-left: env(safe-area-inset-left, 0px);
@@ -27,6 +29,7 @@
     --accent: #6b8cae;
     --accent-text: #0f172a;
     --error: #fca5a5;
+    --red-zone: #dc2626;
 }
 * {
     box-sizing: border-box;
@@ -467,6 +470,7 @@ small {
     font-weight: 700;
 }
 .game {
+    position: relative;
     background: var(--page);
     border: 1px solid var(--border);
     padding: 18px;
@@ -522,6 +526,11 @@ small {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+}
+.broadcast svg {
+    flex: none;
+    position: relative;
+    top: -1px;
 }
 .score-lines .record {
     color: var(--muted);
@@ -779,6 +788,34 @@ kbd {
     margin-left: 6px;
     background: var(--accent);
     vertical-align: middle;
+}
+.possession-ball {
+    margin-left: 6px;
+    color: var(--accent);
+    vertical-align: -3px;
+}
+.red-zone {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 2px 6px;
+    background: var(--red-zone);
+    color: var(--red-zone-text);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    vertical-align: 1px;
+}
+/* Folded top-right corner marking an NBA game on a national network. */
+.national-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 22px 22px 0;
+    border-color: transparent var(--accent) transparent transparent;
 }
 @keyframes score-flash {
     from {

@@ -4,7 +4,7 @@ const rank = (game: Game) => (game.origin === 'schedule' ? 0 : 1);
 
 // Fields that describe the game right now. They come only from the winning copy, so a stale copy can't
 // leave an old situation on a finished game.
-const liveFields = ['status', 'statusLabel', 'homeScore', 'awayScore', 'situation', 'possession'] as const;
+const liveFields = ['status', 'statusLabel', 'homeScore', 'awayScore', 'situation', 'possession', 'redZone'] as const;
 
 function merge(winner: Game, loser: Game): Game {
     const merged: Game = { ...loser };

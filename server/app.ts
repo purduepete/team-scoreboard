@@ -8,12 +8,12 @@ import { expandFavorites, leagues, teams } from './catalog.js';
 import type { LeagueSource } from './catalog.js';
 import type { FeedCache, FeedSource } from './feeds.js';
 import type { FavoritesStore } from './storage.js';
-import { isHot, maxDaysBack } from './provider.js';
+import { isHot, liveRefreshMs, maxDaysBack } from './provider.js';
 import { alertTeamIds } from './alerts.js';
 import { buildCalendar } from './calendar.js';
 
 export const notice =
-    "Every NFL, NBA and MLB game plus Big Ten football and men's basketball from ESPN, with results for the last 14 days and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh every 5 minutes, and Refresh refetches games in progress.";
+    "Every NFL, NBA and MLB game plus Big Ten football and men's basketball from ESPN, with results for the last 14 days and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh about every 30 seconds, and Refresh refetches games in progress.";
 
 export interface SportsSource {
     league(source: LeagueSource, daysBack: number): Promise<Game[]>;
@@ -46,7 +46,7 @@ export function dashboardSources(favorites: string[], sports: SportsSource, days
             officialUrl: source.scoreboardUrl,
             load: () => sports.league(source, daysBack),
             // The provider caches each scoreboard page and only refetches pages that are due.
-            interval: () => 60_000,
+            interval: (games, now) => (isHot(games, now) ? liveRefreshMs : 60_000),
         })),
         ...expandFavorites(favorites)
             .filter((team) => team.purdue)
@@ -153,10 +153,19 @@ export function createApp(options: {
         const favorites = await options.store.list();
         const unknown = favorites.filter((id) => !teams.some((team) => team.id === id));
         if (unknown.length) throw new Error('Stored favorites contain unsupported team identifiers.');
+        const sources = dashboardSources(favorites, options.sports, days);
+        // When this poll starts a refetch, wait briefly so it returns the new scores instead of the
+        // previous snapshot. Loads started by another request (the page-load sweep) are not waited on.
+        const started = sources.map((source) => options.feeds.load(source)).filter((load) => load !== null);
+        if (started.length) {
+            let timer: NodeJS.Timeout | undefined;
+            await Promise.race([Promise.all(started), new Promise((resolve) => (timer = setTimeout(resolve, 5_000)))]);
+            clearTimeout(timer);
+        }
         const dashboard: Dashboard = {
             favorites,
             teams,
-            feeds: dashboardSources(favorites, options.sports, days).map((source) => options.feeds.get(source)),
+            feeds: sources.map((source) => options.feeds.get(source)),
             liveAvailable: true,
             notice,
         };

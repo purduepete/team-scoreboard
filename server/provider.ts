@@ -29,6 +29,7 @@ const recordSchema = z
 const broadcastSchema = z
     .array(
         z.object({
+            market: z.string().optional(),
             names: z.array(z.string()).optional(),
             media: z.object({ shortName: z.string().optional() }).optional(),
         })
@@ -117,6 +118,19 @@ function broadcastName(entries: z.infer<typeof broadcastSchema>): string | undef
     return unique.length ? unique.join(', ').slice(0, 60) : undefined;
 }
 
+const leagueChannel = /^(nba\s*tv|(nba\s*)?league\s*pass|nbcsn)$/i;
+
+// Networks on national-market entries, minus the league's own channel, League Pass and NBCSN.
+export function nationalName(entries: z.infer<typeof broadcastSchema>): string | undefined {
+    const names = (entries ?? [])
+        .filter((entry) => entry.market?.toLowerCase() === 'national')
+        .flatMap((entry) => entry.names ?? [])
+        .map((name) => name.trim())
+        .filter((name) => name && !leagueChannel.test(name));
+    const unique = [...new Set(names)];
+    return unique.length ? unique.join(', ').slice(0, 60) : undefined;
+}
+
 type Situation = z.infer<typeof situationSchema>;
 
 export function describeSituation(
@@ -124,19 +138,21 @@ export function describeSituation(
     situation: Situation,
     homeId: string | undefined,
     awayId: string | undefined
-): { situation?: string; possession?: 'home' | 'away' } {
+): { situation?: string; possession?: 'home' | 'away'; redZone?: boolean } {
     if (!situation) return {};
     if (sport === 'Football') {
-        const text = [situation.downDistanceText?.trim(), situation.isRedZone ? 'Red zone' : '']
-            .filter(Boolean)
-            .join(' · ');
+        const text = situation.downDistanceText?.trim();
         const possession =
             situation.possession && situation.possession === homeId
                 ? 'home'
                 : situation.possession && situation.possession === awayId
                   ? 'away'
                   : undefined;
-        return { ...(text ? { situation: text.slice(0, 80) } : {}), ...(possession ? { possession } : {}) };
+        return {
+            ...(text ? { situation: text.slice(0, 80) } : {}),
+            ...(possession ? { possession } : {}),
+            ...(situation.isRedZone ? { redZone: true } : {}),
+        };
     }
     if (sport === 'Baseball') {
         if (typeof situation.outs !== 'number') return {};
@@ -223,9 +239,11 @@ function toGame(
             : {}),
     };
     const broadcast = broadcastName(competition.broadcasts);
+    const national = nationalName(competition.broadcasts);
     const homeRecord = overall(home);
     const awayRecord = overall(away);
     if (broadcast) game.broadcast = broadcast;
+    if (national) game.national = national;
     if (homeRecord) game.homeRecord = homeRecord;
     if (awayRecord) game.awayRecord = awayRecord;
     return { game, espnTeamIds, homeId: home?.team.id };
@@ -297,7 +315,7 @@ export function parseScoreboard(input: unknown, league: LeagueSource): Game[] {
     return games;
 }
 
-// A feed is hot while a game is live or about to start, so its scores refresh every 5 minutes.
+// A feed is hot while a game is live or about to start, so its scores refresh every 30 seconds.
 export function isHot(games: Game[], now: number): boolean {
     return games.some((game) => {
         if (game.status === 'live') return true;
@@ -350,7 +368,7 @@ interface ScoreboardEntry {
     seasonType?: number;
 }
 
-export const liveRefreshMs = 5 * 60_000;
+export const liveRefreshMs = 30_000;
 export const maxDaysBack = 14;
 const settledStatuses: Game['status'][] = ['final', 'postponed', 'canceled'];
 const cacheFileSchema = z.object({
@@ -465,7 +483,7 @@ export class SportsProvider {
         this.allMark = ++this.generation;
     }
 
-    // Refetches only pages that are due. Live or about-to-start pages refresh every 5 minutes, the
+    // Refetches only pages that are due. Live or about-to-start pages refresh every 30 seconds, the
     // current page every 10 minutes and future pages every 30 minutes. A past page whose games are
     // all final keeps its scores for a day.
     private async page(league: LeagueSource, query: string, current: boolean, past: boolean): Promise<ScoreboardEntry> {
