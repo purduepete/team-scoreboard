@@ -448,13 +448,6 @@ small {
     border-left: 4px solid var(--accent);
     background: var(--raised);
 }
-.game.ended {
-    background-image: repeating-linear-gradient(
-        135deg,
-        transparent 0 13px,
-        color-mix(in srgb, var(--muted) 18%, transparent) 13px 14px
-    );
-}
 .game-meta .star {
     color: var(--accent);
     fill: var(--accent);
@@ -464,6 +457,14 @@ small {
 .live-label {
     color: var(--accent);
     font-weight: 600;
+}
+.final-label {
+    padding: 3px 8px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 0.75rem;
+    font-weight: 700;
 }
 .game {
     background: var(--page);

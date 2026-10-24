@@ -275,7 +275,7 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
 });
 
 for (const theme of ['midnight', 'light']) {
-    test(`Current favorites lead and final cards are hatched only in Current (${theme})`, async ({ page }) => {
+    test(`Current favorites lead and finals have a distinct status badge (${theme})`, async ({ page }) => {
         await page.clock.install({ time: new Date(2026, 9, 25, 9) });
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         const fixture = (id: string, status: Game['status'], hour: number, favorite = false): Game => ({
@@ -322,24 +322,27 @@ for (const theme of ['midnight', 'light']) {
             'scheduled',
         ];
         for (const [index, id] of expected.entries()) await expect(cards.nth(index)).toContainText(id);
-        await expect(page.locator('.game.ended')).toHaveCount(3);
-        await expect(page.locator('.game.favorite.ended')).toHaveCSS('border-left-width', '4px');
+        await expect(page.locator('.game.ended')).toHaveCount(0);
+        await expect(page.locator('.game .final-label')).toHaveCount(3);
+        await expect(page.locator('.game .final-label').first()).toHaveCSS('font-weight', '700');
+        await expect(page.locator('.game .final-label').first()).toHaveCSS(
+            'background-color',
+            theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)'
+        );
         for (const card of await cards.all()) {
             const background = await card.evaluate((element) => getComputedStyle(element).backgroundImage);
-            expect(background.includes('repeating-linear-gradient')).toBe(
-                (await card.getAttribute('class'))!.includes('ended')
-            );
+            expect(background).toBe('none');
         }
-        await expect(page.locator('.game.ended').first()).toContainText('Final');
-        await page.screenshot({ path: `test-results/current-ended-${theme}.png`, fullPage: true });
+        await expect(page.locator('.game .final-label').first()).toContainText('Final');
+        await page.screenshot({ path: `test-results/current-finals-${theme}.png`, fullPage: true });
         await page.getByRole('button', { name: 'Recent', exact: true }).click();
         await expect(cards).toHaveCount(3);
-        await expect(page.locator('.game.ended')).toHaveCount(0);
+        await expect(page.locator('.game .final-label')).toHaveCount(3);
         await expect(cards.first()).toHaveCSS('background-image', 'none');
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         await expect(cards).toHaveCount(2);
         await expect(cards.first()).toContainText('favorite-scheduled');
-        await expect(page.locator('.game.ended')).toHaveCount(0);
+        await expect(page.locator('.game .final-label')).toHaveCount(0);
     });
 }
 
