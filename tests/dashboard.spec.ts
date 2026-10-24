@@ -275,7 +275,7 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
 });
 
 for (const theme of ['midnight', 'light']) {
-    test(`Current favorites lead and finals have a distinct status badge (${theme})`, async ({ page }) => {
+    test(`Current favorites lead and only Current finals have a distinct status badge (${theme})`, async ({ page }) => {
         await page.clock.install({ time: new Date(2026, 9, 25, 9) });
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         const fixture = (id: string, status: Game['status'], hour: number, favorite = false): Game => ({
@@ -337,8 +337,11 @@ for (const theme of ['midnight', 'light']) {
         await page.screenshot({ path: `test-results/current-finals-${theme}.png`, fullPage: true });
         await page.getByRole('button', { name: 'Recent', exact: true }).click();
         await expect(cards).toHaveCount(3);
-        await expect(page.locator('.game .final-label')).toHaveCount(3);
+        await expect(page.locator('.game .final-label')).toHaveCount(0);
+        await expect(page.locator('.game-meta').getByText('Final', { exact: true })).toHaveCount(3);
         await expect(cards.first()).toHaveCSS('background-image', 'none');
+        await page.getByRole('button', { name: 'Current', exact: true }).click();
+        await expect(page.locator('.game .final-label')).toHaveCount(3);
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         await expect(cards).toHaveCount(2);
         await expect(cards.first()).toContainText('favorite-scheduled');

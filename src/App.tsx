@@ -579,7 +579,8 @@ export function App() {
                                                                                 className={
                                                                                     game.status === 'live'
                                                                                         ? 'live-label'
-                                                                                        : game.status === 'final'
+                                                                                        : game.status === 'final' &&
+                                                                                            view === 'live'
                                                                                           ? 'final-label'
                                                                                           : undefined
                                                                                 }

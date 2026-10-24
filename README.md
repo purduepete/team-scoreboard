@@ -2,7 +2,7 @@
 
 Personal schedules, live scores and recent results for every NFL, NBA and MLB game, Big Ten football and men's basketball, plus Purdue varsity sports. Games are grouped into Purdue, Big Ten, NFL, NBA and MLB sections, each split by day, and times use a 24-hour clock. Purdue's Big Ten games appear in both the Purdue and Big Ten sections. With Show set to All teams, sections start collapsed; any other Show filter opens every section. Switching back to All teams collapses them again. Select a section header to expand or collapse it, or use Expand all and Collapse all above the sections. Three tabs run Current, Recent and Upcoming. Current opens by default and shows all of today's games. Feed coverage and fetch status are on a separate Source status page (#status), opened from the header. Favorite teams are highlighted and listed first within each league/day group (except when Show is Favorites, a single team or Purdue), and favorites are shared across devices.
 
-Within each league/day group, favorites come first, even before they start. In Current, favorites and non-favorites each run in progress, final, then still to start, with start times oldest to newest within each status. Final cards have a subtle diagonal hatch in Current; Recent and Upcoming keep their existing card appearance.
+Within each league/day group, favorites come first, even before they start. In Current, favorites and non-favorites each run in progress, final, then still to start, with start times oldest to newest within each status. Final games have a bold accent-filled Final badge only in Current. Recent uses plain status text, and final cards have no hatch in any view.
 
 ## Status
 
