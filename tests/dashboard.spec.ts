@@ -532,7 +532,10 @@ test('football shows a ball for possession and a red zone pill; NBA marks nation
 
     const national = page.locator('.game', { hasText: 'Indiana Pacers' });
     await expect(national.getByRole('img', { name: 'National broadcast: ESPN' })).toHaveCount(1);
-    await expect(national.getByText('HOME', { exact: true })).toHaveCount(1);
+    await expect(page.locator('.game').getByText(/^(HOME|AWAY)$/)).toHaveCount(0);
+    const rows = national.locator('.score-lines > div');
+    await expect(rows.nth(0)).toContainText('Chicago Bulls');
+    await expect(rows.nth(1)).toContainText('Indiana Pacers');
     await expect(page.locator('.game', { hasText: 'Charlotte Hornets' }).locator('.national-badge')).toHaveCount(0);
     await football.screenshot({ path: 'test-results/football-red-zone.png' });
     await national.screenshot({ path: 'test-results/nba-national.png' });

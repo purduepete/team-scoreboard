@@ -24,7 +24,7 @@ Each card shows the TV channel (ESPN `broadcasts`) and each team's overall recor
 
 Keyboard shortcuts: `1`, `2` and `3` (number row or numpad) open Current, Upcoming and Recent; `A`, `P`, `F`, `K` and `B` set Show to All teams, Purdue, NFL, NBA and MLB; `X` expands all sections, `C` collapses them and `R` refreshes live scores. They are ignored while typing in a field, while a dropdown is open, and with Ctrl, Alt or Cmd held. Hovering each button shows its key, and `?` opens an overlay listing every shortcut (Esc, `?` or a click outside closes it).
 
-Live cards show the game situation when ESPN sends it: down and distance, a football icon for possession and a red Red zone tag for football, whose cards drop the AWAY and HOME labels; outs, runners and the count for baseball. When a poll changes a score, that score flashes for 2.5 seconds (a static outline with reduced motion). The two loads at page open only set the starting scores, so nothing flashes then.
+All game cards list the away team first and the home team second, without AWAY or HOME labels. Live cards show the game situation when ESPN sends it: down and distance, a football icon for possession and a red Red zone tag for football; outs, runners and the count for baseball. When a poll changes a score, that score flashes for 2.5 seconds (a static outline with reduced motion). The two loads at page open only set the starting scores, so nothing flashes then.
 
 Purdue's Big Ten games arrive from both the Purdue schedule and the Big Ten scoreboard. `shared/reconcile.ts` keeps one copy per ESPN event, preferring the scoreboard copy, and every section shows its score and situation.
 

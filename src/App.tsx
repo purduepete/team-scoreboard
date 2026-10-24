@@ -646,12 +646,6 @@ export function App() {
                                                                                                 ({game.awayRecord})
                                                                                             </span>
                                                                                         )}
-                                                                                        {!football && (
-                                                                                            <>
-                                                                                                {' '}
-                                                                                                <small>AWAY</small>
-                                                                                            </>
-                                                                                        )}
                                                                                     </span>
                                                                                     <strong
                                                                                         key={`away-${flashes[`${game.id}:away`] ?? 0}`}
@@ -686,12 +680,6 @@ export function App() {
                                                                                                 {' '}
                                                                                                 ({game.homeRecord})
                                                                                             </span>
-                                                                                        )}
-                                                                                        {!football && (
-                                                                                            <>
-                                                                                                {' '}
-                                                                                                <small>HOME</small>
-                                                                                            </>
                                                                                         )}
                                                                                     </span>
                                                                                     <strong

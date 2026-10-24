@@ -495,12 +495,6 @@ small {
     margin: 12px 0;
     font-size: 0.95rem;
 }
-.score-lines small {
-    display: block;
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    margin-top: 4px;
-}
 .score-lines strong {
     font-size: 1.5rem;
     font-weight: 600;
