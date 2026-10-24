@@ -451,8 +451,8 @@ small {
 .game.ended {
     background-image: repeating-linear-gradient(
         135deg,
-        transparent 0 6px,
-        color-mix(in srgb, var(--muted) 8%, transparent) 6px 7px
+        transparent 0 13px,
+        color-mix(in srgb, var(--muted) 18%, transparent) 13px 14px
     );
 }
 .game-meta .star {
