@@ -6,7 +6,7 @@ Within each league/day group, favorites come first, even before they start. In C
 
 ## Status
 
-Deployed on jimbrownhome1 through the solution-deploy framework: https://team-scoreboard.jimlertech.com/ behind Cloudflare Access, with a Tailscale fallback on port 8801. Favorites live in the `team_scoreboard` PostgreSQL database. iPhone and iPad layout is unverified on device.
+Deployed on jimbrownhome1 through the solution-deploy framework: https://team-scoreboard.jimlertech.com/ behind Cloudflare Access, with a Tailscale fallback on port 8801. Favorites live in the `team_scoreboard` PostgreSQL database. iPhone and iPad layout checked on device 10/24/2026.
 
 ## Data and coverage
 
@@ -73,19 +73,22 @@ Browser tests use installed Microsoft Edge. Test data is explicitly synthetic an
 
 ## Database and deployment
 
-Proposed production database: `team_scoreboard` on `jimbrownhome1:5432`, `public` schema, with separate owner/migration/runtime roles. The runtime can modify favorites, but cannot create schema objects or write deployment ledgers. The schema is in `deploy\postgresql\001_initial.sql`; run only through the framework after independent review and explicit provisioning approval. Test database creation, writes, and deletion also require independent review.
+Production runs on jimbrownhome1 through the solution-deploy controller:
 
-The app listens only on loopback. Public frontend and API routes require the same Cloudflare Access policy, with no write-API bypass. Private access relies on Tailscale ACLs. Mutations require an allowed Origin and JSON content type, and validate IDs against the catalog. Do not expose the origin directly to the public internet.
-
-Production allocation, pending port checks and approval:
-
-- Hostname: `https://team-scoreboard.jimlertech.com/`
+- Hostname: `https://team-scoreboard.jimlertech.com/`, behind Cloudflare Access with no write-API bypass
 - Tailscale: `https://jimbrownhome1.tail8ad282.ts.net:8801/`
-- Startup task: `\JimlerTech\SolutionDeploy-team-scoreboard`, limited account at system startup.
-- Manifest: `deploy\application.json`.
+- Database: `team_scoreboard` on `jimbrownhome1:5432`, `public` schema, separate owner, migration and runtime roles
+- Startup task: `\JimlerTech\SolutionDeploy-team-scoreboard`, limited account at system startup
+- Manifest: `deploy\application.json`
 
-Follow `solution-deploy\docs\Deployment.md`, `PostgreSQL.md`, and `PostgreSQLBackups.md`. Use FirstInstall, not legacy conversion. Generate exact provisioning/grant SQL with the framework. Validate backup and isolated restore before activation. Do not run ad-hoc DDL or hand-copy release files.
+The app listens only on loopback. Mutations require an allowed Origin and JSON content type and validate IDs against the catalog.
 
-Database creation, staging, and activation are separate production approvals. Add the live directory entry, checker theme key `team-scoreboard-theme`, Cloudflare allowlist/Access route via `Set-CloudflareHostnames.ps1`, Tailscale Serve route, and Site Dock favorite as part of approved deployment. Verify both private and public paths and windowless startup/reboot before claiming deployment is complete.
+To release a new version, commit and push, then run from `C:\Files\Dev\main\solution-deploy`:
 
-The theme defaults to Midnight and supports Light and live System preference. PWA appearance remains unverified until checked on iPhone portrait and iPad landscape, both themes across two launches.
+```powershell
+.\Deploy.ps1 -Action Release -App team-scoreboard -Target jimbrownhome1 -Commit origin/main -ApproveRelease -ApprovalReason 'commit, push and deploy' -DatabaseChangesReviewed
+```
+
+A new file under `deploy\postgresql\` needs an independent review before release. Procedure details are in `solution-deploy\docs\Deployment.md`.
+
+The theme defaults to Midnight and supports Light and live System preference. PWA appearance was checked on iPhone and iPad on 10/24/2026.
