@@ -625,12 +625,21 @@ export function App() {
                                                                             <div className="score-lines">
                                                                                 <div>
                                                                                     <span>
+                                                                                        {football &&
+                                                                                            game.possession ===
+                                                                                                'away' && (
+                                                                                                <Possession
+                                                                                                    football={football}
+                                                                                                />
+                                                                                            )}
                                                                                         {game.away}
-                                                                                        {game.possession === 'away' && (
-                                                                                            <Possession
-                                                                                                football={football}
-                                                                                            />
-                                                                                        )}
+                                                                                        {!football &&
+                                                                                            game.possession ===
+                                                                                                'away' && (
+                                                                                                <Possession
+                                                                                                    football={football}
+                                                                                                />
+                                                                                            )}
                                                                                         {game.awayRecord && (
                                                                                             <span className="record">
                                                                                                 {' '}
@@ -657,12 +666,21 @@ export function App() {
                                                                                 </div>
                                                                                 <div>
                                                                                     <span>
+                                                                                        {football &&
+                                                                                            game.possession ===
+                                                                                                'home' && (
+                                                                                                <Possession
+                                                                                                    football={football}
+                                                                                                />
+                                                                                            )}
                                                                                         {game.home}
-                                                                                        {game.possession === 'home' && (
-                                                                                            <Possession
-                                                                                                football={football}
-                                                                                            />
-                                                                                        )}
+                                                                                        {!football &&
+                                                                                            game.possession ===
+                                                                                                'home' && (
+                                                                                                <Possession
+                                                                                                    football={football}
+                                                                                                />
+                                                                                            )}
                                                                                         {game.homeRecord && (
                                                                                             <span className="record">
                                                                                                 {' '}

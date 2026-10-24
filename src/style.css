@@ -790,7 +790,7 @@ kbd {
     vertical-align: middle;
 }
 .possession-ball {
-    margin-left: 6px;
+    margin-right: 6px;
     color: var(--accent);
     vertical-align: -3px;
 }

@@ -522,6 +522,9 @@ test('football shows a ball for possession and a red zone pill; NBA marks nation
     await expect(football.locator('.red-zone')).toHaveText('Red zone');
     await expect(football.locator('.situation')).toContainText('2nd & 4 at GB 12');
     await expect(football.locator('svg.possession-ball')).toHaveCount(1);
+    expect(
+        await football.locator('svg.possession-ball').evaluate((icon) => icon.parentElement?.firstElementChild === icon)
+    ).toBe(true);
     await expect(football.getByRole('img', { name: 'Has possession' })).toHaveCount(1);
     await expect(football.getByText('AWAY', { exact: true })).toHaveCount(0);
     await expect(football.getByText('HOME', { exact: true })).toHaveCount(0);
