@@ -1,3 +1,10 @@
+export type TeamCategory = 'college-football' | 'college-basketball';
+
+export interface SearchTeam extends Team {
+    category: TeamCategory;
+    providerId: string;
+}
+
 export interface Team {
     id: string;
     name: string;

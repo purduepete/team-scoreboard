@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { teams, defaultFavorites, expandFavorites } from '../server/catalog';
-import type { Dashboard, Feed, Game } from '../shared/contracts';
+import type { Dashboard, Feed, Game, SearchTeam } from '../shared/contracts';
 
 const game: Game = {
     id: 'fixture-1',
@@ -69,9 +69,31 @@ let liveHome = 54;
 let liveExtra: Partial<Game> = {};
 let extraGames: Game[] = [];
 let calendarUrl: string | null = null;
+const searchedTeam: SearchTeam = {
+    id: 'adhoc-college-football-333',
+    name: 'Alabama Crimson Tide',
+    sport: 'Football',
+    league: 'College football',
+    category: 'college-football',
+    providerId: 'football/college-football/333',
+    officialUrl: 'https://www.espn.com/college-football/team/_/id/333',
+    coverage: 'schedule-results',
+    coverageNote: 'Fixture team.',
+};
+const secondSearchedTeam: SearchTeam = {
+    ...searchedTeam,
+    id: 'adhoc-college-football-8',
+    name: 'Arkansas Razorbacks',
+    providerId: 'football/college-football/8',
+};
+let addedGames: Game[] = [];
+let addedPending = false;
+let addedError: string | null = null;
+let searchFailure = false;
+let addedRequests = 0;
 
 const expandSections = async (page: import('@playwright/test').Page) => {
-    const collapsed = page.locator('.section-title button[aria-expanded="false"]');
+    const collapsed = page.locator('.section-title button[aria-expanded="false"]:visible');
     while ((await collapsed.count()) > 0) await collapsed.first().click();
 };
 
@@ -84,10 +106,31 @@ test.beforeEach(async ({ page }) => {
     liveExtra = {};
     extraGames = [];
     calendarUrl = null;
+    addedGames = [];
+    addedPending = false;
+    addedError = null;
+    searchFailure = false;
+    addedRequests = 0;
     await page.route('**/api/**', async (route) => {
         const request = route.request();
         const url = new URL(request.url());
-        if (url.pathname === '/api/calendar') {
+        if (url.pathname === '/api/team-search') {
+            await route.fulfill(
+                searchFailure
+                    ? { status: 503, json: { error: 'Fixture directory unavailable.' } }
+                    : {
+                          json: { teams: [searchedTeam], stale: false, error: null },
+                      }
+            );
+        } else if (url.pathname === '/api/added-teams') {
+            addedRequests++;
+            await route.fulfill({
+                json: {
+                    team: url.searchParams.get('id') === '8' ? secondSearchedTeam : searchedTeam,
+                    feed: { ...leagueFeed('College football', '', addedGames, addedError), pending: addedPending },
+                },
+            });
+        } else if (url.pathname === '/api/calendar') {
             await route.fulfill(calendarUrl ? { json: { url: calendarUrl } } : { status: 404, json: {} });
         } else if (url.pathname === '/api/dashboard') {
             const days = url.searchParams.get('days') ?? '';
@@ -119,7 +162,9 @@ test.beforeEach(async ({ page }) => {
                             officialUrl: entry.officialUrl,
                             available: Boolean(entry.providerId),
                             purdue: true,
-                            games: [],
+                            games: extraGames.filter(
+                                (game) => game.league === 'NCAA' && game.teamIds.includes(entry.id)
+                            ),
                             updatedAt: entry.providerId ? '2026-10-22T23:00:00Z' : null,
                             stale: false,
                             error: null,
@@ -284,7 +329,388 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     expect(new Set(requestedDays)).toEqual(new Set(['14']));
 });
 
+test('team finder is an icon modal with dismissal and focus return; Custom joins expand all', async ({ page }) => {
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Find team', exact: true });
+    await expect(trigger).toHaveText('');
+    const favorites = await page.getByRole('button', { name: 'Edit favorites', exact: true }).boundingBox();
+    const finder = await trigger.boundingBox();
+    expect(finder!.x + finder!.width).toBeLessThanOrEqual(favorites!.x);
+    await trigger.click();
+    const modal = page.getByRole('dialog', { name: 'Find team', exact: true });
+    await expect(modal).toBeVisible();
+    await expect(page.getByLabel('Search teams', { exact: true })).toBeFocused();
+    await page.getByRole('button', { name: 'Close team search', exact: true }).focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByLabel('Search teams', { exact: true })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(modal).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await page.mouse.click(2, 2);
+    await expect(modal).toHaveCount(0);
+    const custom = page.getByRole('region', { name: 'Custom', exact: true }).locator('.section-title button');
+    await expect(custom).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press('x');
+    await expect(custom).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('x');
+    await expect(custom).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('added teams distinguish no game, pending and errors and expire at local midnight', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 23, 59, 30) });
+    await page.addInitScript(() =>
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({
+                date: '2026-10-25',
+                teams: [{ category: 'college-football', id: '333' }],
+            })
+        )
+    );
+    await page.goto('/');
+    const added = page.getByRole('region', { name: 'Custom', exact: true });
+    await added.locator('.section-title button').click();
+    await expect(added).toContainText('No game today.');
+    addedPending = true;
+    await page.clock.runFor(20_000);
+    await expect(added.getByRole('status')).toContainText('Loading scores');
+    await expect(added).not.toContainText('No game today.');
+    addedPending = false;
+    addedError = 'Fixture scores unavailable.';
+    await page.clock.runFor(5000);
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect(added.getByRole('alert')).toContainText('Fixture scores unavailable.');
+    await expect(added).not.toContainText('No game today.');
+    await page.clock.runFor(6000);
+    await expect(added.locator('.custom-status-card')).toHaveCount(0);
+    expect(
+        await page.evaluate(() => JSON.parse(localStorage.getItem('team-scoreboard-added-teams-v1')!).teams)
+    ).toEqual([]);
+});
+
+test('two added college teams sharing a game show one card and keep both removal controls', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    addedGames = [
+        {
+            ...game,
+            id: 'shared-college-game',
+            league: 'College football',
+            teamIds: [searchedTeam.id, secondSearchedTeam.id],
+            home: searchedTeam.name,
+            away: secondSearchedTeam.name,
+        },
+    ];
+    await page.addInitScript(() =>
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({
+                date: '2026-10-25',
+                teams: [
+                    { category: 'college-football', id: '333' },
+                    { category: 'college-football', id: '8' },
+                ],
+            })
+        )
+    );
+    await page.goto('/');
+    const added = page.getByRole('region', { name: 'Custom', exact: true });
+    await added.locator('.section-title button').click();
+    await expect(added.locator('.game')).toHaveCount(1);
+    await expect(added.getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true })).toBeVisible();
+    await added.getByRole('button', { name: 'Remove Arkansas Razorbacks', exact: true }).click();
+    await expect(added.locator('.game')).toHaveCount(1);
+    await expect(
+        added.locator('.game').getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true })
+    ).toBeVisible();
+});
+
+test('Custom cards share the league grid, with removal left of the time and no extra labels', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    addedGames = [
+        {
+            ...game,
+            id: 'custom-1',
+            league: 'College football',
+            teamIds: [searchedTeam.id],
+            home: searchedTeam.name,
+            status: 'live',
+            situation: '1st & 10 at TEX 25',
+        },
+        {
+            ...game,
+            id: 'custom-2',
+            league: 'College football',
+            teamIds: [secondSearchedTeam.id],
+            home: secondSearchedTeam.name,
+        },
+    ];
+    await page.addInitScript(() =>
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({
+                date: '2026-10-25',
+                teams: [
+                    { category: 'college-football', id: '333' },
+                    { category: 'college-football', id: '8' },
+                ],
+            })
+        )
+    );
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+    const custom = page.getByRole('region', { name: 'Custom', exact: true });
+    await custom.locator('.section-title button').click();
+    const cards = custom.locator('.custom-games > .game');
+    await expect(cards).toHaveCount(2);
+    const first = await cards.first().boundingBox();
+    const second = await cards.nth(1).boundingBox();
+    expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
+    expect(second!.x).toBeGreaterThan(first!.x);
+    const firstDivider = await cards.first().locator('.game-footer').boundingBox();
+    const secondDivider = await cards.nth(1).locator('.game-footer').boundingBox();
+    expect(Math.abs(firstDivider!.y - secondDivider!.y)).toBeLessThan(1);
+    const remove = cards.first().getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true });
+    const removeBox = await remove.boundingBox();
+    await expect(remove).toHaveCSS('border-top-width', '0px');
+    await expect(remove).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(remove.locator('svg')).toHaveAttribute('width', '14');
+    expect(removeBox!.width).toBeGreaterThanOrEqual(36);
+    const time = await cards.first().locator('time').boundingBox();
+    expect(removeBox!.x + removeBox!.width).toBeLessThanOrEqual(time!.x);
+    expect(Math.abs(removeBox!.y + removeBox!.height / 2 - time!.y - time!.height / 2)).toBeLessThan(2);
+    await expect(custom).not.toContainText('Pinned for today');
+    await expect(custom.locator('.muted')).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('long channel lists truncate without wrapping the card footer', async ({ page }) => {
+    liveExtra = { broadcast: 'NBA League Pass, DAZN (YES), DAZN CLE, Another regional channel' };
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByRole('region', { name: 'NBA', exact: true }).locator('.section-title button').click();
+    const card = page.getByRole('region', { name: 'NBA', exact: true }).locator('.game').first();
+    await expect(card).toBeVisible();
+    const channel = card.locator('.broadcast-name');
+    await expect(channel).toHaveCSS('text-overflow', 'ellipsis');
+    expect(await channel.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    const info = card.getByRole('button', { name: 'Full channel list' });
+    await info.hover();
+    await expect(page.getByRole('tooltip')).toHaveText(liveExtra.broadcast!);
+    await expect(page.getByRole('tooltip')).toHaveCSS('font-size', '12px');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('tooltip')).toBeHidden();
+    await info.focus();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('tooltip')).toBeHidden();
+    await info.click();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    await page.getByRole('heading', { name: 'Game day, at a glance' }).click();
+    await expect(page.getByRole('tooltip')).toBeHidden();
+    const time = await card.locator('time').boundingBox();
+    const source = await card.getByRole('link', { name: 'Source' }).boundingBox();
+    expect(Math.abs(time!.y - source!.y)).toBeLessThan(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('Custom refresh keeps scores visible without an extra loading card', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    addedGames = [
+        {
+            ...game,
+            id: 'custom-live-refresh',
+            homeRecord: '4-2',
+            awayRecord: '5-1',
+            possession: 'home',
+            redZone: true,
+            situation: '1st & Goal',
+            teamIds: [searchedTeam.id],
+            home: searchedTeam.name,
+            status: 'live',
+            homeScore: 23,
+            awayScore: 3,
+        },
+    ];
+    await page.addInitScript(() =>
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({
+                date: '2026-10-25',
+                teams: [{ category: 'college-football', id: '333' }],
+            })
+        )
+    );
+    addedPending = true;
+    addedError = 'Fixture refresh failure';
+    await page.goto('/');
+    const custom = page.getByRole('region', { name: 'Custom', exact: true });
+    await custom.locator('.section-title button').click();
+    await expect(custom.getByRole('alert')).toContainText('Fixture refresh failure');
+    addedError = null;
+    await page.clock.runFor(20_000);
+    await expect(custom.locator('.custom-status-card')).toHaveCount(0);
+    await expect(custom.locator('.score-lines')).toContainText('23');
+    await expect(custom.locator('.record')).toHaveText([' (5-1)', ' (4-2)']);
+    await expect(custom.getByRole('img', { name: 'Has possession' })).toBeVisible();
+    await expect(custom.locator('.red-zone')).toHaveText('Red zone');
+    await expect(custom.locator('.situation')).toContainText('1st & Goal');
+    await expect(custom.locator('.score-lines')).toContainText('3');
+    await expect(custom.locator('.game')).toHaveCount(1);
+    addedGames = [];
+    addedError = 'Fixture refresh failure';
+    await page.clock.runFor(20_000);
+    await expect(custom.getByRole('alert')).toContainText('Fixture refresh failure');
+    await expect(custom).not.toContainText('Showing previously fetched scores.');
+});
+
+test('team search errors are visible and a removed pending team cannot reappear', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Find team', exact: true }).click();
+    searchFailure = true;
+    await page.getByLabel('Search teams', { exact: true }).fill('Alabama');
+    await page.clock.runFor(350);
+    await expect(page.getByRole('alert')).toContainText('Fixture directory unavailable.');
+    await expect(page.getByText('No teams found.', { exact: true })).toHaveCount(0);
+    searchFailure = false;
+    await page.getByLabel('Search teams', { exact: true }).fill('Alabam');
+    await page.clock.runFor(350);
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await page.route('**/api/added-teams?**', async (route) => {
+        await gate;
+        await route.fulfill({ json: { team: searchedTeam, feed: leagueFeed('College football', '', []) } });
+    });
+    await page.getByRole('button', { name: 'Add Alabama Crimson Tide', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Find team', exact: true })).toHaveCount(0);
+    const added = page.getByRole('region', { name: 'Custom', exact: true });
+    await expect(added).toContainText('Loading team');
+    await added.getByRole('button', { name: /Remove/ }).click();
+    release!();
+    await expect(added.locator('.custom-status-card')).toHaveCount(0);
+    await page.clock.runFor(20_000);
+    await expect(added.locator('.custom-status-card')).toHaveCount(0);
+});
+
+test('an empty Custom response reports a readable error and recovers on the next poll', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    addedGames = [{ ...game, teamIds: [searchedTeam.id], home: searchedTeam.name }];
+    await page.addInitScript(() =>
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({
+                date: '2026-10-25',
+                teams: [{ category: 'college-football', id: '333' }],
+            })
+        )
+    );
+    let emptyResponse = true;
+    await page.route('**/api/added-teams?**', async (route) => {
+        if (emptyResponse) await route.fulfill({ status: 502, body: '' });
+        else await route.fallback();
+    });
+    await page.goto('/');
+    const custom = page.getByRole('region', { name: 'Custom', exact: true });
+    await custom.locator('.section-title button').click();
+    await expect(custom.getByRole('alert')).toHaveText('Team data is temporarily unavailable (502). Retrying shortly.');
+    await expect(custom).not.toContainText('JSON');
+    await expect(custom).not.toContainText('Loading scores');
+    emptyResponse = false;
+    await page.clock.runFor(20_000);
+    await expect(custom.locator('.score-lines')).toContainText(searchedTeam.name);
+    await expect(custom.getByRole('alert')).toHaveCount(0);
+});
+
 for (const theme of ['midnight', 'light']) {
+    test(`ad hoc team search adds today's games independently of Show (${theme})`, async ({ page }) => {
+        await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+        addedGames = [
+            {
+                ...game,
+                id: 'added-game',
+                league: 'College football',
+                teamIds: [searchedTeam.id],
+                home: 'Alabama Crimson Tide',
+            },
+        ];
+        await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Find team', exact: true }).click();
+        await expect(page.getByLabel('Search teams', { exact: true })).toBeFocused();
+        const sports = page.getByRole('group', { name: 'Sport', exact: true });
+        const football = sports.getByRole('button', { name: 'College football', exact: true });
+        const basketball = sports.getByRole('button', { name: 'College basketball', exact: true });
+        await expect(football).toHaveAttribute('aria-pressed', 'true');
+        await basketball.click();
+        await expect(basketball).toHaveAttribute('aria-pressed', 'true');
+        await expect(football).toHaveAttribute('aria-pressed', 'false');
+        await expect(basketball.locator('svg')).toBeVisible();
+        await expect(sports).toHaveCSS('border-radius', '999px');
+        await football.click();
+        await page.getByLabel('Search teams', { exact: true }).fill('Alabama');
+        await page.clock.runFor(350);
+        await page.getByRole('button', { name: 'Add Alabama Crimson Tide', exact: true }).click();
+        await expect(page.getByRole('dialog', { name: 'Find team', exact: true })).toHaveCount(0);
+        await page.getByRole('button', { name: 'Find team', exact: true }).click();
+        await expect(page.getByLabel('Search teams', { exact: true })).toHaveValue('');
+        await expect(page.locator('.team-search-results li')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+        const added = page.getByRole('region', { name: 'Custom', exact: true });
+        await expect(added.locator('.section-title')).toContainText('Custom');
+        expect(await added.evaluate((element) => element === element.parentElement?.lastElementChild)).toBe(true);
+        await expect(added.locator('.game')).toHaveCount(1);
+        await expect(added.locator('.game')).toContainText('Alabama Crimson Tide');
+        await expect(
+            added.locator('.game').getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true })
+        ).toBeVisible();
+        await page.keyboard.press('f');
+        await expect(added.locator('.game')).toHaveCount(1);
+        await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+        await expect(added).toBeHidden();
+        await page.getByRole('button', { name: 'Current', exact: true }).click();
+        await expect(added).toBeVisible();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+        await page.reload();
+        await added.locator('.section-title button').click();
+        await expect(added.locator('.game')).toHaveCount(1);
+        expect(addedRequests).toBeGreaterThan(1);
+        await page.getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true }).click();
+        await expect(added.locator('.game')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Show', exact: true })).toHaveText('All teams');
+        expect(refreshBodies).toEqual([]);
+    });
+
+    test(`Purdue favorites keep the normal card background (${theme})`, async ({ page }) => {
+        const purdue = teams.find((team) => team.purdue && !team.umbrella && team.providerId)!;
+        extraGames = [
+            {
+                ...game,
+                id: 'fixture-purdue',
+                teamIds: [purdue.id],
+                league: 'NCAA',
+                home: 'Purdue Boilermakers',
+            },
+        ];
+        await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+        await expandSections(page);
+        const card = page.locator('#section-NCAA .game');
+        await expect(card).toHaveClass('game favorite');
+        await expect(card.getByLabel('Favorite', { exact: true })).toBeVisible();
+        await expect(card).toHaveCSS('background-color', theme === 'midnight' ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)');
+        await expect(card).toHaveCSS('border-left-width', '4px');
+        await expect(page.locator('#section-NFL .game.favorite')).toHaveCSS(
+            'background-color',
+            theme === 'midnight' ? 'rgb(30, 41, 59)' : 'rgb(226, 232, 240)'
+        );
+    });
+
     test(`section action pill sits right of Show at desktop and mobile widths (${theme})`, async ({ page }) => {
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         await page.goto('/');
@@ -298,6 +724,17 @@ for (const theme of ['midnight', 'light']) {
         await expect(expand).toHaveAttribute('aria-keyshortcuts', 'X');
         await expect(collapse).toHaveAttribute('aria-keyshortcuts', 'X');
         await expect(pill).toHaveCSS('border-radius', '999px');
+        const tabs = page.getByRole('group', { name: 'Schedule view', exact: true });
+        await expect(tabs).toHaveCSS('border-radius', '999px');
+        await expect(tabs.getByRole('button', { name: 'Current', exact: true })).toHaveCSS(
+            'background-color',
+            theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)'
+        );
+        await expect(collapse).toHaveAttribute('aria-pressed', 'true');
+        await expect(collapse).toHaveCSS(
+            'background-color',
+            theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)'
+        );
         await expect(page.locator('.toolbar').getByRole('group', { name: 'Section controls' })).toBeVisible();
         for (const width of [1280, 390]) {
             await page.setViewportSize({ width, height: 844 });
@@ -315,6 +752,7 @@ for (const theme of ['midnight', 'light']) {
         await page.keyboard.press('Enter');
         await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
         await expect(expand).toBeDisabled();
+        await expect(expand).toHaveAttribute('aria-pressed', 'true');
         await collapse.click();
         await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
         await page.screenshot({ path: `test-results/section-pill-${theme}-mobile.png`, fullPage: true });

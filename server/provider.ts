@@ -1,11 +1,43 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
-import type { Game, Team } from '../shared/contracts.js';
+import type { Game, SearchTeam, Team, TeamCategory } from '../shared/contracts.js';
 import { catalogTeamId } from './catalog.js';
 import type { LeagueSource } from './catalog.js';
 
 const providerPattern = /^([a-z]+\/[a-z0-9.-]+)\/(\d+)$/;
+const directoryCategories = {
+    'college-football': { path: 'football/college-football', sport: 'Football', league: 'College football' },
+    'college-basketball': {
+        path: 'basketball/mens-college-basketball',
+        sport: "Men's Basketball",
+        league: "Men's college basketball",
+    },
+} as const;
+const directorySchema = z.object({
+    sports: z
+        .array(
+            z.object({
+                leagues: z
+                    .array(
+                        z.object({
+                            teams: z
+                                .array(
+                                    z.object({
+                                        team: z.object({
+                                            id: z.string().regex(/^\d{1,10}$/),
+                                            displayName: z.string().trim().min(1).max(200),
+                                        }),
+                                    })
+                                )
+                                .min(1),
+                        })
+                    )
+                    .min(1),
+            })
+        )
+        .min(1),
+});
 const scoreSchema = z
     .union([z.string(), z.number(), z.object({ value: z.number().optional(), displayValue: z.string().optional() })])
     .nullable()
@@ -407,7 +439,7 @@ export class SportsProvider {
         this.loadCache();
     }
 
-    private request(resource: string): Promise<unknown> {
+    private request(resource: string, schedule = false): Promise<unknown> {
         const operation = this.tail.then(async () => {
             const delay = Math.max(this.nextRequestAt, this.blockedUntil) - this.clock();
             if (delay > 0) await this.wait(delay);
@@ -423,7 +455,7 @@ export class SportsProvider {
                 throw new ProviderError('Sports provider rate limit reached. Refresh will retry later.', backoff);
             }
             // ESPN answers 400 for a sport with no current season; treat it as no games.
-            if (response.status === 400) return { events: [] };
+            if (schedule && response.status === 400) return { events: [] };
             if (!response.ok) throw new ProviderError(`Sports provider returned HTTP ${response.status}.`);
             return response.json() as Promise<unknown>;
         });
@@ -434,15 +466,50 @@ export class SportsProvider {
         return operation;
     }
 
-    async schedule(team: Team): Promise<Game[]> {
-        return selectWindow(await this.fullSchedule(team), this.clock());
+    async schedule(team: Team, full = false): Promise<Game[]> {
+        const games = await this.fullSchedule(team);
+        if (!full) return selectWindow(games, this.clock());
+        const { path } = parseProviderId(team.providerId ?? '');
+        return Promise.all(
+            games.map(async (game) => {
+                if (game.status !== 'live') return game;
+                const details = eventSchema.parse(await this.request(`${path}/scoreboard/${game.id}`));
+                if (details.id !== game.id) throw new Error('Provider returned details for a different game.');
+                const live = normalizeEvent(details, team);
+                return { ...game, ...live, origin: 'scoreboard' as const };
+            })
+        );
+    }
+
+    async teamDirectory(category: TeamCategory): Promise<SearchTeam[]> {
+        if (!Object.hasOwn(directoryCategories, category)) throw new Error('Unsupported college team directory.');
+        const config = directoryCategories[category];
+        const body = directorySchema.parse(await this.request(`${config.path}/teams?limit=1000`));
+        const entries = body.sports.flatMap((sport) => sport.leagues.flatMap((league) => league.teams));
+        if (entries.length >= 1000)
+            throw new ProviderError(`${config.league} team directory reached its 1000-team limit.`);
+        const result = entries.map(({ team }): SearchTeam => ({
+            id: `added-${category}-${team.id}`,
+            name: team.displayName,
+            category,
+            providerId: `${config.path}/${team.id}`,
+            sport: config.sport,
+            league: config.league,
+            officialUrl: `https://www.espn.com/${config.path.split('/')[1]}/team/_/id/${team.id}`,
+            coverage: 'schedule-results',
+            coverageNote: 'ESPN full team schedule and results.',
+        }));
+        if (new Set(result.map((team) => team.providerId)).size !== result.length)
+            throw new ProviderError(`${config.league} team directory contains duplicate IDs.`);
+        return result;
     }
 
     private async fullSchedule(team: Team): Promise<Game[]> {
         if (!team.providerId) throw new Error('This sport has no configured feed.');
         const { path, id } = parseProviderId(team.providerId);
-        let games = parseEvents(await this.request(`${path}/teams/${id}/schedule`), team);
-        if (!games.length) games = parseEvents(await this.request(`${path}/teams/${id}/schedule?seasontype=2`), team);
+        let games = parseEvents(await this.request(`${path}/teams/${id}/schedule`, true), team);
+        if (!games.length)
+            games = parseEvents(await this.request(`${path}/teams/${id}/schedule?seasontype=2`, true), team);
         return [...new Map(games.map((game) => [game.id, game])).values()];
     }
 

@@ -248,8 +248,27 @@ small {
 }
 .tabs {
     display: inline-flex;
-    flex-wrap: wrap;
-    gap: 4px;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel);
+}
+.tabs button {
+    border: 0;
+    border-radius: 999px;
+    min-height: 28px;
+    padding: 5px 12px;
+    color: var(--muted);
+    background: transparent;
+}
+.tabs button:hover {
+    background: var(--raised);
+}
+.tabs button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--accent-text);
 }
 .selected {
     background: var(--accent);
@@ -275,21 +294,104 @@ small {
     flex-shrink: 0;
     border: 1px solid var(--border);
     border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+    background: var(--panel);
 }
 .section-controls button {
-    width: var(--header-control-height);
-    min-height: calc(var(--header-control-height) - 2px);
+    width: 32px;
+    min-height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 999px 0 0 999px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
 }
-.section-controls button + button {
-    border-left: 1px solid var(--border);
-    border-radius: 0 999px 999px 0;
+.section-controls button:hover {
+    background: var(--raised);
+}
+.section-controls button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--accent-text);
 }
 .section-controls button:disabled {
-    opacity: 0.5;
+    opacity: 1;
     cursor: default;
+}
+.added-teams:not([hidden]) {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+.added-teams h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+.team-finder {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    background: var(--page);
+}
+.custom-card-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.remove-team {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+}
+.remove-team:hover,
+.remove-team:focus-visible {
+    background: var(--raised);
+    color: var(--text);
+}
+.custom-games {
+    margin-top: 12px;
+}
+.custom-status-card p:not([role='alert']) {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+.custom-card-actions > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.team-finder label {
+    display: block;
+    margin: 12px 0 6px;
+}
+.team-finder input {
+    width: 100%;
+    min-width: 0;
+    padding: 9px 12px;
+    background: var(--panel);
+}
+.team-search-results,
+.added-team-list {
+    padding: 0;
+    margin: 12px 0 0;
+    list-style: none;
+}
+.team-search-results li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+}
+.team-search-results small {
+    display: block;
+}
+.team-search-results button {
+    flex-shrink: 0;
+}
+.added-team-list > li {
+    padding: 8px 0;
 }
 .control-label {
     display: block;
@@ -308,7 +410,7 @@ small {
     text-overflow: ellipsis;
 }
 .select-popup {
-    z-index: 100;
+    z-index: 210;
     border: 1px solid var(--border);
     background: var(--panel);
     color: var(--text);
@@ -464,6 +566,9 @@ small {
     border-left: 4px solid var(--accent);
     background: var(--raised);
 }
+#section-NCAA .game.favorite {
+    background: var(--page);
+}
 .game-meta .star {
     color: var(--accent);
     fill: var(--accent);
@@ -484,6 +589,8 @@ small {
 }
 .game {
     position: relative;
+    display: flex;
+    flex-direction: column;
     background: var(--page);
     border: 1px solid var(--border);
     padding: 18px;
@@ -501,6 +608,9 @@ small {
 .game-meta {
     margin-bottom: 18px;
 }
+.score-lines {
+    flex: 1;
+}
 .score-lines > div {
     display: flex;
     justify-content: space-between;
@@ -513,6 +623,8 @@ small {
     font-weight: 600;
 }
 .game-footer {
+    flex-wrap: nowrap;
+    align-items: center;
     border-top: 1px solid var(--border);
     padding-top: 12px;
     margin-top: 18px;
@@ -525,14 +637,50 @@ small {
 }
 .game-footer .when {
     display: inline-flex;
-    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
     align-items: center;
     gap: 4px 12px;
+}
+.game-footer a,
+.game-footer time,
+.game-footer .custom-card-actions {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 .broadcast {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+}
+.broadcast-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.channel-info {
+    flex: none;
+    min-height: 20px;
+    width: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+}
+.channel-tooltip {
+    position: fixed;
+    z-index: 220;
+    transform: translateY(-100%);
+    width: max-content;
+    max-width: min(280px, calc(100vw - 16px));
+    padding: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+    box-shadow: 0 4px 12px #0003;
 }
 .broadcast svg {
     flex: none;

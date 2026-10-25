@@ -27,7 +27,8 @@ export class FeedCache {
     constructor(
         private readonly clock: () => number = Date.now,
         private readonly report: (error: unknown) => void = (error) =>
-            console.error('Sports feed refresh failed:', error)
+            console.error('Sports feed refresh failed:', error),
+        private readonly capacity = Infinity
     ) {}
 
     get(source: FeedSource): Feed {
@@ -40,8 +41,19 @@ export class FeedCache {
             ...(source.purdue ? { purdue: true } : {}),
         };
         if (!source.load) return { ...details, games: [], updatedAt: null, stale: false, error: null, pending: false };
+        if (!this.entries.has(source.id) && this.entries.size >= this.capacity) {
+            const victim = [...this.entries].find(([, entry]) => !entry.pending);
+            if (victim) this.entries.delete(victim[0]);
+            else {
+                const error = 'Added-team feed capacity reached. Please retry shortly.';
+                this.report(new ProviderError(error));
+                return { ...details, games: [], updatedAt: null, stale: false, error, pending: false };
+            }
+        }
         this.load(source);
         const current = this.entries.get(source.id)!;
+        this.entries.delete(source.id);
+        this.entries.set(source.id, current);
         return { ...details, ...current.feed, games: [...current.feed.games] };
     }
 
@@ -52,6 +64,7 @@ export class FeedCache {
         if (!load) return null;
         let entry = this.entries.get(source.id);
         if (!entry) {
+            if (this.entries.size >= this.capacity) return null;
             entry = {
                 feed: { id: source.id, games: [], updatedAt: null, stale: false, error: null, pending: true },
                 nextAttempt: 0,

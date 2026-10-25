@@ -2,22 +2,25 @@ import express from 'express';
 import type { ErrorRequestHandler } from 'express';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import type { Dashboard, Game, Team } from '../shared/contracts.js';
+import type { Dashboard, Game, SearchTeam, Team, TeamCategory } from '../shared/contracts.js';
 import { reconcile } from '../shared/reconcile.js';
 import { expandFavorites, leagues, teams } from './catalog.js';
 import type { LeagueSource } from './catalog.js';
-import type { FeedCache, FeedSource } from './feeds.js';
+import { FeedCache } from './feeds.js';
+import type { FeedSource } from './feeds.js';
 import type { FavoritesStore } from './storage.js';
 import { isHot, liveRefreshMs, maxDaysBack } from './provider.js';
 import { alertTeamIds } from './alerts.js';
 import { buildCalendar } from './calendar.js';
+import { addedTeamQuerySchema, searchQuerySchema, TeamSearch } from './team-search.js';
 
 export const notice =
     "Every NFL, NBA and MLB game plus Big Ten football and men's basketball from ESPN, with results for the last 14 days and games 7 days ahead. Purdue shows live games, its last 3 results and its next 5 games. Opening the page refetches everything; live scores refresh about every 30 seconds, and Refresh refetches games in progress.";
 
 export interface SportsSource {
     league(source: LeagueSource, daysBack: number): Promise<Game[]>;
-    schedule(team: Team): Promise<Game[]>;
+    schedule(team: Team, full?: boolean): Promise<Game[]>;
+    teamDirectory?(category: TeamCategory): Promise<SearchTeam[]>;
     season(team: Team): Promise<Game[]>;
     refreshLive(): void;
     refreshAll(): void;
@@ -72,6 +75,11 @@ export function createApp(options: {
     clock?: () => number;
 }) {
     const clock = options.clock ?? Date.now;
+    const addedFeeds = new FeedCache(clock, undefined, 128);
+    const teamSearch = new TeamSearch((category) => {
+        if (!options.sports.teamDirectory) throw new Error('College team directory is unavailable.');
+        return options.sports.teamDirectory(category);
+    }, clock);
     const calendarToken = options.calendar && options.calendar.token.length >= 32 ? options.calendar : undefined;
     const app = express();
     app.disable('x-powered-by');
@@ -103,6 +111,40 @@ export function createApp(options: {
         next();
     });
     app.use(express.json({ limit: '4kb' }));
+    app.get('/api/team-search', async (req, res) => {
+        const parsed = searchQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            res.status(400).json({ error: 'Choose a supported sport and a search of 2 to 80 characters.' });
+            return;
+        }
+        const result = await teamSearch.search(parsed.data.sport, parsed.data.q);
+        res.status(result.error && !result.stale ? 503 : 200).json(result);
+    });
+    app.get('/api/added-teams', async (req, res) => {
+        const parsed = addedTeamQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            res.status(400).json({ error: 'Choose a supported sport and a numeric ESPN team ID.' });
+            return;
+        }
+        const directory = await teamSearch.directory(parsed.data.sport);
+        const team = directory.teams.find((team) => team.providerId.split('/').at(-1) === parsed.data.id);
+        if (!team) {
+            res.status(directory.error ? 503 : 404).json({ error: directory.error ?? 'Unknown team in this sport.' });
+            return;
+        }
+        const feed = addedFeeds.get({
+            id: `added-${team.category}-${parsed.data.id}`,
+            label: team.name,
+            note: 'ESPN full team schedule and results.',
+            officialUrl: team.officialUrl,
+            load: () => options.sports.schedule(team, true),
+        });
+        if (directory.error) {
+            feed.stale = true;
+            feed.error = [feed.error, directory.error].filter(Boolean).join(' ');
+        }
+        res.status(feed.error && !feed.pending && feed.updatedAt === null ? 503 : 200).json({ team, feed });
+    });
     app.get('/api/health', async (_req, res) => {
         try {
             await options.store.ready();

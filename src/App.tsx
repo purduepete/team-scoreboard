@@ -12,18 +12,19 @@ import {
     Keyboard,
     Plus,
     RefreshCw,
-    Star,
+    Search,
     Trophy,
-    Tv,
     X,
 } from 'lucide-react';
 import type { Dashboard } from '../shared/contracts';
 import { reconcile } from '../shared/reconcile';
+import { GameCard } from './GameCard';
+import { AddedTeams } from './AddedTeams';
 import { CalendarMenu } from './CalendarMenu';
 import { SelectField } from './SelectField';
 import { useTheme } from './theme';
 import type { Theme } from './theme';
-import { formatTime, groupGames, isFavorite, resultDays, visibleGames } from './games';
+import { groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Current', upcoming: 'Upcoming', recent: 'Recent' };
@@ -50,29 +51,6 @@ const shortcutHelp: [string[], string][] = [
     [['?'], 'Show or hide this help'],
     [['Esc'], 'Close this help'],
 ];
-
-// Lucide has no American football, so this is a Lucide-style stroke glyph for football possession.
-function Possession({ football }: { football: boolean }) {
-    if (!football) return <span className="possession" role="img" aria-label="Has possession" />;
-    return (
-        <svg
-            className="possession-ball"
-            role="img"
-            aria-label="Has possession"
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M5 19A14 14 0 0 1 19 5a14 14 0 0 1-14 14Z" />
-            <path d="m9.5 14.5 5-5M9.5 12.5l2 2M11 11l2 2M12.5 9.5l2 2" />
-        </svg>
-    );
-}
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000): Promise<T> {
     const response = await fetch(path, { ...init, signal: AbortSignal.timeout(timeoutMs) });
@@ -106,6 +84,7 @@ export function App() {
     const [refreshing, setRefreshing] = useState(false);
     const [help, setHelp] = useState(false);
     const [editing, setEditing] = useState(false);
+    const [findingTeam, setFindingTeam] = useState(false);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
     const statusPage = page === 'status';
@@ -206,6 +185,7 @@ export function App() {
                     30_000
                 );
                 await refresh();
+                window.dispatchEvent(new Event('scoreboard-refresh-added'));
             } catch (failure) {
                 setError(failure instanceof Error ? failure.message : 'Could not refresh scores.');
             } finally {
@@ -265,8 +245,9 @@ export function App() {
             keys: current.keys.includes(key) ? current.keys.filter((item) => item !== key) : [...current.keys, key],
         });
     const setAllSections = (open: boolean) => setToggled({ filter: team, open, keys: [] });
-    const allOpen = sections.every((section) => isOpen(section.key));
-    const allClosed = sections.every((section) => !isOpen(section.key));
+    const sectionKeys = [...sections.map((section) => section.key), ...(view === 'live' ? ['custom'] : [])];
+    const allOpen = sectionKeys.every(isOpen);
+    const allClosed = sectionKeys.every((key) => !isOpen(key));
     const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
     shortcut.current = (event) => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
@@ -282,6 +263,7 @@ export function App() {
         const target = event.target as HTMLElement | null;
         if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
         if (document.querySelector('[role="listbox"], [role="menu"]')) return;
+        if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
         const views: Record<string, View> = {
             Digit1: 'live',
             Numpad1: 'live',
@@ -397,6 +379,19 @@ export function App() {
                                     onCopyError={() => setError('Could not copy the calendar link.')}
                                 />
                             )}
+                            <button
+                                type="button"
+                                className="icon-button"
+                                aria-label="Find team"
+                                aria-haspopup="dialog"
+                                aria-expanded={findingTeam}
+                                onClick={() => {
+                                    setView('live');
+                                    setFindingTeam(true);
+                                }}
+                            >
+                                <Search size={16} aria-hidden="true" />
+                            </button>
                             <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
                                 <Plus size={16} aria-hidden="true" /> Edit favorites
                             </button>
@@ -509,7 +504,7 @@ export function App() {
                                                     .map((item) => ({ value: item.id, label: item.name })),
                                             ]}
                                         />
-                                        {sections.length > 0 && (
+                                        {sectionKeys.length > 0 && (
                                             <div
                                                 className="section-controls"
                                                 role="group"
@@ -518,6 +513,7 @@ export function App() {
                                                 <button
                                                     type="button"
                                                     disabled={allOpen}
+                                                    aria-pressed={allOpen}
                                                     aria-keyshortcuts="X"
                                                     aria-label="Expand all"
                                                     title="Expand all (X)"
@@ -528,6 +524,7 @@ export function App() {
                                                 <button
                                                     type="button"
                                                     disabled={allClosed}
+                                                    aria-pressed={allClosed}
                                                     aria-keyshortcuts="X"
                                                     aria-label="Collapse all"
                                                     title="Collapse all (X)"
@@ -581,169 +578,15 @@ export function App() {
                                                             </small>
                                                         </h3>
                                                         <div className="games">
-                                                            {group.games.map((game) => {
-                                                                const favorite = isFavorite(game, highlightIds);
-                                                                const football = game.sport === 'Football';
-                                                                return (
-                                                                    <article
-                                                                        className={`game${favorite ? ' favorite' : ''}`}
-                                                                        key={game.id}
-                                                                    >
-                                                                        {game.league === 'NBA' && game.national && (
-                                                                            <span
-                                                                                className="national-badge"
-                                                                                role="img"
-                                                                                aria-label={`National broadcast: ${game.national}`}
-                                                                                title={`National broadcast: ${game.national}`}
-                                                                            />
-                                                                        )}
-                                                                        <div className="game-meta">
-                                                                            <span>
-                                                                                {favorite && (
-                                                                                    <Star
-                                                                                        size={12}
-                                                                                        aria-label="Favorite"
-                                                                                        className="star"
-                                                                                    />
-                                                                                )}
-                                                                                {game.league} · {game.sport}
-                                                                                {game.week
-                                                                                    ? ` · Week ${game.week}`
-                                                                                    : ''}
-                                                                            </span>
-                                                                            <span
-                                                                                className={
-                                                                                    game.status === 'live'
-                                                                                        ? 'live-label'
-                                                                                        : game.status === 'final' &&
-                                                                                            view === 'live'
-                                                                                          ? 'final-label'
-                                                                                          : undefined
-                                                                                }
-                                                                            >
-                                                                                {game.statusLabel}
-                                                                            </span>
-                                                                        </div>
-                                                                        {game.home && game.away ? (
-                                                                            <div className="score-lines">
-                                                                                <div>
-                                                                                    <span>
-                                                                                        {football &&
-                                                                                            game.possession ===
-                                                                                                'away' && (
-                                                                                                <Possession
-                                                                                                    football={football}
-                                                                                                />
-                                                                                            )}
-                                                                                        {game.away}
-                                                                                        {!football &&
-                                                                                            game.possession ===
-                                                                                                'away' && (
-                                                                                                <Possession
-                                                                                                    football={football}
-                                                                                                />
-                                                                                            )}
-                                                                                        {game.awayRecord && (
-                                                                                            <span className="record">
-                                                                                                {' '}
-                                                                                                ({game.awayRecord})
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </span>
-                                                                                    <strong
-                                                                                        key={`away-${flashes[`${game.id}:away`] ?? 0}`}
-                                                                                        className={
-                                                                                            flashes[`${game.id}:away`]
-                                                                                                ? 'score-changed'
-                                                                                                : undefined
-                                                                                        }
-                                                                                    >
-                                                                                        {game.awayScore ?? '—'}
-                                                                                    </strong>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <span>
-                                                                                        {football &&
-                                                                                            game.possession ===
-                                                                                                'home' && (
-                                                                                                <Possession
-                                                                                                    football={football}
-                                                                                                />
-                                                                                            )}
-                                                                                        {game.home}
-                                                                                        {!football &&
-                                                                                            game.possession ===
-                                                                                                'home' && (
-                                                                                                <Possession
-                                                                                                    football={football}
-                                                                                                />
-                                                                                            )}
-                                                                                        {game.homeRecord && (
-                                                                                            <span className="record">
-                                                                                                {' '}
-                                                                                                ({game.homeRecord})
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </span>
-                                                                                    <strong
-                                                                                        key={`home-${flashes[`${game.id}:home`] ?? 0}`}
-                                                                                        className={
-                                                                                            flashes[`${game.id}:home`]
-                                                                                                ? 'score-changed'
-                                                                                                : undefined
-                                                                                        }
-                                                                                    >
-                                                                                        {game.homeScore ?? '—'}
-                                                                                    </strong>
-                                                                                </div>
-                                                                                {game.status === 'live' &&
-                                                                                    (game.situation ||
-                                                                                        game.redZone) && (
-                                                                                        <p className="situation">
-                                                                                            {game.redZone && (
-                                                                                                <span className="red-zone">
-                                                                                                    Red zone
-                                                                                                </span>
-                                                                                            )}
-                                                                                            {game.situation}
-                                                                                        </p>
-                                                                                    )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <h4>{game.title}</h4>
-                                                                        )}
-                                                                        <div className="game-footer">
-                                                                            <span className="when">
-                                                                                <time
-                                                                                    dateTime={
-                                                                                        game.startTime ??
-                                                                                        game.date ??
-                                                                                        undefined
-                                                                                    }
-                                                                                >
-                                                                                    {formatTime(game)}
-                                                                                </time>
-                                                                                {game.broadcast && (
-                                                                                    <span className="broadcast">
-                                                                                        <Tv
-                                                                                            size={12}
-                                                                                            aria-hidden="true"
-                                                                                        />
-                                                                                        {game.broadcast}
-                                                                                    </span>
-                                                                                )}
-                                                                            </span>
-                                                                            <a
-                                                                                href={game.sourceUrl}
-                                                                                target="_blank"
-                                                                                rel="noreferrer"
-                                                                            >
-                                                                                Source <ArrowUpRight size={14} />
-                                                                            </a>
-                                                                        </div>
-                                                                    </article>
-                                                                );
-                                                            })}
+                                                            {group.games.map((game) => (
+                                                                <GameCard
+                                                                    key={game.id}
+                                                                    game={game}
+                                                                    favorite={isFavorite(game, highlightIds)}
+                                                                    view={view}
+                                                                    flashes={flashes}
+                                                                />
+                                                            ))}
                                                         </div>
                                                     </section>
                                                 ))}
@@ -773,6 +616,17 @@ export function App() {
                                             </p>
                                         </div>
                                     ))}
+                                <AddedTeams
+                                    active={view === 'live'}
+                                    dashboardFeeds={feeds}
+                                    open={findingTeam}
+                                    onClose={() => setFindingTeam(false)}
+                                    expanded={isOpen('custom')}
+                                    onToggle={() => toggleSection('custom')}
+                                    onAdd={() => {
+                                        if (!isOpen('custom')) toggleSection('custom');
+                                    }}
+                                />
                             </section>
                         )}
                         {statusPage && (

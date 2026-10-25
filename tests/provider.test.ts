@@ -1,5 +1,4 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Game } from '../shared/contracts.js';
@@ -481,7 +480,7 @@ describe('league scoreboards', () => {
         expect(run.urls.length - third).toBe(first - 1);
     });
     it('saves settled past days to disk and reloads them after a restart', async () => {
-        const directory = mkdtempSync(join(tmpdir(), 'scoreboard-'));
+        const directory = mkdtempSync(join(process.cwd(), '.scoreboard-test-'));
         const file = join(directory, 'cache.json');
         const body = (url: string) =>
             url.includes('dates=20261021')
