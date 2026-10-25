@@ -626,7 +626,7 @@ test('an empty Custom response reports a readable error and recovers on the next
 });
 
 for (const theme of ['midnight', 'light']) {
-    test(`ad hoc team search adds today's games independently of Show (${theme})`, async ({ page }) => {
+    test(`ad hoc team search shows Custom only for All teams (${theme})`, async ({ page }) => {
         await page.clock.install({ time: new Date(2026, 9, 25, 9) });
         addedGames = [
             {
@@ -669,6 +669,10 @@ for (const theme of ['midnight', 'light']) {
             added.locator('.game').getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true })
         ).toBeVisible();
         await page.keyboard.press('f');
+        await expect(added).toBeHidden();
+        await page.keyboard.press('a');
+        await expect(added).toBeVisible();
+        await added.locator('.section-title button').click();
         await expect(added.locator('.game')).toHaveCount(1);
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         await expect(added).toBeHidden();

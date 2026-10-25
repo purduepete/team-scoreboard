@@ -245,7 +245,8 @@ export function App() {
             keys: current.keys.includes(key) ? current.keys.filter((item) => item !== key) : [...current.keys, key],
         });
     const setAllSections = (open: boolean) => setToggled({ filter: team, open, keys: [] });
-    const sectionKeys = [...sections.map((section) => section.key), ...(view === 'live' ? ['custom'] : [])];
+    const showCustom = view === 'live' && team === 'all';
+    const sectionKeys = [...sections.map((section) => section.key), ...(showCustom ? ['custom'] : [])];
     const allOpen = sectionKeys.every(isOpen);
     const allClosed = sectionKeys.every((key) => !isOpen(key));
     const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
@@ -387,6 +388,7 @@ export function App() {
                                 aria-expanded={findingTeam}
                                 onClick={() => {
                                     setView('live');
+                                    setTeam('all');
                                     setFindingTeam(true);
                                 }}
                             >
@@ -617,7 +619,7 @@ export function App() {
                                         </div>
                                     ))}
                                 <AddedTeams
-                                    active={view === 'live'}
+                                    active={showCustom}
                                     dashboardFeeds={feeds}
                                     open={findingTeam}
                                     onClose={() => setFindingTeam(false)}
