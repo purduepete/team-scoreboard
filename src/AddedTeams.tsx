@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, Plus, X } from 'lucide-react';
+import { ChevronRight, MoveDown, MoveUp, Plus, X } from 'lucide-react';
+import type { DragEvent } from 'react';
 import type { Feed, Game, SearchTeam, TeamCategory } from '../shared/contracts';
 import { GameCard } from './GameCard';
-import { categories, localDate, pinKey, pinLimit, pinsKey, readPins, todayGames } from './added-teams';
+import { Tooltip } from './Tooltip';
+import { categories, localDate, pinKey, pinLimit, pinsKey, readCardOrder, readPins, todayGames } from './added-teams';
 import type { TeamPin } from './added-teams';
 import { reconcile, withLiveFields } from '../shared/reconcile';
 
@@ -37,10 +39,16 @@ async function get<T>(url: string, signal: AbortSignal): Promise<T> {
 function initialPins() {
     const date = localDate();
     try {
-        return { date, pins: readPins(localStorage.getItem(pinsKey), date), error: '' };
+        const raw = localStorage.getItem(pinsKey);
+        return { date, pins: readPins(raw, date), order: readCardOrder(raw, date), error: '' };
     } catch (error) {
         console.warn('Added teams could not be restored.', error);
-        return { date, pins: [] as TeamPin[], error: 'Custom teams could not be restored from this browser.' };
+        return {
+            date,
+            pins: [] as TeamPin[],
+            order: [] as string[],
+            error: 'Custom teams could not be restored from this browser.',
+        };
     }
 }
 
@@ -90,7 +98,7 @@ export function AddedTeams({
         generation.current++;
         controller.current?.abort();
         busy.current = false;
-        current.current = { date, pins: [], error: '' };
+        current.current = { date, pins: [], order: [], error: '' };
         setSaved(current.current);
         setEntries({});
         scores.current.clear();
@@ -100,12 +108,15 @@ export function AddedTeams({
 
     useEffect(() => {
         try {
-            localStorage.setItem(pinsKey, JSON.stringify({ date: saved.date, teams: saved.pins }));
+            localStorage.setItem(
+                pinsKey,
+                JSON.stringify({ date: saved.date, teams: saved.pins, order: saved.order ?? [] })
+            );
         } catch (error) {
             console.warn('Added teams could not be saved.', error);
             setSaved((previous) => ({ ...previous, error: 'Custom teams could not be saved in this browser.' }));
         }
-    }, [saved.date, saved.pins]);
+    }, [saved.date, saved.pins, saved.order]);
 
     useEffect(() => {
         const arm = () => {
@@ -338,6 +349,99 @@ export function AddedTeams({
                 });
         }
     }
+    const statusCards = selected.flatMap(({ pin, entry }) => {
+        const result = entry?.result;
+        const name =
+            result?.team.name ?? `${categories.find((item) => item.value === pin.category)?.label} team ${pin.id}`;
+        const hasGames = result && todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
+        if (hasGames && !entry?.error && !result?.feed.error) return [];
+        return [{ key: `team:${pinKey(pin)}`, kind: 'status' as const, pin, entry, name }];
+    });
+    const gameCards = [...games.entries()]
+        .sort(([, a], [, b]) => (a.game.startTime ?? '').localeCompare(b.game.startTime ?? ''))
+        .map(([key, { game, names }]) => ({
+            key: `game:${key}`,
+            kind: 'game' as const,
+            game,
+            names,
+        }));
+    const cardCandidates = [...statusCards, ...gameCards];
+    const cardOrder = saved.order ?? [];
+    const orderedCards = cardCandidates.sort((a, b) => {
+        const aOrder = cardOrder.indexOf(a.key);
+        const bOrder = cardOrder.indexOf(b.key);
+        if (aOrder < 0 && bOrder < 0) return 0;
+        if (aOrder < 0) return 1;
+        if (bOrder < 0) return -1;
+        return aOrder - bOrder;
+    });
+    const saveCardOrder = (keys: string[]) =>
+        setSaved((previous) => ({
+            ...previous,
+            order: [...keys, ...(previous.order ?? []).filter((key) => !keys.includes(key))],
+        }));
+    const moveCard = (cardKey: string, direction: -1 | 1) => {
+        const keys = orderedCards.map((card) => card.key);
+        const index = keys.indexOf(cardKey);
+        const destination = index + direction;
+        if (index < 0 || destination < 0 || destination >= keys.length) return;
+        keys.splice(index, 1);
+        keys.splice(destination, 0, cardKey);
+        saveCardOrder(keys);
+    };
+    const dropCard = (targetKey: string, event: DragEvent<HTMLElement>) => {
+        event.preventDefault();
+        const sourceKey = event.dataTransfer.getData('text/plain');
+        const keys = orderedCards.map((card) => card.key);
+        const sourceIndex = keys.indexOf(sourceKey);
+        const targetIndex = keys.indexOf(targetKey);
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+        const target = event.currentTarget.getBoundingClientRect();
+        const after = event.clientY >= target.top + target.height / 2;
+        keys.splice(sourceIndex, 1);
+        const insertion = targetIndex + Number(after) - Number(sourceIndex < targetIndex);
+        keys.splice(insertion, 0, sourceKey);
+        saveCardOrder(keys);
+    };
+    const cardDragProps = (key: string) => ({
+        draggable: true,
+        onDragStart: (event: DragEvent<HTMLElement>) => {
+            event.dataTransfer.setData('text/plain', key);
+            event.dataTransfer.effectAllowed = 'move';
+        },
+        onDragOver: (event: DragEvent<HTMLElement>) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        },
+        onDrop: (event: DragEvent<HTMLElement>) => dropCard(key, event),
+    });
+    const reorderButtons = (key: string, name: string, index: number) =>
+        orderedCards.length > 1 ? (
+            <>
+                <Tooltip content={`Move ${name} earlier`}>
+                    <button
+                        type="button"
+                        className="icon-button reorder-card"
+                        aria-label={`Move ${name} earlier`}
+                        disabled={index === 0}
+                        onClick={() => moveCard(key, -1)}
+                    >
+                        <MoveUp size={14} aria-hidden="true" />
+                    </button>
+                </Tooltip>
+                <Tooltip content={`Move ${name} later`}>
+                    <button
+                        type="button"
+                        className="icon-button reorder-card"
+                        aria-label={`Move ${name} later`}
+                        disabled={index === orderedCards.length - 1}
+                        onClick={() => moveCard(key, 1)}
+                    >
+                        <MoveDown size={14} aria-hidden="true" />
+                    </button>
+                </Tooltip>
+            </>
+        ) : null;
     return (
         <section className="added-teams" aria-label="Custom" hidden={!active || saved.pins.length === 0}>
             <h2 className="section-title">
@@ -457,50 +561,61 @@ export function AddedTeams({
                         document.body
                     )}
                 <div className="games custom-games">
-                    {selected.map(({ pin, entry }) => {
-                        const result = entry?.result;
-                        const name =
-                            result?.team.name ??
-                            `${categories.find((item) => item.value === pin.category)?.label} team ${pin.id}`;
-                        const hasGames =
-                            result &&
-                            todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
-                        if (hasGames && !entry?.error && !result.feed.error) return null;
-                        return (
-                            <article key={pinKey(pin)} className="game custom-status-card" aria-label={name}>
-                                <div className="heading-actions">{!hasGames && removeButton(pin, name)}</div>
-                                {entry?.error && <p role="alert">{entry.error}</p>}
-                                {!result && !entry?.error && <p role="status">Loading team…</p>}
-                                {result?.feed.error && <p role="alert">{result.feed.error}</p>}
-                                {result?.feed.pending && !entry?.error && !result.feed.error && (
-                                    <p role="status">Loading scores…</p>
-                                )}
-                                {result?.feed.stale && hasGames && (
-                                    <p role="status">Showing previously fetched scores.</p>
-                                )}
-                                {result &&
-                                    !result.feed.error &&
-                                    !result.feed.pending &&
-                                    !result.feed.stale &&
-                                    !todayGames(result.feed.games).length && <p>No game today.</p>}
-                            </article>
+                    {orderedCards.map((card, index) => {
+                        if (card.kind === 'status') {
+                            const result = card.entry?.result;
+                            const hasGames =
+                                result &&
+                                todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
+                            return (
+                                <article
+                                    key={card.key}
+                                    className="game custom-status-card"
+                                    aria-label={card.name}
+                                    {...cardDragProps(card.key)}
+                                >
+                                    <div className="heading-actions">
+                                        {!hasGames && removeButton(card.pin, card.name)}
+                                        {reorderButtons(card.key, card.name, index)}
+                                    </div>
+                                    {card.entry?.error && <p role="alert">{card.entry.error}</p>}
+                                    {!result && !card.entry?.error && <p role="status">Loading team…</p>}
+                                    {result?.feed.error && <p role="alert">{result.feed.error}</p>}
+                                    {result?.feed.pending && !card.entry?.error && !result.feed.error && (
+                                        <p role="status">Loading scores…</p>
+                                    )}
+                                    {result?.feed.stale && hasGames && (
+                                        <p role="status">Showing previously fetched scores.</p>
+                                    )}
+                                    {result &&
+                                        !result.feed.error &&
+                                        !result.feed.pending &&
+                                        !result.feed.stale &&
+                                        !todayGames(result.feed.games).length && <p>No game today.</p>}
+                                </article>
+                            );
+                        }
+                        const relatedTeams = selected.filter(
+                            ({ entry }) =>
+                                entry?.result &&
+                                card.game.teamIds.includes(entry.result.team.id) &&
+                                card.names.has(entry.result.team.name)
                         );
-                    })}
-                    {[...games.values()]
-                        .sort((a, b) => (a.game.startTime ?? '').localeCompare(b.game.startTime ?? ''))
-                        .map(({ game, names }) => (
+                        const name = relatedTeams.map(({ entry }) => entry!.result!.team.name).join(' and ');
+                        return (
                             <GameCard
-                                key={`${game.sport}:${game.id}`}
-                                game={game}
+                                key={card.key}
+                                game={card.game}
                                 view="live"
                                 flashes={flashes}
-                                actions={selected
-                                    .filter(({ entry }) => entry?.result && names.has(entry.result.team.name))
-                                    .map(({ pin, entry }) => (
-                                        <span key={pinKey(pin)}>{removeButton(pin, entry!.result!.team.name)}</span>
-                                    ))}
+                                reorder={cardDragProps(card.key)}
+                                actions={relatedTeams.map(({ pin, entry }) => (
+                                    <span key={pinKey(pin)}>{removeButton(pin, entry!.result!.team.name)}</span>
+                                ))}
+                                reorderActions={reorderButtons(card.key, name || 'custom game', index)}
                             />
-                        ))}
+                        );
+                    })}
                 </div>
             </div>
         </section>

@@ -22,6 +22,7 @@ import { GameCard } from './GameCard';
 import { AddedTeams } from './AddedTeams';
 import { CalendarMenu } from './CalendarMenu';
 import { SelectField } from './SelectField';
+import { Tooltip } from './Tooltip';
 import { useTheme } from './theme';
 import type { Theme } from './theme';
 import { groupGames, isFavorite, resultDays, visibleGames } from './games';
@@ -334,36 +335,40 @@ export function App() {
                     </a>
                     <div className="header-actions">
                         {updated && (
-                            <small className="updated" title="Last updated">
-                                <span className="updated-label">Updated </span>
-                                {new Date(updated).toLocaleTimeString(undefined, {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hourCycle: 'h23',
-                                })}
-                            </small>
+                            <Tooltip content="Last updated">
+                                <small className="updated" tabIndex={0}>
+                                    <span className="updated-label">Updated </span>
+                                    {new Date(updated).toLocaleTimeString(undefined, {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        hourCycle: 'h23',
+                                    })}
+                                </small>
+                            </Tooltip>
                         )}
-                        <button
-                            type="button"
-                            className="refresh-button"
-                            onClick={() => void forceRefresh('live')}
-                            disabled={refreshing}
-                            aria-label="Refresh"
-                            aria-keyshortcuts="R"
-                            title="Refresh live scores (R)"
-                        >
-                            <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'spin' : ''} />
-                            <span className="refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
-                        </button>
-                        <a
-                            className="header-link"
-                            href={statusPage ? '#' : '#status'}
-                            aria-label={statusPage ? 'Back to scores' : 'Source status'}
-                            title={statusPage ? 'Back to scores' : 'Source status'}
-                            aria-current={statusPage ? 'page' : undefined}
-                        >
-                            <Activity size={18} aria-hidden="true" />
-                        </a>
+                        <Tooltip content="Refresh live scores (R)">
+                            <button
+                                type="button"
+                                className="refresh-button"
+                                onClick={() => void forceRefresh('live')}
+                                disabled={refreshing}
+                                aria-label="Refresh"
+                                aria-keyshortcuts="R"
+                            >
+                                <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'spin' : ''} />
+                                <span className="refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+                            </button>
+                        </Tooltip>
+                        <Tooltip content={statusPage ? 'Back to scores' : 'Source status'}>
+                            <a
+                                className="header-link"
+                                href={statusPage ? '#' : '#status'}
+                                aria-label={statusPage ? 'Back to scores' : 'Source status'}
+                                aria-current={statusPage ? 'page' : undefined}
+                            >
+                                <Activity size={18} aria-hidden="true" />
+                            </a>
+                        </Tooltip>
                         <SelectField
                             label="Theme"
                             value={theme}
@@ -495,17 +500,17 @@ export function App() {
                                         data-active={viewOrder.indexOf(view)}
                                     >
                                         {viewOrder.map((item, index) => (
-                                            <button
-                                                type="button"
-                                                key={item}
-                                                aria-pressed={view === item}
-                                                aria-keyshortcuts={String(index + 1)}
-                                                title={`${viewLabels[item]} (${index + 1})`}
-                                                className={view === item ? 'selected' : ''}
-                                                onClick={() => setView(item)}
-                                            >
-                                                {viewLabels[item]}
-                                            </button>
+                                            <Tooltip key={item} content={`${viewLabels[item]} (${index + 1})`}>
+                                                <button
+                                                    type="button"
+                                                    aria-pressed={view === item}
+                                                    aria-keyshortcuts={String(index + 1)}
+                                                    className={view === item ? 'selected' : ''}
+                                                    onClick={() => setView(item)}
+                                                >
+                                                    {viewLabels[item]}
+                                                </button>
+                                            </Tooltip>
                                         ))}
                                     </div>
                                     <div className="toolbar-actions">
@@ -533,28 +538,30 @@ export function App() {
                                                 aria-label="Section controls"
                                                 data-active={allOpen ? '0' : allClosed ? '1' : 'none'}
                                             >
-                                                <button
-                                                    type="button"
-                                                    disabled={allOpen}
-                                                    aria-pressed={allOpen}
-                                                    aria-keyshortcuts="X"
-                                                    aria-label="Expand all"
-                                                    title="Expand all (X)"
-                                                    onClick={() => setAllSections(true)}
-                                                >
-                                                    <ChevronsUpDown size={16} aria-hidden="true" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    disabled={allClosed}
-                                                    aria-pressed={allClosed}
-                                                    aria-keyshortcuts="X"
-                                                    aria-label="Collapse all"
-                                                    title="Collapse all (X)"
-                                                    onClick={() => setAllSections(false)}
-                                                >
-                                                    <ChevronsDownUp size={16} aria-hidden="true" />
-                                                </button>
+                                                <Tooltip content="Expand all (X)">
+                                                    <button
+                                                        type="button"
+                                                        disabled={allOpen}
+                                                        aria-pressed={allOpen}
+                                                        aria-keyshortcuts="X"
+                                                        aria-label="Expand all"
+                                                        onClick={() => setAllSections(true)}
+                                                    >
+                                                        <ChevronsUpDown size={16} aria-hidden="true" />
+                                                    </button>
+                                                </Tooltip>
+                                                <Tooltip content="Collapse all (X)">
+                                                    <button
+                                                        type="button"
+                                                        disabled={allClosed}
+                                                        aria-pressed={allClosed}
+                                                        aria-keyshortcuts="X"
+                                                        aria-label="Collapse all"
+                                                        onClick={() => setAllSections(false)}
+                                                    >
+                                                        <ChevronsDownUp size={16} aria-hidden="true" />
+                                                    </button>
+                                                </Tooltip>
                                             </div>
                                         )}
                                     </div>
@@ -728,16 +735,17 @@ export function App() {
                             <h2 id="help-title">
                                 <Keyboard size={18} aria-hidden="true" /> Keyboard shortcuts
                             </h2>
-                            <button
-                                ref={helpClose}
-                                type="button"
-                                className="icon-button"
-                                onClick={() => setHelp(false)}
-                                aria-label="Close"
-                                title="Close (Esc)"
-                            >
-                                <X size={16} aria-hidden="true" />
-                            </button>
+                            <Tooltip content="Close (Esc)">
+                                <button
+                                    ref={helpClose}
+                                    type="button"
+                                    className="icon-button"
+                                    onClick={() => setHelp(false)}
+                                    aria-label="Close"
+                                >
+                                    <X size={16} aria-hidden="true" />
+                                </button>
+                            </Tooltip>
                         </div>
                         <dl className="help-list">
                             {shortcutHelp.map(([keys, action]) => (

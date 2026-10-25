@@ -2,9 +2,10 @@ import { ArrowUpRight, Info, Star, Tv } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import type { View } from './games';
 import { formatTime } from './games';
+import { Tooltip } from './Tooltip';
 
 function Broadcast({ name }: { name: string }) {
     const text = useRef<HTMLSpanElement>(null);
@@ -157,24 +158,30 @@ export function GameCard({
     view,
     flashes = {},
     actions,
+    reorder,
+    reorderActions,
 }: {
     game: Game;
     favorite?: boolean;
     view: View;
     flashes?: Record<string, number>;
     actions?: ReactNode;
+    reorder?: HTMLAttributes<HTMLElement>;
+    reorderActions?: ReactNode;
 }) {
     const football = game.sport === 'Football';
     const situation = useSituation(game);
     return (
-        <article className={`game${favorite ? ' favorite' : ''}`}>
+        <article className={`game${favorite ? ' favorite' : ''}`} {...reorder}>
             {game.league === 'NBA' && game.national && (
-                <span
-                    className="national-badge"
-                    role="img"
-                    aria-label={`National broadcast: ${game.national}`}
-                    title={`National broadcast: ${game.national}`}
-                />
+                <Tooltip content={`National broadcast: ${game.national}`}>
+                    <span
+                        className="national-badge"
+                        role="img"
+                        tabIndex={0}
+                        aria-label={`National broadcast: ${game.national}`}
+                    />
+                </Tooltip>
             )}
             <div className="game-meta">
                 <span>
@@ -244,6 +251,7 @@ export function GameCard({
                 <a href={game.sourceUrl} target="_blank" rel="noreferrer">
                     Source <ArrowUpRight size={14} />
                 </a>
+                {reorderActions && <span className="custom-order-actions">{reorderActions}</span>}
             </div>
         </article>
     );

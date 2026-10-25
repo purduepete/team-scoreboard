@@ -215,6 +215,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await page.mouse.click(8, 180);
     await expect(page.getByRole('listbox')).toHaveCount(0);
     await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
+    await expect(page.locator('[title]')).toHaveCount(0);
     await expandSections(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.locator('header')).toHaveCSS('position', 'sticky');
@@ -228,6 +229,24 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
     await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('header controls use accessible custom tooltips', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const refresh = page.getByRole('button', { name: 'Refresh', exact: true });
+    await expect(refresh).toHaveAttribute('aria-describedby', /\S+/);
+    await refresh.hover();
+    const tooltip = page.getByRole('tooltip');
+    await expect(tooltip).toHaveText('Refresh live scores (R)');
+    const bounds = await tooltip.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+    await page.keyboard.press('Escape');
+    await expect(tooltip).toBeHidden();
+    await refresh.focus();
+    await expect(tooltip).toBeVisible();
 });
 
 test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
@@ -372,6 +391,10 @@ test('added teams distinguish no game, pending and errors and expire at local mi
     const added = page.getByRole('region', { name: 'Custom', exact: true });
     await added.locator('.section-title button').click();
     await expect(added).toContainText('No game today.');
+    const statusCard = added.locator('.custom-status-card');
+    const statusBounds = await statusCard.boundingBox();
+    await expect(statusCard.locator('.reorder-card')).toHaveCount(0);
+    expect(statusBounds).not.toBeNull();
     addedPending = true;
     await page.clock.runFor(20_000);
     await expect(added.getByRole('status')).toContainText('Loading scores');
@@ -484,6 +507,68 @@ test('Custom cards share the league grid, with removal left of the time and no e
     await expect(custom.locator('.muted')).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('custom cards can be reordered with controls or drag and the order persists', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    addedGames = [
+        {
+            ...game,
+            id: 'custom-late',
+            teamIds: [searchedTeam.id],
+            home: searchedTeam.name,
+            startTime: '2026-10-25T22:00:00Z',
+        },
+        {
+            ...game,
+            id: 'custom-early',
+            teamIds: [secondSearchedTeam.id],
+            home: secondSearchedTeam.name,
+            startTime: '2026-10-25T18:00:00Z',
+        },
+    ];
+    await page.addInitScript(() => {
+        const key = 'team-scoreboard-added-teams-v1';
+        if (!localStorage.getItem(key))
+            localStorage.setItem(
+                key,
+                JSON.stringify({
+                    date: '2026-10-25',
+                    teams: [
+                        { category: 'college-football', id: '333' },
+                        { category: 'college-football', id: '8' },
+                    ],
+                })
+            );
+    });
+    await page.goto('/');
+    const custom = page.getByRole('region', { name: 'Custom', exact: true });
+    await custom.locator('.section-title button').click();
+    const cards = custom.locator('.custom-games > .game');
+    await expect(cards).toHaveCount(2);
+    await expect(cards.first()).toContainText(secondSearchedTeam.name);
+    await cards
+        .nth(1)
+        .getByRole('button', { name: `Move ${searchedTeam.name} earlier` })
+        .click();
+    await expect(cards.first()).toContainText(searchedTeam.name);
+    const firstCard = cards.first();
+    const cardBounds = await firstCard.boundingBox();
+    const sourceBounds = await firstCard.locator('.game-footer > a').boundingBox();
+    const reorderBounds = await firstCard.locator('.custom-order-actions').boundingBox();
+    expect(reorderBounds!.x).toBeGreaterThan(sourceBounds!.x + sourceBounds!.width);
+    expect(cardBounds!.x + cardBounds!.width - reorderBounds!.x - reorderBounds!.width).toBeLessThan(24);
+    await expect
+        .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('team-scoreboard-added-teams-v1')!).order))
+        .toEqual(['game:Football:custom-late', 'game:Football:custom-early']);
+    await page.reload();
+    await custom.locator('.section-title button').click();
+    await expect(cards.first()).toContainText(searchedTeam.name);
+    await cards.nth(1).dragTo(cards.first(), { targetPosition: { x: 10, y: 1 } });
+    await expect(cards.first()).toContainText(secondSearchedTeam.name);
+    await expect
+        .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('team-scoreboard-added-teams-v1')!).order))
+        .toEqual(['game:Football:custom-early', 'game:Football:custom-late']);
 });
 
 test('long channel lists truncate without wrapping the card footer', async ({ page }) => {
@@ -878,8 +963,14 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await expect(page.getByLabel('Find a team or sport')).toHaveValue('x2');
     await expect(closed).toHaveCount(await page.locator('.section-title button').count());
     await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
-    await expect(pressed('Upcoming')).toHaveAttribute('title', 'Upcoming (2)');
-    await expect(pressed('Recent')).toHaveAttribute('title', 'Recent (3)');
+    await expect(pressed('Upcoming')).toHaveAttribute('aria-describedby', /\S+/);
+    await expect(pressed('Upcoming')).not.toHaveAttribute('title');
+    await expect(pressed('Recent')).toHaveAttribute('aria-describedby', /\S+/);
+    await expect(pressed('Recent')).not.toHaveAttribute('title');
+    const upcomingTooltip = await pressed('Upcoming').getAttribute('aria-describedby');
+    const recentTooltip = await pressed('Recent').getAttribute('aria-describedby');
+    await expect(page.locator(`[id="${upcomingTooltip}"]`)).toHaveText('Upcoming (2)');
+    await expect(page.locator(`[id="${recentTooltip}"]`)).toHaveText('Recent (3)');
 });
 
 test('letter shortcuts set the Show filter', async ({ page }) => {

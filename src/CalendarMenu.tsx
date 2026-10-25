@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarPlus, Check, ChevronDown, Copy, Download } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 // Action menu for the calendar feed. Shares the SelectField popup look; items take real focus.
 export function CalendarMenu({ url, onCopyError }: { url: string; onCopyError: () => void }) {
@@ -93,21 +94,22 @@ export function CalendarMenu({ url, onCopyError }: { url: string; onCopyError: (
 
     return (
         <>
-            <button
-                ref={trigger}
-                type="button"
-                className="menu-trigger"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                aria-controls={open ? id : undefined}
-                onClick={() => setOpen((value) => !value)}
-                onKeyDown={triggerKeys}
-                title="Calendar feed for your watched teams"
-            >
-                {copied ? <Check size={16} aria-hidden="true" /> : <CalendarPlus size={16} aria-hidden="true" />}
-                {copied ? 'Copied' : 'Calendar'}
-                <ChevronDown size={16} aria-hidden="true" />
-            </button>
+            <Tooltip content="Calendar feed for your watched teams">
+                <button
+                    ref={trigger}
+                    type="button"
+                    className="menu-trigger"
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    aria-controls={open ? id : undefined}
+                    onClick={() => setOpen((value) => !value)}
+                    onKeyDown={triggerKeys}
+                >
+                    {copied ? <Check size={16} aria-hidden="true" /> : <CalendarPlus size={16} aria-hidden="true" />}
+                    {copied ? 'Copied' : 'Calendar'}
+                    <ChevronDown size={16} aria-hidden="true" />
+                </button>
+            </Tooltip>
             <span className="sr-only" role="status">
                 {copied ? 'Calendar link copied' : ''}
             </span>

@@ -48,3 +48,18 @@ export function readPins(raw: string | null, date: string): TeamPin[] {
     }
     return pins;
 }
+
+export function readCardOrder(raw: string | null, date: string): string[] {
+    if (!raw) return [];
+    const stored: unknown = JSON.parse(raw);
+    if (typeof stored !== 'object' || stored === null || !('date' in stored))
+        throw new Error('Saved custom card order is invalid. Remove the saved browser setting and try again.');
+    if (stored.date !== date || !('order' in stored) || stored.order === undefined) return [];
+    if (
+        !Array.isArray(stored.order) ||
+        stored.order.length > pinLimit * 10 ||
+        stored.order.some((key) => typeof key !== 'string' || key.length > 200)
+    )
+        throw new Error('Saved custom card order is invalid.');
+    return [...new Set(stored.order)];
+}

@@ -388,10 +388,41 @@ small {
     flex-wrap: wrap;
     gap: 8px;
 }
+.custom-order-actions {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 4px;
+    margin-left: auto;
+}
+.custom-status-card .heading-actions {
+    justify-content: flex-end;
+}
 .remove-team {
     border: 0;
     background: transparent;
     color: var(--muted);
+}
+.custom-games > .game[draggable='true'] {
+    cursor: grab;
+}
+.custom-games > .game[draggable='true']:active {
+    cursor: grabbing;
+}
+.reorder-card {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+}
+.reorder-card:hover:not(:disabled) {
+    background: var(--raised);
+    color: var(--text);
+}
+.reorder-card:disabled {
+    opacity: 0.4;
+    cursor: default;
 }
 .remove-team:hover,
 .remove-team:focus-visible {
@@ -608,6 +639,38 @@ small {
     align-self: center;
     white-space: nowrap;
     font-size: 0.8rem;
+}
+.tooltip-anchor {
+    display: contents;
+}
+.custom-tooltip {
+    position: fixed;
+    z-index: 220;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 16px));
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    box-shadow: 0 4px 12px #0003;
+    transition: opacity 0.12s ease-out;
+}
+.custom-tooltip[data-open='false'] {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+.custom-tooltip[data-open='true'] {
+    visibility: visible;
+    opacity: 1;
+}
+.updated:focus-visible,
+.national-badge:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
 }
 .spin {
     animation: spin 1s linear infinite;
