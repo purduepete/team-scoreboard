@@ -249,6 +249,23 @@ test('header controls use accessible custom tooltips', async ({ page }) => {
     await expect(tooltip).toBeVisible();
 });
 
+test('custom tooltips stay closed on touch-capable devices', async ({ browser }) => {
+    const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    try {
+        await page.goto('/');
+        expect(await page.evaluate(() => window.matchMedia('(any-pointer: coarse)').matches)).toBe(true);
+        const refresh = page.getByRole('button', { name: 'Refresh', exact: true });
+        const tooltip = page.locator('.custom-tooltip').filter({ hasText: 'Refresh live scores (R)' });
+        await refresh.tap();
+        await expect(tooltip).toBeHidden();
+        await refresh.focus();
+        await expect(tooltip).toBeHidden();
+    } finally {
+        await context.close();
+    }
+});
+
 test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();

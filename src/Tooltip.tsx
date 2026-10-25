@@ -59,6 +59,7 @@ export function Tooltip({ content, children }: { content: string; children: Reac
     }, [open]);
 
     const show = () => {
+        if (window.matchMedia('(any-pointer: coarse)').matches) return;
         clearTimeout(hideTimer.current);
         setOpen(true);
     };
@@ -77,9 +78,6 @@ export function Tooltip({ content, children }: { content: string; children: Reac
                 }}
                 onPointerLeave={(event) => {
                     if (event.pointerType !== 'touch' && !anchor.current?.contains(document.activeElement)) hide();
-                }}
-                onPointerDown={(event) => {
-                    if (event.pointerType === 'touch') setOpen((value) => !value);
                 }}
                 onFocusCapture={show}
                 onBlurCapture={(event) => {
