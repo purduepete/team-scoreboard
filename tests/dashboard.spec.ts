@@ -495,6 +495,63 @@ test('favorite edits survive reload, live scores and source errors are visible',
 });
 
 for (const theme of ['light', 'midnight']) {
+    test(`active-only respects teams and restores the schedule view (${theme})`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.addInitScript((theme) => localStorage.setItem('team-scoreboard-theme', theme), theme);
+        await page.goto('/');
+        await expect(page.locator('header .refresh-time')).toHaveCount(0);
+        await expect(page.locator('footer .refresh-time')).toContainText('Last refresh');
+        await expect(page.locator('footer .refresh-time svg')).toBeVisible();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        const footerLayout = await page.locator('footer').evaluate((footer) => {
+            const note = footer.querySelector('.data-note')!.getBoundingClientRect();
+            const refresh = footer.querySelector('.refresh-time')!.getBoundingClientRect();
+            return {
+                sameLine: Math.abs(note.top + note.height / 2 - refresh.top - refresh.height / 2) < 1,
+                right: Math.abs(refresh.right - footer.getBoundingClientRect().right) < 1,
+            };
+        });
+        expect(footerLayout).toEqual({ sameLine: true, right: true });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+        const show = page.getByRole('button', { name: 'Show', exact: true });
+        await show.click();
+        await page.getByRole('option', { name: 'NFL', exact: true }).click();
+        await page.keyboard.press('Escape');
+        const active = page.getByRole('button', { name: 'Active games only', exact: true });
+        await active.click();
+        await expect(active).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true'
+        );
+        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
+        await expect(page.getByRole('status').filter({ hasText: 'No active games' })).toBeVisible();
+        await expect(page.locator('.game')).toHaveCount(0);
+        await show.click();
+        await page.getByRole('option', { name: 'NBA', exact: true }).click();
+        await page.keyboard.press('Escape');
+        await expect(show).toHaveText('2 selected');
+        await expect(page.locator('.game:visible')).toHaveCount(1);
+        await expect(page.locator('.game:visible')).toContainText('Indiana Pacers');
+        await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+        await expect(page.locator('.compact-games .game')).toHaveCount(1);
+        await active.click();
+        await expect(page.locator('.compact-games .game')).toHaveCount(2);
+        await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true'
+        );
+        await expect(show).toHaveText('2 selected');
+        await active.click();
+        await page.reload();
+        await expect(active).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+
     test(`compact mode keeps filters, sorts cards and restores controls (${theme})`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
@@ -752,6 +809,53 @@ test('added teams distinguish no game, pending and errors and expire at local mi
     expect(
         await page.evaluate(() => JSON.parse(localStorage.getItem('team-scoreboard-added-teams-v1')!).teams)
     ).toEqual([]);
+});
+
+test('active-only filters Custom games in grouped and compact mode', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 12) });
+    addedGames = [
+        {
+            ...game,
+            id: 'custom-scheduled',
+            teamIds: [searchedTeam.id],
+            home: 'Scheduled Custom',
+            league: 'College football',
+        },
+        {
+            ...game,
+            id: 'custom-live',
+            teamIds: [searchedTeam.id],
+            home: 'Active Custom',
+            league: 'College football',
+            status: 'live',
+            statusLabel: 'Live fixture',
+        },
+        {
+            ...game,
+            id: 'custom-final',
+            teamIds: [searchedTeam.id],
+            home: 'Finished Custom',
+            league: 'College football',
+            status: 'final',
+        },
+    ];
+    await page.addInitScript(() => {
+        localStorage.setItem('team-scoreboard-active-only', 'true');
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({ date: '2026-10-25', teams: [{ category: 'college-football', id: '333' }] })
+        );
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Expand all', exact: true }).click();
+    await expect(page.locator('.added-teams .game')).toHaveCount(1);
+    await expect(page.locator('.added-teams .game')).toContainText('Active Custom');
+    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await expect(page.locator('.compact-games .game')).toHaveCount(2);
+    await expect(page.locator('.compact-games')).not.toContainText('Scheduled Custom');
+    await expect(page.locator('.compact-games')).not.toContainText('Finished Custom');
+    await page.getByRole('button', { name: 'Active games only', exact: true }).click();
+    await expect(page.locator('.compact-games .game')).toHaveCount(6);
 });
 
 test('compact mode merges Custom games once and keeps Custom failures visible', async ({ page }) => {

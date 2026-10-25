@@ -1055,10 +1055,23 @@ label {
     flex-shrink: 0;
 }
 footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 20px;
     font-size: 0.75rem;
     color: var(--muted);
     line-height: 1.6;
     padding-top: 12px;
+}
+footer .refresh-time {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.tabs button:disabled {
+    cursor: default;
+    opacity: 1;
 }
 @media (max-width: 600px) {
     main {
@@ -1112,9 +1125,6 @@ footer {
     .toolbar .select-trigger {
         width: 100%;
         min-width: 0;
-    }
-    .refresh-time-label {
-        display: none;
     }
 }
 @media (prefers-reduced-motion: reduce) {

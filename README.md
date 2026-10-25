@@ -6,6 +6,8 @@ Within each league/day group, favorites come first, even before they start. In t
 
 ## Compact mode
 
+The header's Active games only toggle keeps the selected teams/leagues and shows only games in progress, including eligible Custom games. It temporarily uses Current and disables the schedule tabs; turning it off restores the previous tab. It works in both grouped and compact mode, and this browser remembers the setting. The clock icon and Last refresh time are at the bottom of the page; the manual Refresh button stays in the header.
+
 The header's Compact mode button shows a single grid using the current schedule view and Show selections. It hides the toolbar, filters, league/date headings and section controls, and includes matching games even from collapsed sections. Exit compact mode restores those controls and their selections. Filter/view keyboard shortcuts are paused in compact mode; refresh remains available. This browser remembers compact mode across reloads.
 
 Favorites appear first across leagues, ordered by start time from oldest to newest. Remaining cards follow Purdue, Big Ten, NFL, NBA, MLB, then other leagues, each ordered by start time from oldest to newest. Games without a start time come last in their group. Eligible Custom games join the grid, shared events appear once, and Custom loading/error/no-game cards remain visible. Source status is in Tools; its page has a Back to scores link.

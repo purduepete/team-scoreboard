@@ -54,6 +54,7 @@ function initialPins() {
 
 export function AddedTeams({
     active,
+    activeOnly = false,
     dashboardFeeds,
     open,
     onClose,
@@ -64,6 +65,7 @@ export function AddedTeams({
     renderCompact,
 }: {
     active: boolean;
+    activeOnly?: boolean;
     dashboardFeeds: Feed[];
     open: boolean;
     onClose: () => void;
@@ -341,12 +343,14 @@ export function AddedTeams({
         for (const game of todayGames(entry.result.feed.games).filter((game) =>
             game.teamIds.includes(entry.result!.team.id)
         )) {
+            const currentGame = withLiveFields(game, best.get(game.id));
+            if (activeOnly && currentGame.status !== 'live') continue;
             const key = `${game.sport}:${game.id}`;
             const existing = games.get(key);
             if (existing) existing.names.add(entry.result.team.name);
             else
                 games.set(key, {
-                    game: withLiveFields(game, best.get(game.id)),
+                    game: currentGame,
                     names: new Set([entry.result.team.name]),
                 });
         }
@@ -356,7 +360,8 @@ export function AddedTeams({
         const name =
             result?.team.name ?? `${categories.find((item) => item.value === pin.category)?.label} team ${pin.id}`;
         const hasGames = result && todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
-        if (hasGames && !entry?.error && !result?.feed.error) return [];
+        if ((hasGames || activeOnly) && !entry?.error && !result?.feed.error && result && !result.feed.pending)
+            return [];
         return [{ key: `team:${pinKey(pin)}`, kind: 'status' as const, pin, entry, name }];
     });
     const gameCards = [...games.entries()]
@@ -500,6 +505,9 @@ export function AddedTeams({
                 </button>
             </h2>
             <div id="section-custom" hidden={!expanded}>
+                {activeOnly && !gameCards.length && !statusCards.length && (
+                    <p role="status">No active games for Custom teams.</p>
+                )}
                 {saved.error && <p role="alert">{saved.error}</p>}
                 {open &&
                     active &&

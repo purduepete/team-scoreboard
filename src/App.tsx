@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Children, useCallback, useEffect, useRef, useState } from 'react';
 import {
     Activity,
     AlertCircle,
@@ -12,6 +12,7 @@ import {
     Keyboard,
     LoaderCircle,
     LayoutGrid,
+    Radio,
     Plus,
     RefreshCw,
     Search,
@@ -76,6 +77,22 @@ export function App() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
+    const [activeOnly, setActiveOnly] = useState(() => {
+        try {
+            return localStorage.getItem('team-scoreboard-active-only') === 'true';
+        } catch (error) {
+            console.warn('Active games preference could not be restored.', error);
+            return false;
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem('team-scoreboard-active-only', String(activeOnly));
+        } catch (error) {
+            console.warn('Active games preference could not be saved.', error);
+        }
+    }, [activeOnly]);
+    const effectiveView = activeOnly ? 'live' : view;
     const [compact, setCompact] = useState(() => {
         try {
             return localStorage.getItem('team-scoreboard-compact') === 'true';
@@ -263,17 +280,17 @@ export function App() {
     const feeds = data?.feeds ?? [];
     const games = visibleGames(
         feeds.flatMap((feed) => feed.games),
-        view,
+        effectiveView,
         team,
         favoriteIds
-    );
+    ).filter((game) => !activeOnly || game.status === 'live');
     // Selections limited to favorites, individual teams or Purdue skip favorite highlighting and ordering.
     const noHighlight = team.every(
         (filter) =>
             filter === 'favorites' || filter === 'league:NCAA' || !(filter === 'all' || filter.startsWith('league:'))
     );
     const highlightIds = noHighlight ? [] : favoriteIds;
-    const sections = groupGames(games, view, highlightIds);
+    const sections = groupGames(games, effectiveView, highlightIds);
     const current = toggled.filter === filterKey ? toggled : { filter: filterKey, open: !allTeams, keys: [] };
     const isOpen = (key: string) => current.open !== current.keys.includes(key);
     const toggleSection = (key: string) =>
@@ -293,7 +310,7 @@ export function App() {
             })
         );
     };
-    const showCustom = view === 'live' && allTeams;
+    const showCustom = effectiveView === 'live' && allTeams;
     const sectionKeys = [
         ...sections.map((section) => section.key),
         ...(showCustom && customCount > 0 ? ['custom'] : []),
@@ -371,19 +388,6 @@ export function App() {
                         <span>Team Scoreboard</span>
                     </a>
                     <div className="header-actions">
-                        {updated && (
-                            <div className="refresh-time">
-                                <Clock3 size={13} aria-hidden="true" />
-                                <span className="refresh-time-label">Last refresh</span>
-                                <time dateTime={updated}>
-                                    {new Date(updated).toLocaleTimeString(undefined, {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        hourCycle: 'h23',
-                                    })}
-                                </time>
-                            </div>
-                        )}
                         <Tooltip content="Refresh live scores (R)">
                             <button
                                 type="button"
@@ -398,6 +402,17 @@ export function App() {
                                 ) : (
                                     <RefreshCw size={18} aria-hidden="true" />
                                 )}
+                            </button>
+                        </Tooltip>
+                        <Tooltip content="Active games only">
+                            <button
+                                type="button"
+                                className="icon-button"
+                                aria-label="Active games only"
+                                aria-pressed={activeOnly}
+                                onClick={() => setActiveOnly((value) => !value)}
+                            >
+                                <Radio size={18} aria-hidden="true" />
                             </button>
                         </Tooltip>
                         <Tooltip content={compact ? 'Exit compact mode' : 'Compact mode'}>
@@ -507,15 +522,16 @@ export function App() {
                                         className="tabs"
                                         role="group"
                                         aria-label="Schedule view"
-                                        data-active={viewOrder.indexOf(view)}
+                                        data-active={viewOrder.indexOf(effectiveView)}
                                     >
                                         {viewOrder.map((item, index) => (
                                             <Tooltip key={item} content={`${viewLabels[item]} (${index + 1})`}>
                                                 <button
                                                     type="button"
-                                                    aria-pressed={view === item}
+                                                    aria-pressed={effectiveView === item}
+                                                    disabled={activeOnly}
                                                     aria-keyshortcuts={String(index + 1)}
-                                                    className={view === item ? 'selected' : ''}
+                                                    className={effectiveView === item ? 'selected' : ''}
                                                     onClick={() => setView(item)}
                                                 >
                                                     {viewLabels[item]}
@@ -696,7 +712,7 @@ export function App() {
                                                                         key={game.id}
                                                                         game={game}
                                                                         favorite={isFavorite(game, highlightIds)}
-                                                                        view={view}
+                                                                        view={effectiveView}
                                                                         flashes={flashes}
                                                                     />
                                                                 ))}
@@ -707,7 +723,11 @@ export function App() {
                                             </section>
                                         );
                                     })}
+                                {!compact && activeOnly && !games.length && (!showCustom || !customCount) && (
+                                    <p role="status">No active games match the selected teams.</p>
+                                )}
                                 {!compact &&
+                                    !activeOnly &&
                                     !games.length &&
                                     (view === 'live' ? (
                                         <div className="empty-state">
@@ -745,21 +765,30 @@ export function App() {
                                                                   key={game.id}
                                                                   game={game}
                                                                   favorite={isFavorite(game, highlightIds)}
-                                                                  view={view}
+                                                                  view={effectiveView}
                                                                   flashes={{ ...customFlashes, ...flashes }}
                                                               />
                                                           ))}
                                                           {showCustom && customStatus}
                                                       </div>
                                                       {!games.length &&
-                                                          (!showCustom || (!customGames.length && !customCount)) && (
-                                                              <p role="status">No games match the current selection.</p>
+                                                          (!showCustom ||
+                                                              (!customGames.length &&
+                                                                  (activeOnly
+                                                                      ? !Children.count(customStatus)
+                                                                      : !customCount))) && (
+                                                              <p role="status">
+                                                                  {activeOnly
+                                                                      ? 'No active games match the selected teams.'
+                                                                      : 'No games match the current selection.'}
+                                                              </p>
                                                           )}
                                                   </>
                                               )
                                             : undefined
                                     }
                                     active={showCustom}
+                                    activeOnly={activeOnly}
                                     dashboardFeeds={feeds}
                                     open={findingTeam}
                                     onClose={() => setFindingTeam(false)}
@@ -826,11 +855,26 @@ export function App() {
                     </>
                 )}
                 <footer>
-                    Data from{' '}
-                    <a href="https://www.espn.com" target="_blank" rel="noreferrer">
-                        ESPN
-                    </a>
-                    . Coverage and game times may change. No affiliation with the teams or leagues.
+                    <span className="data-note">
+                        Data from{' '}
+                        <a href="https://www.espn.com" target="_blank" rel="noreferrer">
+                            ESPN
+                        </a>
+                        . Coverage and game times may change. No affiliation with the teams or leagues.
+                    </span>
+                    {updated && (
+                        <div className="refresh-time">
+                            <Clock3 size={13} aria-hidden="true" />
+                            <span>Last refresh</span>
+                            <time dateTime={updated}>
+                                {new Date(updated).toLocaleTimeString(undefined, {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hourCycle: 'h23',
+                                })}
+                            </time>
+                        </div>
+                    )}
                 </footer>
             </main>
             {help && (
