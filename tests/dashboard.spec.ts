@@ -189,31 +189,38 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await page.goto('/');
     await expect(page.locator('html')).toHaveClass(/theme-midnight/);
     await expect(page.locator('select, datalist')).toHaveCount(0);
-    const theme = page.getByRole('button', { name: 'Theme', exact: true });
+    const theme = page.getByRole('button', { name: 'Appearance', exact: true });
+    const pill = page.getByRole('radiogroup', { name: 'Theme' });
     await theme.focus();
     await theme.press('Enter');
-    await theme.press('Home');
-    await theme.press('ArrowDown');
-    await theme.press('Enter');
+    await expect(pill.getByRole('radio', { name: 'Midnight' })).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(pill.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('html')).toHaveClass('light');
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ffffff');
+    await page.keyboard.press('Escape');
+    await expect(pill).toHaveCount(0);
+    await expect(theme).toBeFocused();
     await page.reload();
     await expect(page.locator('html')).toHaveClass('light');
     await theme.click();
-    await page.getByRole('option', { name: 'System', exact: true }).click();
+    await pill.getByRole('radio', { name: 'System' }).click();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/theme-midnight/);
     await page.emulateMedia({ colorScheme: 'light' });
     await expect(page.locator('html')).toHaveClass('light');
-    await theme.click();
-    await theme.press('Escape');
-    await expect(page.getByRole('listbox')).toHaveCount(0);
-    await theme.click();
-    await theme.press('Tab');
-    await expect(page.getByRole('listbox')).toHaveCount(0);
-    await theme.click();
-    await page.mouse.click(8, 180);
-    await expect(page.getByRole('listbox')).toHaveCount(0);
+    const popover = await page.getByRole('dialog', { name: 'Appearance settings' }).boundingBox();
+    expect(popover!.x).toBeGreaterThanOrEqual(0);
+    expect(popover!.x + popover!.width).toBeLessThanOrEqual(390);
+    await page.mouse.click(8, 300);
+    await expect(pill).toHaveCount(0);
+    const centers = await page.locator('header :is(.refresh-time, .icon-button)').evaluateAll((items) =>
+        items.map((item) => {
+            const box = item.getBoundingClientRect();
+            return Math.round(box.top + box.height / 2);
+        })
+    );
+    expect(new Set(centers).size).toBe(1);
     await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     await expect(page.locator('[title]')).toHaveCount(0);
     await expandSections(page);
@@ -229,6 +236,54 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
     await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('refresh uses a centered circular loader and respects reduced motion', async ({ page }) => {
+    await page.goto('/');
+    const refresh = page.getByRole('button', { name: 'Refresh', exact: true });
+    await expect(refresh).toBeEnabled();
+    await expect(refresh.locator('.lucide-refresh-cw')).toBeVisible();
+    let finishRefresh!: () => void;
+    const pending = new Promise<void>((resolve) => {
+        finishRefresh = resolve;
+    });
+    await page.route('**/api/refresh', async (route) => {
+        await pending;
+        await route.fallback();
+    });
+    try {
+        await refresh.click();
+        const busy = page.getByRole('button', { name: 'Refreshing', exact: true });
+        await expect(busy).toBeDisabled();
+        const loader = busy.locator('.lucide-loader-circle');
+        await expect(loader).toBeVisible();
+        const samples = await loader.evaluate((svg) => {
+            const button = svg.closest('button')!.getBoundingClientRect();
+            const animation = svg.getAnimations()[0];
+            animation.pause();
+            const centers = [0, 125, 250, 375, 500, 625, 750, 875].map((time) => {
+                animation.currentTime = time;
+                const box = svg.getBoundingClientRect();
+                return {
+                    x: box.x + box.width / 2 - (button.x + button.width / 2),
+                    y: box.y + box.height / 2 - (button.y + button.height / 2),
+                };
+            });
+            animation.play();
+            return centers;
+        });
+        for (const center of samples) {
+            expect(Math.abs(center.x)).toBeLessThan(0.01);
+            expect(Math.abs(center.y)).toBeLessThan(0.01);
+        }
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await expect(loader).toHaveCSS('animation-name', 'none');
+        await expect(page.getByRole('link', { name: 'Source status' })).toBeVisible();
+    } finally {
+        finishRefresh();
+    }
+    await expect(refresh).toBeEnabled();
+    await expect(refresh.locator('.lucide-refresh-cw')).toBeVisible();
 });
 
 test('header controls use accessible custom tooltips', async ({ page }) => {

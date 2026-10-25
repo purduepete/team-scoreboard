@@ -9,7 +9,9 @@ import {
     ChevronRight,
     ChevronsDownUp,
     ChevronsUpDown,
+    Clock3,
     Keyboard,
+    LoaderCircle,
     Plus,
     RefreshCw,
     Search,
@@ -23,8 +25,8 @@ import { AddedTeams } from './AddedTeams';
 import { CalendarMenu } from './CalendarMenu';
 import { SelectField } from './SelectField';
 import { Tooltip } from './Tooltip';
+import { ThemeMenu } from './ThemeMenu';
 import { useTheme } from './theme';
-import type { Theme } from './theme';
 import { groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
 
@@ -335,33 +337,37 @@ export function App() {
                     </a>
                     <div className="header-actions">
                         {updated && (
-                            <Tooltip content="Last updated">
-                                <small className="updated" tabIndex={0}>
-                                    <span className="updated-label">Updated </span>
+                            <div className="refresh-time">
+                                <Clock3 size={13} aria-hidden="true" />
+                                <span className="refresh-time-label">Last refresh</span>
+                                <time dateTime={updated}>
                                     {new Date(updated).toLocaleTimeString(undefined, {
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         hourCycle: 'h23',
                                     })}
-                                </small>
-                            </Tooltip>
+                                </time>
+                            </div>
                         )}
                         <Tooltip content="Refresh live scores (R)">
                             <button
                                 type="button"
-                                className="refresh-button"
+                                className={`icon-button${refreshing ? ' is-busy' : ''}`}
                                 onClick={() => void forceRefresh('live')}
                                 disabled={refreshing}
-                                aria-label="Refresh"
+                                aria-label={refreshing ? 'Refreshing' : 'Refresh'}
                                 aria-keyshortcuts="R"
                             >
-                                <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'spin' : ''} />
-                                <span className="refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+                                {refreshing ? (
+                                    <LoaderCircle size={18} aria-hidden="true" />
+                                ) : (
+                                    <RefreshCw size={18} aria-hidden="true" />
+                                )}
                             </button>
                         </Tooltip>
                         <Tooltip content={statusPage ? 'Back to scores' : 'Source status'}>
                             <a
-                                className="header-link"
+                                className="icon-button"
                                 href={statusPage ? '#' : '#status'}
                                 aria-label={statusPage ? 'Back to scores' : 'Source status'}
                                 aria-current={statusPage ? 'page' : undefined}
@@ -369,16 +375,7 @@ export function App() {
                                 <Activity size={18} aria-hidden="true" />
                             </a>
                         </Tooltip>
-                        <SelectField
-                            label="Theme"
-                            value={theme}
-                            onChange={(value) => setTheme(value as Theme)}
-                            options={[
-                                { value: 'midnight', label: 'Midnight' },
-                                { value: 'light', label: 'Light' },
-                                { value: 'system', label: 'System' },
-                            ]}
-                        />
+                        <ThemeMenu theme={theme} setTheme={setTheme} />
                     </div>
                 </div>
             </header>

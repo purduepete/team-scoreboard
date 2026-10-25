@@ -106,3 +106,5 @@ To release a new version, commit and push, then run from `C:\Files\Dev\main\solu
 A new file under `deploy\postgresql\` needs an independent review before release. Procedure details are in `solution-deploy\docs\Deployment.md`.
 
 The theme defaults to Midnight and supports Light and live System preference. PWA appearance was checked on iPhone and iPad on 10/24/2026.
+
+The header shows the last refresh time, an icon-only refresh button, source status and an Appearance palette button. Appearance opens a square segmented theme pill. Refresh uses a centered circular loader while busy and respects reduced motion; source status remains available on both pages.
