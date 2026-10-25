@@ -170,6 +170,22 @@ describe('window and filters', () => {
         expect(visibleGames(all, 'recent', 'league:NFL', [], on)).toHaveLength(1);
         expect(visibleGames(all, 'recent', 'league:NBA', [], on)).toHaveLength(0);
     });
+    it.each(['live', 'upcoming', 'recent'] as const)('matches a union of Show filters in %s', (view) => {
+        const now = new Date(2026, 9, 15, 12);
+        const day = view === 'recent' ? 14 : 15;
+        const status = view === 'recent' ? 'final' : view === 'live' ? 'live' : 'upcoming';
+        const nfl = { ...make('nfl', day, status), league: 'NFL', teamIds: ['colts'] };
+        const nba = { ...make('nba', day, status), league: 'NBA', teamIds: ['pacers'] };
+        const mlb = { ...make('mlb', day, status), league: 'MLB', teamIds: ['cubs'] };
+        const games = [nfl, nba, mlb, { ...nfl }];
+        const ids = (filters: string[], favorites: string[] = []) =>
+            visibleGames(games, view, filters, favorites, now).map((game) => game.id);
+        expect(ids(['colts', 'league:NBA'])).toEqual(['nfl', 'nba']);
+        expect(ids(['league:NFL', 'colts'])).toEqual(['nfl']);
+        expect(ids(['favorites', 'league:NBA'], ['cubs'])).toEqual(['nba', 'mlb']);
+        expect(ids(['league:NFL', 'league:NBA'])).toEqual(['nfl', 'nba']);
+        expect(ids(['all'])).toEqual(['nfl', 'nba', 'mlb']);
+    });
     it('keeps 14 days of results by default and 7 days of upcoming games', () => {
         const on = new Date(2026, 9, 22, 12);
         const games = [

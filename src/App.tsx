@@ -75,13 +75,15 @@ export function App() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
-    const [team, setTeam] = useState('all');
+    const [team, setTeam] = useState<string[]>(['all']);
+    const allTeams = team.includes('all');
+    const filterKey = JSON.stringify([...team].sort());
     const [customCount, setCustomCount] = useState(0);
     // League sections start collapsed on every page load.
     // Open/closed state for the current Show filter: a base (all open or all closed) plus the sections
     // flipped from it. Changing the filter resets it, so All teams starts collapsed and others open.
     const [toggled, setToggled] = useState<{ filter: string; open: boolean; keys: string[] }>({
-        filter: 'all',
+        filter: '["all"]',
         open: false,
         keys: [],
     });
@@ -231,7 +233,7 @@ export function App() {
                 headers: { 'Content-Type': 'application/json' },
                 body: remove ? '{}' : JSON.stringify({ teamId: id }),
             });
-            setTeam('all');
+            setTeam(['all']);
             await refresh();
         } catch (failure) {
             setError(failure instanceof Error ? failure.message : 'Could not save favorite.');
@@ -249,12 +251,14 @@ export function App() {
         team,
         favoriteIds
     );
-    // One team or Purdue alone: every card would match, so skip favorite highlighting and ordering.
-    const noHighlight =
-        team === 'favorites' || team === 'league:NCAA' || !(team === 'all' || team.startsWith('league:'));
+    // Selections limited to favorites, individual teams or Purdue skip favorite highlighting and ordering.
+    const noHighlight = team.every(
+        (filter) =>
+            filter === 'favorites' || filter === 'league:NCAA' || !(filter === 'all' || filter.startsWith('league:'))
+    );
     const highlightIds = noHighlight ? [] : favoriteIds;
     const sections = groupGames(games, view, highlightIds);
-    const current = toggled.filter === team ? toggled : { filter: team, open: team !== 'all', keys: [] };
+    const current = toggled.filter === filterKey ? toggled : { filter: filterKey, open: !allTeams, keys: [] };
     const isOpen = (key: string) => current.open !== current.keys.includes(key);
     const toggleSection = (key: string) =>
         setToggled({
@@ -268,12 +272,12 @@ export function App() {
         setSlideTarget(open);
         requestAnimationFrame(() =>
             requestAnimationFrame(() => {
-                setToggled({ filter: team, open, keys: [] });
+                setToggled({ filter: filterKey, open, keys: [] });
                 setSlideTarget(null);
             })
         );
     };
-    const showCustom = view === 'live' && team === 'all';
+    const showCustom = view === 'live' && allTeams;
     const sectionKeys = [
         ...sections.map((section) => section.key),
         ...(showCustom && customCount > 0 ? ['custom'] : []),
@@ -314,7 +318,7 @@ export function App() {
         } else if (views[event.code]) {
             setView(views[event.code]);
         } else if (filterKeys[key]) {
-            setTeam(filterKeys[key]);
+            setTeam([filterKeys[key]]);
         } else if (key === 'x') {
             setAllSections(!allOpen);
         } else {
@@ -537,7 +541,7 @@ export function App() {
                                                     aria-expanded={findingTeam}
                                                     onClick={() => {
                                                         setView('live');
-                                                        setTeam('all');
+                                                        setTeam(['all']);
                                                         setFindingTeam(true);
                                                     }}
                                                 >
@@ -554,6 +558,8 @@ export function App() {
                                         </div>
                                         <SelectField
                                             label="Show"
+                                            multiple
+                                            allValue="all"
                                             value={team}
                                             onChange={setTeam}
                                             options={[

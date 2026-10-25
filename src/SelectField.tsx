@@ -8,25 +8,27 @@ interface Option {
     label: string;
 }
 
+type SelectionProps =
+    | { multiple?: false; value: string; onChange: (value: string) => void }
+    | { multiple: true; value: string[]; onChange: (value: string[]) => void; allValue: string };
+
 // Adapted from Web Portfolio's SelectField: body portal and trigger-held keyboard focus.
-export function SelectField({
-    label,
-    value,
-    options,
-    onChange,
-}: {
-    label: string;
-    value: string;
-    options: Option[];
-    onChange: (value: string) => void;
-}) {
+export function SelectField(
+    props: {
+        label: string;
+        options: Option[];
+    } & SelectionProps
+) {
+    const { label, value, options } = props;
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(0);
     const [position, setPosition] = useState<CSSProperties>({});
     const trigger = useRef<HTMLButtonElement>(null);
     const panel = useRef<HTMLDivElement>(null);
     const id = useId();
-    const chosen = options.find((option) => option.value === value);
+    const selected = (option: Option) => (props.multiple ? props.value.includes(option.value) : option.value === value);
+    const chosen = options.filter(selected);
+    const summary = chosen.length > 1 ? `${chosen.length} selected` : (chosen[0]?.label ?? 'Choose');
 
     useLayoutEffect(() => {
         if (!open) return;
@@ -78,18 +80,25 @@ export function SelectField({
     }, [active, id, open]);
 
     const show = () => {
-        setActive(
-            Math.max(
-                0,
-                options.findIndex((option) => option.value === value)
-            )
-        );
+        setActive(Math.max(0, options.findIndex(selected)));
         setOpen(true);
     };
     const select = (index: number) => {
         const option = options[index];
-        if (option) onChange(option.value);
-        setOpen(false);
+        if (option) {
+            if (props.multiple) {
+                const next =
+                    option.value === props.allValue
+                        ? [props.allValue]
+                        : props.value.includes(option.value)
+                          ? props.value.filter((value) => value !== option.value)
+                          : [...props.value.filter((value) => value !== props.allValue), option.value];
+                props.onChange(next.length ? next : [props.allValue]);
+            } else {
+                props.onChange(option.value);
+            }
+        }
+        if (!props.multiple || option?.value === props.allValue) setOpen(false);
         trigger.current?.focus();
     };
     const keydown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -127,7 +136,7 @@ export function SelectField({
                 onClick={() => (open ? setOpen(false) : show())}
                 onKeyDown={keydown}
             >
-                <span>{chosen?.label ?? 'Choose'}</span>
+                <span>{summary}</span>
                 <ChevronDown size={16} aria-hidden="true" />
             </button>
             {open &&
@@ -138,6 +147,7 @@ export function SelectField({
                         id={id}
                         role="listbox"
                         aria-label={label}
+                        aria-multiselectable={props.multiple || undefined}
                         style={position}
                     >
                         {options.map((option, index) => (
@@ -145,13 +155,16 @@ export function SelectField({
                                 key={option.value}
                                 id={`${id}-${index}`}
                                 role="option"
-                                aria-selected={option.value === value}
+                                aria-selected={selected(option)}
                                 className={`select-option ${index === active ? 'active' : ''}`}
                                 onPointerDown={(event) => event.preventDefault()}
-                                onClick={() => select(index)}
+                                onClick={() => {
+                                    setActive(index);
+                                    select(index);
+                                }}
                             >
                                 <span>{option.label}</span>
-                                {option.value === value && <Check size={16} aria-hidden="true" />}
+                                {selected(option) && <Check size={16} aria-hidden="true" />}
                             </div>
                         ))}
                     </div>,

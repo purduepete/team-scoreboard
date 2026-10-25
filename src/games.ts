@@ -52,7 +52,7 @@ function localDay(game: Game): Date | null {
 const startOfDay = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate());
 const isToday = (game: Game, now: Date) => localDay(game)?.getTime() === startOfDay(now).getTime();
 
-// filter is 'all', 'favorites', 'league:<NFL|NBA|MLB|Big Ten|NCAA>' or a single team id.
+// Filters are 'all', 'favorites', 'league:<NFL|NBA|MLB|Big Ten|NCAA>' or team ids, matched as a union.
 export const upcomingDays = 7;
 export const resultDays = 14;
 
@@ -62,11 +62,12 @@ export const resultDays = 14;
 export function visibleGames(
     games: Game[],
     view: View,
-    filter: string,
+    filter: string | string[],
     favoriteIds: string[],
     now = new Date(),
     windowDays = resultDays
 ): Game[] {
+    const filters = typeof filter === 'string' ? [filter] : filter;
     const today = startOfDay(now).getTime();
     const offset = (game: Game) => {
         const day = localDay(game);
@@ -86,13 +87,15 @@ export function visibleGames(
         );
     }
     return [...deduplicated.values()].filter((game) => {
-        const matches =
-            filter === 'all' ||
-            (filter === 'favorites'
-                ? isFavorite(game, favoriteIds)
-                : filter.startsWith('league:')
-                  ? game.league === filter.slice(7)
-                  : game.teamIds.includes(filter));
+        const matches = filters.some(
+            (filter) =>
+                filter === 'all' ||
+                (filter === 'favorites'
+                    ? isFavorite(game, favoriteIds)
+                    : filter.startsWith('league:')
+                      ? game.league === filter.slice(7)
+                      : game.teamIds.includes(filter))
+        );
         if (!matches) return false;
         if (view === 'live') return game.status === 'live' || isToday(game, now);
         const days = offset(game);

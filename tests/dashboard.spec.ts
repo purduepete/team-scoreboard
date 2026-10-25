@@ -466,6 +466,67 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.screenshot({ path: 'test-results/scoreboard-midnight-desktop.png', fullPage: false });
 });
 
+for (const theme of ['light', 'midnight']) {
+    test(`Show supports multiple teams and leagues with exclusive All teams (${theme})`, async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+        await page.addInitScript((theme) => localStorage.setItem('team-scoreboard-theme', theme), theme);
+        await page.goto('/');
+        const show = page.getByRole('button', { name: 'Show', exact: true });
+        const list = page.getByRole('listbox', { name: 'Show', exact: true });
+        const option = (name: string) => list.getByRole('option', { name, exact: true });
+        await show.click();
+        await expect(list).toHaveAttribute('aria-multiselectable', 'true');
+        await expect(option('All teams')).toHaveAttribute('aria-selected', 'true');
+        await option('Indianapolis Colts').click();
+        await option('NBA').click();
+        await expect(show).toHaveText('2 selected');
+        await expect(option('All teams')).toHaveAttribute('aria-selected', 'false');
+        await expect(list.locator('[aria-selected="true"]')).toHaveText(['NBA', 'Indianapolis Colts']);
+        await expect(page.locator('.game:visible')).toHaveCount(2);
+        await expect(page.locator('.game:visible').filter({ hasText: 'Atlanta Falcons' })).toHaveCount(0);
+        await option('NFL').click();
+        await expect(page.locator('.game:visible')).toHaveCount(3);
+        await option('All teams').click();
+        await expect(list).toHaveCount(0);
+        await expect(show).toBeFocused();
+        await expect(show).toHaveText('All teams');
+        await show.click();
+        await expect(list.locator('[aria-selected="true"]')).toHaveText(['All teams']);
+        await expect(list.locator('[role="option"] svg')).toHaveCount(1);
+        await show.press('Home');
+        await show.press('Enter');
+        await expect(list).toHaveCount(0);
+        await expect(show).toBeFocused();
+        await show.click();
+        await option('NFL').click();
+        await expect(page.locator('.game:visible')).toHaveCount(2);
+        await option('NFL').click();
+        await expect(list.locator('[aria-selected="true"]')).toHaveText(['All teams']);
+        await page.keyboard.press('Escape');
+        await expect(show).toBeFocused();
+        await show.press('Enter');
+        await show.press('ArrowDown');
+        await show.press('Space');
+        await expect(option('Favorites')).toHaveAttribute('aria-selected', 'true');
+        await show.press('ArrowDown');
+        await show.press('Enter');
+        await expect(list.locator('[aria-selected="true"]')).toHaveText(['Favorites', 'NFL']);
+        await show.press('Tab');
+        await expect(list).toHaveCount(0);
+        await show.click();
+        await page.getByRole('button', { name: 'Current', exact: true }).click();
+        await expect(list).toHaveCount(0);
+        await show.click();
+        await expect(list.locator('[aria-selected="true"]')).toHaveText(['Favorites', 'NFL']);
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('a');
+        await expect(show).toHaveText('All teams');
+        await expect(page.locator('select, datalist')).toHaveCount(0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+}
+
 test('favorites lead each day, Show sits on the tab row and refresh posts the fixed 14-day window', async ({
     page,
 }) => {
@@ -480,23 +541,29 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     await expect(page.locator('.group-heading').first()).toContainText('2 games');
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'Favorites', exact: true }).click();
+    await page.keyboard.press('Escape');
     await expect(cards).toHaveCount(1);
     await expect(cards.first()).not.toHaveClass(/favorite/);
     await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Show', exact: true }).click();
+    await page.getByRole('option', { name: 'Favorites', exact: true }).click();
     await page.getByRole('option', { name: 'Indianapolis Colts', exact: true }).click();
+    await page.keyboard.press('Escape');
     await expect(cards).toHaveCount(1);
     await expect(cards.first()).toBeVisible();
     await expect(cards.first()).not.toHaveClass(/favorite/);
     await page.locator('.section-title button', { hasText: 'NFL' }).click();
     await expect(cards.first()).toBeHidden();
     await page.getByRole('button', { name: 'Show', exact: true }).click();
+    await page.getByRole('option', { name: 'Indianapolis Colts', exact: true }).click();
     await page.getByRole('option', { name: 'NFL', exact: true }).click();
+    await page.keyboard.press('Escape');
     await expect(cards.first()).toBeVisible();
     await expect(cards.first()).toHaveClass(/favorite/);
     await expect(page.getByRole('button', { name: 'Group by', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'All teams', exact: true }).click();
+    await page.keyboard.press('Escape');
     await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
     const expandAll = page.getByRole('button', { name: 'Expand all', exact: true });
     const collapseAll = page.getByRole('button', { name: 'Collapse all', exact: true });
