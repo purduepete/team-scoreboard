@@ -285,6 +285,41 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
 });
 
 for (const theme of ['midnight', 'light']) {
+    test(`section action pill sits right of Show at desktop and mobile widths (${theme})`, async ({ page }) => {
+        await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
+        await page.goto('/');
+        const pill = page.getByRole('group', { name: 'Section controls', exact: true });
+        const expand = pill.getByRole('button', { name: 'Expand all', exact: true });
+        const collapse = pill.getByRole('button', { name: 'Collapse all', exact: true });
+        await expect(expand).toHaveText('');
+        await expect(collapse).toHaveText('');
+        await expect(expand.locator('svg')).toHaveCount(1);
+        await expect(collapse.locator('svg')).toHaveCount(1);
+        await expect(expand).toHaveAttribute('aria-keyshortcuts', 'X');
+        await expect(collapse).toHaveAttribute('aria-keyshortcuts', 'X');
+        await expect(pill).toHaveCSS('border-radius', '999px');
+        await expect(page.locator('.toolbar').getByRole('group', { name: 'Section controls' })).toBeVisible();
+        for (const width of [1280, 390]) {
+            await page.setViewportSize({ width, height: 844 });
+            const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
+            const controls = await pill.boundingBox();
+            expect(show).not.toBeNull();
+            expect(controls).not.toBeNull();
+            expect(controls!.x).toBeGreaterThanOrEqual(show!.x + show!.width);
+            expect(Math.abs(controls!.y - show!.y)).toBeLessThan(2);
+            expect(Math.abs(controls!.height - show!.height)).toBeLessThan(2);
+            expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        }
+        await expect(collapse).toBeDisabled();
+        await expand.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
+        await expect(expand).toBeDisabled();
+        await collapse.click();
+        await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
+        await page.screenshot({ path: `test-results/section-pill-${theme}-mobile.png`, fullPage: true });
+    });
+
     test(`Current favorites lead and only Current finals have a distinct status badge (${theme})`, async ({ page }) => {
         await page.clock.install({ time: new Date(2026, 9, 25, 9) });
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
@@ -360,6 +395,9 @@ for (const theme of ['midnight', 'light']) {
 }
 
 test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 26, 9) });
+    liveExtra = { status: 'final', statusLabel: 'Final' };
+    extraGames = [{ ...game, id: 'fixture-final', status: 'final', statusLabel: 'Final' }];
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     const pressed = (name: string) => page.getByRole('button', { name, exact: true });
@@ -375,8 +413,18 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await page.keyboard.press('x');
     await expect(closed).toHaveCount(0);
     await page.keyboard.press('c');
+    await expect(closed).toHaveCount(0);
+    await page.keyboard.press('x');
     await expect(open).toHaveCount(0);
-    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Control+x');
+    await expect(open).toHaveCount(0);
+    await page.keyboard.press('x');
+    await page.locator('.section-title button').first().click();
+    await expect(open).not.toHaveCount(0);
+    await expect(closed).not.toHaveCount(0);
+    await page.keyboard.press('x');
+    await expect(closed).toHaveCount(0);
+    await page.keyboard.press('x');
     await expect(open).toHaveCount(0);
     await page.keyboard.press('r');
     await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
@@ -417,7 +465,8 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
     await page.keyboard.press('?');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
-    await expect(dialog).toContainText('Collapse all sections');
+    await expect(dialog).toContainText('Expand or collapse all sections');
+    await expect(dialog.locator('kbd', { hasText: /^C$/ })).toHaveCount(0);
     await page.keyboard.press('2');
     await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('Escape');

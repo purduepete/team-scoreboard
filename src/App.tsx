@@ -45,8 +45,7 @@ const shortcutHelp: [string[], string][] = [
     [['F'], 'Show NFL'],
     [['K'], 'Show NBA'],
     [['B'], 'Show MLB'],
-    [['X'], 'Expand all sections'],
-    [['C'], 'Collapse all sections'],
+    [['X'], 'Expand or collapse all sections'],
     [['R'], 'Refresh live scores'],
     [['?'], 'Show or hide this help'],
     [['Esc'], 'Close this help'],
@@ -303,9 +302,7 @@ export function App() {
         } else if (filterKeys[key]) {
             setTeam(filterKeys[key]);
         } else if (key === 'x') {
-            setAllSections(true);
-        } else if (key === 'c') {
-            setAllSections(false);
+            setAllSections(!allOpen);
         } else {
             return;
         }
@@ -494,48 +491,54 @@ export function App() {
                                             </button>
                                         ))}
                                     </div>
-                                    <SelectField
-                                        label="Show"
-                                        value={team}
-                                        onChange={setTeam}
-                                        options={[
-                                            { value: 'all', label: 'All teams' },
-                                            { value: 'favorites', label: 'Favorites' },
-                                            { value: 'league:NFL', label: 'NFL' },
-                                            { value: 'league:NBA', label: 'NBA' },
-                                            { value: 'league:MLB', label: 'MLB' },
-                                            { value: 'league:NCAA', label: 'Purdue' },
-                                            { value: 'league:Big Ten', label: 'Big Ten' },
-                                            ...favoriteTeams
-                                                .filter((item) => !item.umbrella)
-                                                .map((item) => ({ value: item.id, label: item.name })),
-                                        ]}
-                                    />
-                                </div>
-                                {sections.length > 0 && (
-                                    <div className="section-controls">
-                                        <button
-                                            type="button"
-                                            disabled={allOpen}
-                                            aria-keyshortcuts="X"
-                                            title="Expand all (X)"
-                                            onClick={() => setAllSections(true)}
-                                        >
-                                            <ChevronsUpDown size={16} aria-hidden="true" />
-                                            Expand all
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={allClosed}
-                                            aria-keyshortcuts="C"
-                                            title="Collapse all (C)"
-                                            onClick={() => setAllSections(false)}
-                                        >
-                                            <ChevronsDownUp size={16} aria-hidden="true" />
-                                            Collapse all
-                                        </button>
+                                    <div className="toolbar-actions">
+                                        <SelectField
+                                            label="Show"
+                                            value={team}
+                                            onChange={setTeam}
+                                            options={[
+                                                { value: 'all', label: 'All teams' },
+                                                { value: 'favorites', label: 'Favorites' },
+                                                { value: 'league:NFL', label: 'NFL' },
+                                                { value: 'league:NBA', label: 'NBA' },
+                                                { value: 'league:MLB', label: 'MLB' },
+                                                { value: 'league:NCAA', label: 'Purdue' },
+                                                { value: 'league:Big Ten', label: 'Big Ten' },
+                                                ...favoriteTeams
+                                                    .filter((item) => !item.umbrella)
+                                                    .map((item) => ({ value: item.id, label: item.name })),
+                                            ]}
+                                        />
+                                        {sections.length > 0 && (
+                                            <div
+                                                className="section-controls"
+                                                role="group"
+                                                aria-label="Section controls"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    disabled={allOpen}
+                                                    aria-keyshortcuts="X"
+                                                    aria-label="Expand all"
+                                                    title="Expand all (X)"
+                                                    onClick={() => setAllSections(true)}
+                                                >
+                                                    <ChevronsUpDown size={16} aria-hidden="true" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={allClosed}
+                                                    aria-keyshortcuts="X"
+                                                    aria-label="Collapse all"
+                                                    title="Collapse all (X)"
+                                                    onClick={() => setAllSections(false)}
+                                                >
+                                                    <ChevronsDownUp size={16} aria-hidden="true" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                </div>
                                 {sections.map((section) => {
                                     const open = isOpen(section.key);
                                     return (
