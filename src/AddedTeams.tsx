@@ -52,6 +52,7 @@ export function AddedTeams({
     expanded,
     onToggle,
     onAdd,
+    onCountChange,
 }: {
     active: boolean;
     dashboardFeeds: Feed[];
@@ -60,8 +61,10 @@ export function AddedTeams({
     expanded: boolean;
     onToggle: () => void;
     onAdd: () => void;
+    onCountChange: (count: number) => void;
 }) {
     const [saved, setSaved] = useState(initialPins);
+    useEffect(() => onCountChange(saved.pins.length), [saved.pins.length, onCountChange]);
     const [entries, setEntries] = useState<Record<string, Entry>>({});
     const [category, setCategory] = useState<TeamCategory>('college-football');
     const [query, setQuery] = useState('');
@@ -336,7 +339,7 @@ export function AddedTeams({
         }
     }
     return (
-        <section className="added-teams" aria-label="Custom" hidden={!active}>
+        <section className="added-teams" aria-label="Custom" hidden={!active || saved.pins.length === 0}>
             <h2 className="section-title">
                 <button type="button" aria-expanded={expanded} aria-controls="section-custom" onClick={onToggle}>
                     <ChevronRight size={20} aria-hidden="true" className={expanded ? 'chevron open' : 'chevron'} />

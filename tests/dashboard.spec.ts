@@ -329,7 +329,7 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     expect(new Set(requestedDays)).toEqual(new Set(['14']));
 });
 
-test('team finder is an icon modal with dismissal and focus return; Custom joins expand all', async ({ page }) => {
+test('team finder works while empty Custom is hidden, with dismissal and focus return', async ({ page }) => {
     await page.goto('/');
     const trigger = page.getByRole('button', { name: 'Find team', exact: true });
     await expect(trigger).toHaveText('');
@@ -349,12 +349,12 @@ test('team finder is an icon modal with dismissal and focus return; Custom joins
     await trigger.click();
     await page.mouse.click(2, 2);
     await expect(modal).toHaveCount(0);
-    const custom = page.getByRole('region', { name: 'Custom', exact: true }).locator('.section-title button');
-    await expect(custom).toHaveAttribute('aria-expanded', 'false');
+    const custom = page.locator('.added-teams');
+    await expect(custom).toBeHidden();
     await page.keyboard.press('x');
-    await expect(custom).toHaveAttribute('aria-expanded', 'true');
+    await expect(custom).toBeHidden();
     await page.keyboard.press('x');
-    await expect(custom).toHaveAttribute('aria-expanded', 'false');
+    await expect(custom).toBeHidden();
 });
 
 test('added teams distinguish no game, pending and errors and expire at local midnight', async ({ page }) => {
@@ -383,6 +383,7 @@ test('added teams distinguish no game, pending and errors and expire at local mi
     await expect(added.getByRole('alert')).toContainText('Fixture scores unavailable.');
     await expect(added).not.toContainText('No game today.');
     await page.clock.runFor(6000);
+    await expect(added).toBeHidden();
     await expect(added.locator('.custom-status-card')).toHaveCount(0);
     expect(
         await page.evaluate(() => JSON.parse(localStorage.getItem('team-scoreboard-added-teams-v1')!).teams)
@@ -685,6 +686,7 @@ for (const theme of ['midnight', 'light']) {
         expect(addedRequests).toBeGreaterThan(1);
         await page.getByRole('button', { name: 'Remove Alabama Crimson Tide', exact: true }).click();
         await expect(added.locator('.game')).toHaveCount(0);
+        await expect(added).toBeHidden();
         await expect(page.getByRole('button', { name: 'Show', exact: true })).toHaveText('All teams');
         expect(refreshBodies).toEqual([]);
     });

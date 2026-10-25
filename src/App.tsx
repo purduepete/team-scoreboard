@@ -73,6 +73,7 @@ export function App() {
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
     const [team, setTeam] = useState('all');
+    const [customCount, setCustomCount] = useState(0);
     // League sections start collapsed on every page load.
     // Open/closed state for the current Show filter: a base (all open or all closed) plus the sections
     // flipped from it. Changing the filter resets it, so All teams starts collapsed and others open.
@@ -246,7 +247,10 @@ export function App() {
         });
     const setAllSections = (open: boolean) => setToggled({ filter: team, open, keys: [] });
     const showCustom = view === 'live' && team === 'all';
-    const sectionKeys = [...sections.map((section) => section.key), ...(showCustom ? ['custom'] : [])];
+    const sectionKeys = [
+        ...sections.map((section) => section.key),
+        ...(showCustom && customCount > 0 ? ['custom'] : []),
+    ];
     const allOpen = sectionKeys.every(isOpen);
     const allClosed = sectionKeys.every((key) => !isOpen(key));
     const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
@@ -619,6 +623,7 @@ export function App() {
                                         </div>
                                     ))}
                                 <AddedTeams
+                                    onCountChange={setCustomCount}
                                     active={showCustom}
                                     dashboardFeeds={feeds}
                                     open={findingTeam}
