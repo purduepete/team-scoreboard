@@ -651,7 +651,7 @@ for (const theme of ['midnight', 'light']) {
         await expect(basketball).toHaveAttribute('aria-pressed', 'true');
         await expect(football).toHaveAttribute('aria-pressed', 'false');
         await expect(basketball.locator('svg')).toBeVisible();
-        await expect(sports).toHaveCSS('border-radius', '999px');
+        await expect(sports).toHaveCSS('border-radius', '0px');
         await football.click();
         await page.getByLabel('Search teams', { exact: true }).fill('Alabama');
         await page.clock.runFor(350);
@@ -729,18 +729,18 @@ for (const theme of ['midnight', 'light']) {
         await expect(collapse.locator('svg')).toHaveCount(1);
         await expect(expand).toHaveAttribute('aria-keyshortcuts', 'X');
         await expect(collapse).toHaveAttribute('aria-keyshortcuts', 'X');
-        await expect(pill).toHaveCSS('border-radius', '999px');
+        await expect(pill).toHaveCSS('border-radius', '0px');
         const tabs = page.getByRole('group', { name: 'Schedule view', exact: true });
-        await expect(tabs).toHaveCSS('border-radius', '999px');
-        await expect(tabs.getByRole('button', { name: 'Current', exact: true })).toHaveCSS(
-            'background-color',
-            theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)'
+        await expect(tabs).toHaveCSS('border-radius', '0px');
+        const highlight = theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)';
+        const sliderColor = (el: Element) => getComputedStyle(el, '::before').backgroundColor;
+        await expect(tabs.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true'
         );
+        await expect.poll(() => tabs.evaluate(sliderColor)).toBe(highlight);
         await expect(collapse).toHaveAttribute('aria-pressed', 'true');
-        await expect(collapse).toHaveCSS(
-            'background-color',
-            theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)'
-        );
+        await expect.poll(() => pill.evaluate(sliderColor)).toBe(highlight);
         await expect(page.locator('.toolbar').getByRole('group', { name: 'Section controls' })).toBeVisible();
         for (const width of [1280, 390]) {
             await page.setViewportSize({ width, height: 844 });
@@ -961,6 +961,121 @@ test('calendar menu appears only when the feed is configured', async ({ page }) 
     await expect(menu).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test('square controls slide their selection and honor reduced motion', async ({ page }) => {
+    await page.goto('/');
+    const tabs = page.getByRole('group', { name: 'Schedule view' });
+    const sections = page.getByRole('group', { name: 'Section controls' });
+    await expect(sections).toBeVisible();
+    expect(await sections.evaluate((element) => getComputedStyle(element, '::before').transitionDuration)).toBe(
+        '0.12s, 0.08s'
+    );
+    for (const group of [tabs, sections]) {
+        await expect(group).toHaveCSS('border-radius', '0px');
+        for (const button of await group.getByRole('button').all()) {
+            await expect(button).toHaveCSS('border-radius', '0px');
+        }
+    }
+    await page.keyboard.press('2');
+    await expect(tabs).toHaveAttribute('data-active', '1');
+    await expect(tabs.getByRole('button', { name: 'Upcoming' })).toHaveAttribute('aria-pressed', 'true');
+    const indicator = () =>
+        tabs.evaluate((element) => {
+            const style = getComputedStyle(element, '::before');
+            const selected = element.querySelector('[aria-pressed="true"]')!.getBoundingClientRect();
+            const bounds = element.getBoundingClientRect();
+            const offset = new DOMMatrixReadOnly(style.transform).m41;
+            return {
+                leftError: Math.abs(bounds.left + 1 + 3 + offset - selected.left),
+                widthError: Math.abs(parseFloat(style.width) - selected.width),
+                duration: style.transitionDuration,
+            };
+        });
+    await expect.poll(async () => (await indicator()).leftError).toBeLessThan(1);
+    expect((await indicator()).widthError).toBeLessThan(1);
+    expect((await indicator()).duration).toContain('0.25s');
+    await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+    await page.keyboard.press('3');
+    await expect(tabs).toHaveAttribute('data-active', '2');
+    expect((await indicator()).duration).toBe('0s');
+    await expect.poll(async () => (await indicator()).leftError).toBeLessThan(1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.keyboard.press('1');
+    await page.keyboard.press('x');
+    await expect(sections).toHaveAttribute('data-active', '0');
+    await page.keyboard.press('x');
+    await expect(sections).toHaveAttribute('data-active', '1');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('missing football down and distance expires without another poll', async ({ page }) => {
+    const now = new Date('2026-10-24T21:00:00-07:00');
+    await page.clock.install({ time: now });
+    await page.clock.pauseAt(now);
+    extraGames = [
+        {
+            ...game,
+            id: 'retained-football',
+            status: 'live',
+            statusLabel: 'Q2 2:00',
+            homeScore: 14,
+            awayScore: 10,
+            situation: '2nd & 4 at IND 12',
+            possession: 'away',
+        },
+    ];
+    await page.goto('/');
+    await expandSections(page);
+    const card = page.locator('.game', { hasText: 'Indianapolis Colts' }).filter({ hasText: 'Q2 2:00' });
+    await expect(card.locator('.situation')).toHaveText('2nd & 4 at IND 12');
+    extraGames = [{ ...extraGames[0], situation: undefined }];
+    await page.keyboard.press('r');
+    await expect(card.locator('.situation')).toHaveText('2nd & 4 at IND 12 (last reported)');
+    await page.clock.runFor(59_000);
+    await expect(card.locator('.situation')).toHaveText('2nd & 4 at IND 12 (last reported)');
+    // Stop polling to prove the expiry timer removes the value by itself.
+    await page.route('**/api/dashboard**', (route) => route.abort());
+    await page.clock.runFor(1_000);
+    await expect(card.locator('.situation')).toHaveCount(0);
+});
+
+for (const change of ['clock', 'score', 'possession', 'final'] as const) {
+    test(`retained down and distance clears on ${change}`, async ({ page }) => {
+        extraGames = [
+            {
+                ...game,
+                id: 'retained-football',
+                status: 'live',
+                statusLabel: 'Q2 2:00',
+                homeScore: 14,
+                awayScore: 10,
+                situation: '2nd & 4 at IND 12',
+                possession: 'away',
+            },
+        ];
+        await page.goto('/');
+        await expandSections(page);
+        const card = page.locator('.game').filter({ hasText: 'Indianapolis Colts' }).filter({ hasText: '2nd & 4' });
+        await expect(card.locator('.situation')).toHaveText('2nd & 4 at IND 12');
+        extraGames = [{ ...extraGames[0], situation: undefined }];
+        await page.keyboard.press('r');
+        await expect(card.locator('.situation')).toContainText('last reported');
+        extraGames = [
+            {
+                ...extraGames[0],
+                ...(change === 'clock'
+                    ? { statusLabel: 'Halftime' }
+                    : change === 'score'
+                      ? { homeScore: 17 }
+                      : change === 'possession'
+                        ? { possession: 'home' as const }
+                        : { status: 'final' as const, statusLabel: 'Final' }),
+            },
+        ];
+        await page.keyboard.press('r');
+        await expect(page.locator('.situation')).toHaveCount(0);
+    });
+}
 
 test('a changed score flashes once and the live situation shows', async ({ page }) => {
     liveExtra = { situation: '2 outs · 1st, 3rd · 3-1', possession: 'home' };

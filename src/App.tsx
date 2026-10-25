@@ -245,14 +245,25 @@ export function App() {
             ...current,
             keys: current.keys.includes(key) ? current.keys.filter((item) => item !== key) : [...current.keys, key],
         });
-    const setAllSections = (open: boolean) => setToggled({ filter: team, open, keys: [] });
+    // Moves the pill first and opens sections 2 frames later, so the slide is already running on the
+    // compositor when the expensive section render lands.
+    const [slideTarget, setSlideTarget] = useState<boolean | null>(null);
+    const setAllSections = (open: boolean) => {
+        setSlideTarget(open);
+        requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                setToggled({ filter: team, open, keys: [] });
+                setSlideTarget(null);
+            })
+        );
+    };
     const showCustom = view === 'live' && team === 'all';
     const sectionKeys = [
         ...sections.map((section) => section.key),
         ...(showCustom && customCount > 0 ? ['custom'] : []),
     ];
-    const allOpen = sectionKeys.every(isOpen);
-    const allClosed = sectionKeys.every((key) => !isOpen(key));
+    const allOpen = slideTarget ?? sectionKeys.every(isOpen);
+    const allClosed = slideTarget === null ? sectionKeys.every((key) => !isOpen(key)) : !slideTarget;
     const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
     shortcut.current = (event) => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
@@ -477,7 +488,12 @@ export function App() {
                         {!statusPage && (
                             <section className="panel">
                                 <div className="toolbar">
-                                    <div className="tabs" role="group" aria-label="Schedule view">
+                                    <div
+                                        className="tabs"
+                                        role="group"
+                                        aria-label="Schedule view"
+                                        data-active={viewOrder.indexOf(view)}
+                                    >
                                         {viewOrder.map((item, index) => (
                                             <button
                                                 type="button"
@@ -515,6 +531,7 @@ export function App() {
                                                 className="section-controls"
                                                 role="group"
                                                 aria-label="Section controls"
+                                                data-active={allOpen ? '0' : allClosed ? '1' : 'none'}
                                             >
                                                 <button
                                                     type="button"

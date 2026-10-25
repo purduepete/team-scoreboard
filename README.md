@@ -20,6 +20,10 @@ Deployed on jimbrownhome1 through the solution-deploy framework: https://team-sc
 
 ## Data and coverage
 
+The view and expand/collapse controls have square corners. Their selected background slides between buttons, including keyboard changes. Expand all starts the slide before rendering the opened sections, opened sections fade in over 200 ms, and the page reserves scrollbar space so the toolbar does not shift. Reduced-motion preferences disable these animations.
+
+Live football cards keep a missing down-and-distance value for up to 60 seconds from its last observation, labeled “last reported,” while the clock/status, scores and possession remain unchanged. A new play snapshot or non-live status clears it immediately. This is temporary browser memory shared by the league and Custom card component, and resets when a card is removed or the page reloads. Red-zone and possession indicators always use the current feed.
+
 The app reads ESPN's public, undocumented `site.api.espn.com` endpoints. They need no key. ESPN can change or remove them without notice, so a broken feed shows an error and keeps the last good data.
 
 NFL, NBA and MLB come from each league's scoreboard (`/apis/site/v2/sports/{sport}/{league}/scoreboard`), which carries live scores. Big Ten football and men's basketball use the college scoreboards filtered to the conference (`?groups=5` for football, `?groups=7` for basketball). NBA, MLB and Big Ten basketball are fetched one Eastern day per request (`?dates=YYYYMMDD`) from 14 days back through 7 days ahead. NFL and Big Ten football are fetched by week (`?week=N&seasontype=T`): the current week, enough past weeks to cover 14 days, and next week. Recent shows finals from the last 14 days plus past postponed or canceled games, and Upcoming shows today through the next 7 days plus games without a date, never a past date. The Show filter (all teams, favorites, a league or one team) sits on the same row as the tabs.

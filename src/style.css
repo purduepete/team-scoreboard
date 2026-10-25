@@ -31,6 +31,10 @@
     --error: #fca5a5;
     --red-zone: #dc2626;
 }
+html {
+    /* Keeps the layout from shifting sideways when expanding sections adds a scrollbar. */
+    scrollbar-gutter: stable;
+}
 * {
     box-sizing: border-box;
     scrollbar-color: var(--muted) var(--panel);
@@ -247,17 +251,18 @@ small {
     white-space: nowrap;
 }
 .tabs {
-    display: inline-flex;
+    display: inline-grid;
+    grid-template-columns: repeat(3, 1fr);
     flex-wrap: nowrap;
     gap: 2px;
     padding: 3px;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 0;
     background: var(--panel);
 }
 .tabs button {
     border: 0;
-    border-radius: 999px;
+    border-radius: 0;
     min-height: 28px;
     padding: 5px 12px;
     color: var(--muted);
@@ -267,7 +272,7 @@ small {
     background: var(--raised);
 }
 .tabs button[aria-pressed='true'] {
-    background: var(--accent);
+    background: transparent;
     color: var(--accent-text);
 }
 .selected {
@@ -293,7 +298,7 @@ small {
     display: inline-flex;
     flex-shrink: 0;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 0;
     padding: 3px;
     gap: 2px;
     background: var(--panel);
@@ -303,7 +308,7 @@ small {
     min-height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 999px;
+    border-radius: 0;
     background: transparent;
     color: var(--muted);
 }
@@ -311,12 +316,57 @@ small {
     background: var(--raised);
 }
 .section-controls button[aria-pressed='true'] {
-    background: var(--accent);
+    background: transparent;
     color: var(--accent-text);
 }
 .section-controls button:disabled {
     opacity: 1;
     cursor: default;
+}
+.tabs,
+.section-controls {
+    position: relative;
+    isolation: isolate;
+    --selected-index: 0;
+}
+.tabs[data-active='1'],
+.section-controls[data-active='1'] {
+    --selected-index: 1;
+}
+.tabs[data-active='2'] {
+    --selected-index: 2;
+}
+.tabs::before,
+.section-controls::before {
+    content: '';
+    position: absolute;
+    inset: 3px auto 3px 3px;
+    width: calc((100% - 10px) / 3);
+    background: var(--accent);
+    transform: translateX(calc(var(--selected-index) * (100% + 2px)));
+    will-change: transform;
+    transition:
+        transform 0.25s ease-out,
+        opacity 0.15s ease-out;
+    pointer-events: none;
+}
+.section-controls::before {
+    width: 32px;
+    transition:
+        transform 0.12s ease-out,
+        opacity 0.08s ease-out;
+}
+.section-controls[data-active='none']::before {
+    opacity: 0;
+}
+.tabs button,
+.section-controls button {
+    position: relative;
+    z-index: 1;
+}
+.tabs button[aria-pressed='true']:hover,
+.section-controls button[aria-pressed='true']:hover {
+    background: transparent;
 }
 .added-teams:not([hidden]) {
     margin-top: 20px;
@@ -467,6 +517,16 @@ small {
 .league-section + .league-section {
     margin-top: 12px;
 }
+@keyframes section-open {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+.league-section > div:not([hidden]),
+#section-custom:not([hidden]) {
+    animation: section-open 0.2s ease-out;
+}
 .section-title {
     margin: 0 0 18px;
     font-size: 1.25rem;
@@ -498,7 +558,7 @@ small {
 }
 .section-title .chevron {
     flex-shrink: 0;
-    transition: transform 0.15s;
+    transition: transform 0.2s ease-out;
 }
 .section-title .chevron.open {
     transform: rotate(90deg);

@@ -116,6 +116,41 @@ function Possession({ football }: { football: boolean }) {
         </svg>
     );
 }
+
+function samePlay(previous: Game, current: Game) {
+    return (
+        current.id === previous.id &&
+        current.sport === 'Football' &&
+        current.status === 'live' &&
+        current.statusLabel === previous.statusLabel &&
+        current.homeScore === previous.homeScore &&
+        current.awayScore === previous.awayScore &&
+        current.possession === previous.possession
+    );
+}
+
+function useSituation(game: Game) {
+    const [lastReport, setLastReport] = useState<{ game: Game; at: number } | null>(null);
+    useEffect(() => {
+        if (game.sport === 'Football' && game.status === 'live' && game.situation) {
+            setLastReport({ game, at: Date.now() });
+        } else {
+            setLastReport((previous) => (previous && samePlay(previous.game, game) ? previous : null));
+        }
+    }, [game]);
+    useEffect(() => {
+        if (!lastReport || game.situation) return;
+        const timer = setTimeout(() => setLastReport(null), Math.max(0, lastReport.at + 60_000 - Date.now()));
+        return () => clearTimeout(timer);
+    }, [lastReport, game.situation]);
+    const retained =
+        !game.situation &&
+        lastReport !== null &&
+        samePlay(lastReport.game, game) &&
+        Date.now() < lastReport.at + 60_000;
+    return { text: game.situation || (retained ? lastReport.game.situation : undefined), retained };
+}
+
 export function GameCard({
     game,
     favorite = false,
@@ -130,6 +165,7 @@ export function GameCard({
     actions?: ReactNode;
 }) {
     const football = game.sport === 'Football';
+    const situation = useSituation(game);
     return (
         <article className={`game${favorite ? ' favorite' : ''}`}>
             {game.league === 'NBA' && game.national && (
@@ -188,10 +224,11 @@ export function GameCard({
                             {game.homeScore ?? '—'}
                         </strong>
                     </div>
-                    {game.status === 'live' && (game.situation || game.redZone) && (
+                    {game.status === 'live' && (situation.text || game.redZone) && (
                         <p className="situation">
                             {game.redZone && <span className="red-zone">Red zone</span>}
-                            {game.situation}
+                            {situation.text}
+                            {situation.retained && <span className="muted"> (last reported)</span>}
                         </p>
                     )}
                 </div>
