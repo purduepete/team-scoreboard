@@ -123,6 +123,19 @@ const sections = [
     { key: 'MLB', label: 'MLB' },
 ];
 
+const statusRank = (game: Game) =>
+    game.status === 'live' ? 0 : game.status === 'upcoming' ? 1 : game.status === 'final' ? 2 : 3;
+
+export function compareGames(a: Game, b: Game, favoriteIds: string[]): number {
+    const time = (game: Game) => (game.startTime ? Date.parse(game.startTime) : Number.MAX_SAFE_INTEGER);
+    return (
+        Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds)) ||
+        statusRank(a) - statusRank(b) ||
+        time(a) - time(b) ||
+        a.id.localeCompare(b.id)
+    );
+}
+
 export function compactGames(games: Game[], favoriteIds: string[]): Game[] {
     const leagues = new Map<string, string>();
     for (const game of games) {
@@ -134,21 +147,19 @@ export function compactGames(games: Game[], favoriteIds: string[]): Game[] {
         }
     }
     const unique = [...reconcile(games).values()].map((game) => ({ ...game, league: leagues.get(game.id)! }));
-    const time = (game: Game) => (game.startTime ? Date.parse(game.startTime) : Number.MAX_SAFE_INTEGER);
-    const league = (game: Game) => {
+    const leagueRank = (game: Game) => {
         const index = sections.findIndex((section) => section.key === game.league);
         return index < 0 ? sections.length : index;
     };
     return unique.sort((a, b) => {
         const aFavorite = isFavorite(a, favoriteIds);
-        const bFavorite = isFavorite(b, favoriteIds);
-        const favorite = Number(bFavorite) - Number(aFavorite);
+        const favorite = Number(isFavorite(b, favoriteIds)) - Number(aFavorite);
         if (favorite) return favorite;
         if (!aFavorite) {
-            const byLeague = league(a) - league(b) || a.league.localeCompare(b.league);
-            if (byLeague) return byLeague;
+            const league = leagueRank(a) - leagueRank(b) || a.league.localeCompare(b.league);
+            if (league) return league;
         }
-        return time(a) - time(b) || a.id.localeCompare(b.id);
+        return compareGames(a, b, favoriteIds);
     });
 }
 
@@ -159,25 +170,11 @@ function dayLabel(day: Date, today: Date): string {
     return relative ? `${relative} · ${full}` : full;
 }
 
-// Live first, then today's results, then games still to start.
-const statusRank = (game: Game) => (game.status === 'live' ? 0 : game.status === 'final' ? 1 : 2);
-
-// Sections run Purdue, Big Ten, NFL, NBA, MLB, each split into local days. Within a day, favorites
-// lead in every view, then Live orders by status (live, final, upcoming). Start times run oldest
-// first except in Recent.
+// Sections retain their league/day grouping; cards share compact mode's ordering.
 export function groupGames(games: Game[], view: View, favoriteIds: string[], now = new Date()): LeagueSection[] {
     const today = startOfDay(now);
     const newestFirst = view === 'recent';
-    const time = (game: Game) => game.startTime ?? game.date ?? '9999';
-    const order = (a: Game, b: Game) => {
-        const favorite = Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds));
-        if (favorite) return favorite;
-        if (view === 'live') {
-            const rank = statusRank(a) - statusRank(b);
-            if (rank) return rank;
-        }
-        return newestFirst ? time(b).localeCompare(time(a)) : time(a).localeCompare(time(b));
-    };
+    const order = (a: Game, b: Game) => compareGames(a, b, favoriteIds);
     return sections
         .map((section) => {
             const days = new Map<string, DayGroup & { order: number }>();

@@ -8,6 +8,7 @@ import { Tooltip } from './Tooltip';
 import { categories, localDate, pinKey, pinLimit, pinsKey, readCardOrder, readPins, todayGames } from './added-teams';
 import type { TeamPin } from './added-teams';
 import { reconcile, withLiveFields } from '../shared/reconcile';
+import { compareGames } from './games';
 
 interface TeamResult {
     team: SearchTeam;
@@ -55,6 +56,7 @@ function initialPins() {
 export function AddedTeams({
     active,
     activeOnly = false,
+    favoriteIds,
     dashboardFeeds,
     open,
     onClose,
@@ -66,6 +68,7 @@ export function AddedTeams({
 }: {
     active: boolean;
     activeOnly?: boolean;
+    favoriteIds: string[];
     dashboardFeeds: Feed[];
     open: boolean;
     onClose: () => void;
@@ -365,7 +368,7 @@ export function AddedTeams({
         return [{ key: `team:${pinKey(pin)}`, kind: 'status' as const, pin, entry, name }];
     });
     const gameCards = [...games.entries()]
-        .sort(([, a], [, b]) => (a.game.startTime ?? '').localeCompare(b.game.startTime ?? ''))
+        .sort(([, a], [, b]) => compareGames(a.game, b.game, favoriteIds))
         .map(([key, { game, names }]) => ({
             key: `game:${key}`,
             kind: 'game' as const,

@@ -576,6 +576,31 @@ for (const theme of ['light', 'midnight']) {
                 teamIds: ['nfl-other'],
                 startTime: '2026-10-25T23:00:00Z',
             },
+            {
+                ...game,
+                id: 'favorite-completed',
+                home: 'Favorite completed',
+                status: 'final',
+                statusLabel: 'Final',
+                startTime: '2026-10-25T15:00:00Z',
+            },
+            {
+                ...otherGame,
+                id: 'nfl-active',
+                home: 'Active NFL',
+                status: 'live',
+                statusLabel: 'In progress',
+                startTime: '2026-10-25T23:00:00Z',
+            },
+            {
+                ...otherGame,
+                id: 'nba-completed',
+                league: 'NBA',
+                home: 'Complete NBA',
+                status: 'final',
+                statusLabel: 'Final',
+                startTime: '2026-10-25T15:00:00Z',
+            },
         ];
         await page.goto('/');
         const show = page.getByRole('button', { name: 'Show', exact: true });
@@ -587,13 +612,16 @@ for (const theme of ['light', 'midnight']) {
         const compact = page.getByRole('button', { name: 'Compact mode', exact: true });
         await compact.click();
         const cards = page.locator('.compact-games .game');
-        await expect(cards).toHaveCount(5);
+        await expect(cards).toHaveCount(8);
         for (const [index, home] of [
-            'Indianapolis Colts',
             'Indiana Pacers',
+            'Indianapolis Colts',
+            'Favorite completed',
+            'Active NFL',
             'Buffalo Bills',
             'Dallas Cowboys',
             'Boston Celtics',
+            'Complete NBA',
         ].entries()) {
             await expect(cards.nth(index)).toContainText(home);
         }
@@ -602,7 +630,7 @@ for (const theme of ['light', 'midnight']) {
         await expect(page.getByRole('link', { name: 'Source status' })).toBeHidden();
         await page.keyboard.press('a');
         await page.keyboard.press('3');
-        await expect(cards).toHaveCount(5);
+        await expect(cards).toHaveCount(8);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
         await expect(show).toHaveText('2 selected');

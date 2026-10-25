@@ -135,7 +135,7 @@ describe('window and filters', () => {
         status: gameStatus,
         startTime: new Date(Date.UTC(2026, 9, day, 17)).toISOString(),
     });
-    it('orders compact favorites by time, then other games by league and time, without duplicate events', () => {
+    it('sorts compact favorites across leagues and nonfavorites by league without duplicate events', () => {
         const makeGame = (id: string, league: string, day: number, favorite = false): Game => ({
             ...make(id, day, 'upcoming'),
             league,
@@ -302,7 +302,7 @@ describe('window and filters', () => {
         const live = visibleGames(today, 'live', 'all', [], now);
         expect(live.map((game) => game.id).sort()).toEqual(['done', 'later', 'later-fav', 'now']);
         const [liveSection] = groupGames(live, 'live', ['134927'], now);
-        expect(liveSection.days[0].games.map((game) => game.id)).toEqual(['later-fav', 'now', 'done', 'later']);
+        expect(liveSection.days[0].games.map((game) => game.id)).toEqual(['later-fav', 'now', 'later', 'done']);
 
         const results = groupGames(
             [at('old', 20, 19, ['nba-1'], 'final'), at('new', 21, 19, ['nba-1'], 'final')],
@@ -313,32 +313,55 @@ describe('window and filters', () => {
         expect(results[0].days.map((group) => group.games[0].id)).toEqual(['new', 'old']);
         expect(results[0].days[0].label).toMatch(/^Yesterday · /);
     });
-    it('orders Current by favorite, status, then start time oldest first within each day', () => {
-        const now = new Date(2026, 9, 22, 9);
-        const entries = [false, true].flatMap((favorite) =>
-            (['upcoming', 'final', 'live'] as const).flatMap((status) =>
-                [20, 10].map((hour): Game => ({
-                    ...make(`${favorite ? 'fav' : 'other'}-${status}-${hour}`, 22, status),
-                    league: 'NBA',
-                    teamIds: [favorite ? '134927' : 'nba-1'],
-                    startTime: new Date(2026, 9, 22, hour).toISOString(),
-                }))
-            )
-        );
-        const [section] = groupGames(entries, 'live', ['134927'], now);
-        expect(section.days[0].games.map((game) => game.id)).toEqual([
-            'fav-live-10',
-            'fav-live-20',
-            'fav-final-10',
-            'fav-final-20',
-            'fav-upcoming-10',
-            'fav-upcoming-20',
-            'other-live-10',
-            'other-live-20',
-            'other-final-10',
-            'other-final-20',
-            'other-upcoming-10',
-            'other-upcoming-20',
+    it.each(['live', 'upcoming', 'recent'] as const)(
+        'orders %s and compact cards by favorite, status, then oldest start time',
+        (view) => {
+            const now = new Date(2026, 9, 22, 9);
+            const entries = [false, true].flatMap((favorite) =>
+                (['upcoming', 'final', 'live'] as const).flatMap((status) =>
+                    [20, 10].map((hour): Game => ({
+                        ...make(`${favorite ? 'fav' : 'other'}-${status}-${hour}`, 22, status),
+                        league: 'NBA',
+                        teamIds: [favorite ? '134927' : 'nba-1'],
+                        startTime: new Date(2026, 9, 22, hour).toISOString(),
+                    }))
+                )
+            );
+            const [section] = groupGames(entries, view, ['134927'], now);
+            const expected = [
+                'fav-live-10',
+                'fav-live-20',
+                'fav-upcoming-10',
+                'fav-upcoming-20',
+                'fav-final-10',
+                'fav-final-20',
+                'other-live-10',
+                'other-live-20',
+                'other-upcoming-10',
+                'other-upcoming-20',
+                'other-final-10',
+                'other-final-20',
+            ];
+            expect(section.days[0].games.map((game) => game.id)).toEqual(expected);
+            expect(compactGames(entries, ['134927']).map((game) => game.id)).toEqual(expected);
+        }
+    );
+    it('puts unknown times last within status and keeps exceptional statuses after completed games', () => {
+        const games = [
+            { ...make('unknown-time', 22, 'upcoming'), startTime: null },
+            make('scheduled', 22, 'upcoming'),
+            make('completed', 21, 'final'),
+            make('postponed', 20, 'postponed'),
+            make('canceled', 19, 'canceled'),
+            make('unknown', 18, 'unknown'),
+        ];
+        expect(compactGames(games, []).map((game) => game.id)).toEqual([
+            'scheduled',
+            'unknown-time',
+            'completed',
+            'unknown',
+            'canceled',
+            'postponed',
         ]);
     });
     it('expands the umbrella without duplicates and excludes the umbrella feed', () => {

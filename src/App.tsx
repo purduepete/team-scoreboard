@@ -284,13 +284,13 @@ export function App() {
         team,
         favoriteIds
     ).filter((game) => !activeOnly || game.status === 'live');
-    // Selections limited to favorites, individual teams or Purdue skip favorite highlighting and ordering.
+    // Selections limited to favorites, individual teams or Purdue skip favorite highlighting.
     const noHighlight = team.every(
         (filter) =>
             filter === 'favorites' || filter === 'league:NCAA' || !(filter === 'all' || filter.startsWith('league:'))
     );
     const highlightIds = noHighlight ? [] : favoriteIds;
-    const sections = groupGames(games, effectiveView, highlightIds);
+    const sections = groupGames(games, effectiveView, favoriteIds);
     const current = toggled.filter === filterKey ? toggled : { filter: filterKey, open: !allTeams, keys: [] };
     const isOpen = (key: string) => current.open !== current.keys.includes(key);
     const toggleSection = (key: string) =>
@@ -751,6 +751,7 @@ export function App() {
                                         </div>
                                     ))}
                                 <AddedTeams
+                                    favoriteIds={favoriteIds}
                                     onCountChange={setCustomCount}
                                     renderCompact={
                                         compact
