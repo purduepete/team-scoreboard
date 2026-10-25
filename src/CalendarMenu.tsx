@@ -94,7 +94,7 @@ export function CalendarMenu({ url, onCopyError }: { url: string; onCopyError: (
 
     return (
         <>
-            <Tooltip content="Calendar feed for your watched teams">
+            <Tooltip content="Calendar feed for your watched teams" placement="below">
                 <button
                     ref={trigger}
                     type="button"

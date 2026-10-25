@@ -238,10 +238,16 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     expect((await icon.body()).readUInt32BE(16)).toBe(180);
     expect((await icon.body()).readUInt32BE(20)).toBe(180);
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('link', { name: 'Source status' }).click();
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Back to scores', exact: true })).toHaveCount(1);
-    await expect(page.locator('main').getByRole('link', { name: 'Back to scores', exact: true })).toHaveCount(0);
+    await expect(page.locator('main').getByRole('link', { name: 'Back to scores', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Back to scores', exact: true })).toHaveCSS(
+        'border-top-style',
+        'solid'
+    );
+    await expect(page.getByRole('link', { name: 'Back to scores', exact: true })).toHaveCSS('border-top-width', '1px');
     await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
@@ -284,7 +290,7 @@ for (const theme of ['light', 'midnight']) {
             const panel = page.locator('#score-tools-actions');
             const layout = await panel.evaluate((element) => {
                 const bounds = element.getBoundingClientRect();
-                const buttons = Array.from(element.querySelectorAll('button')).map((button) =>
+                const buttons = Array.from(element.querySelectorAll('button, a')).map((button) =>
                     button.getBoundingClientRect()
                 );
                 return {
@@ -292,15 +298,35 @@ for (const theme of ['light', 'midnight']) {
                     fits: buttons.every((button) => button.left >= bounds.left && button.right <= bounds.right),
                     fills:
                         Math.abs(buttons[0].left - bounds.left - 9) < 1 &&
-                        Math.abs(bounds.right - buttons.at(-1)!.right - 9) < 1,
+                        Math.abs(bounds.right - buttons[1].right - 9) < 1,
+                    rows:
+                        buttons[0].top === buttons[1].top &&
+                        buttons[2].top === buttons[3].top &&
+                        buttons[2].top > buttons[0].top,
                     viewportFits: bounds.left >= 0 && bounds.right <= innerWidth,
+                    columnRatio: buttons[1].width / buttons[0].width,
+                    matchingWidths:
+                        Math.abs(buttons[0].width - buttons[2].width) < 1 &&
+                        Math.abs(buttons[1].width - buttons[3].width) < 1,
                 };
             });
-            expect(new Set(layout.tops).size).toBe(1);
+            expect(new Set(layout.tops).size).toBe(2);
+            expect(layout.rows).toBe(true);
             expect(layout.fits).toBe(true);
             expect(layout.fills).toBe(true);
             expect(layout.viewportFits).toBe(true);
+            expect(layout.columnRatio).toBeCloseTo(2, 1);
+            expect(layout.matchingWidths).toBe(true);
         }
+        await expect(page.locator('#score-tools-actions').locator('button, a')).toHaveCount(4);
+        await expect(page.locator('#score-tools-actions').locator('button, a').nth(2)).toHaveAttribute(
+            'aria-label',
+            'Source status'
+        );
+        await expect(page.locator('#score-tools-actions').locator('button, a').nth(3)).toHaveText('Calendar');
+        const source = page.getByRole('link', { name: 'Source status', exact: true });
+        await expect(source).toHaveText('');
+        await expect(source.locator('svg')).toBeVisible();
         await page.setViewportSize({ width: 390, height: 844 });
         await finder.click();
         await expect(page.getByRole('dialog', { name: 'Find team', exact: true })).toBeVisible();
@@ -375,7 +401,7 @@ test('refresh uses a centered circular loader and respects reduced motion', asyn
         }
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await expect(loader).toHaveCSS('animation-name', 'none');
-        await expect(page.getByRole('link', { name: 'Source status' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Compact mode', exact: true })).toBeVisible();
     } finally {
         finishRefresh();
     }
@@ -419,6 +445,7 @@ test('custom tooltips stay closed on touch-capable devices', async ({ browser })
 });
 
 test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 22, 12));
     await page.goto('/');
     await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
@@ -438,6 +465,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await nba.click();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(page.getByText('Fixture upstream failure')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('link', { name: 'Source status' }).click();
     await expect(page).toHaveURL(/#status$/);
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
@@ -467,6 +495,78 @@ test('favorite edits survive reload, live scores and source errors are visible',
 });
 
 for (const theme of ['light', 'midnight']) {
+    test(`compact mode keeps filters, sorts cards and restores controls (${theme})`, async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+        await page.addInitScript((theme) => localStorage.setItem('team-scoreboard-theme', theme), theme);
+        extraGames = [
+            {
+                ...otherGame,
+                id: 'nba-other',
+                league: 'NBA',
+                title: 'Other NBA',
+                home: 'Boston Celtics',
+                away: 'New York Knicks',
+                teamIds: ['nba-other'],
+                startTime: '2026-10-25T16:00:00Z',
+            },
+            {
+                ...otherGame,
+                id: 'nfl-late',
+                title: 'Later NFL',
+                home: 'Dallas Cowboys',
+                away: 'Detroit Lions',
+                teamIds: ['nfl-other'],
+                startTime: '2026-10-25T23:00:00Z',
+            },
+        ];
+        await page.goto('/');
+        const show = page.getByRole('button', { name: 'Show', exact: true });
+        await show.click();
+        await page.getByRole('option', { name: 'NFL', exact: true }).click();
+        await page.getByRole('option', { name: 'NBA', exact: true }).click();
+        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
+        const compact = page.getByRole('button', { name: 'Compact mode', exact: true });
+        await compact.click();
+        const cards = page.locator('.compact-games .game');
+        await expect(cards).toHaveCount(5);
+        for (const [index, home] of [
+            'Indianapolis Colts',
+            'Indiana Pacers',
+            'Buffalo Bills',
+            'Dallas Cowboys',
+            'Boston Celtics',
+        ].entries()) {
+            await expect(cards.nth(index)).toContainText(home);
+        }
+        await expect(page.locator('.toolbar')).toBeHidden();
+        await expect(page.locator('.section-title, .group-heading')).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Source status' })).toBeHidden();
+        await page.keyboard.press('a');
+        await page.keyboard.press('3');
+        await expect(cards).toHaveCount(5);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+        await expect(show).toHaveText('2 selected');
+        await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true'
+        );
+        await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
+        await page.getByRole('button', { name: 'Tools', exact: true }).click();
+        await page.getByRole('link', { name: 'Source status' }).click();
+        await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
+        await page.getByRole('link', { name: 'Back to scores' }).click();
+        await compact.click();
+        await page.reload();
+        await expect(page.getByRole('button', { name: 'Exit compact mode', exact: true })).toHaveAttribute(
+            'aria-pressed',
+            'true'
+        );
+        await expect(page.locator('.toolbar')).toBeHidden();
+    });
+
     test(`Show supports multiple teams and leagues with exclusive All teams (${theme})`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
@@ -652,6 +752,41 @@ test('added teams distinguish no game, pending and errors and expire at local mi
     expect(
         await page.evaluate(() => JSON.parse(localStorage.getItem('team-scoreboard-added-teams-v1')!).teams)
     ).toEqual([]);
+});
+
+test('compact mode merges Custom games once and keeps Custom failures visible', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 12) });
+    addedGames = [
+        { ...game, teamIds: [searchedTeam.id], league: 'College football' },
+        { ...game, id: 'custom-only', teamIds: [searchedTeam.id], home: searchedTeam.name, league: 'College football' },
+    ];
+    await page.addInitScript(() => {
+        localStorage.setItem('team-scoreboard-compact', 'true');
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({
+                date: '2026-10-25',
+                teams: [{ category: 'college-football', id: '333' }],
+            })
+        );
+    });
+    await page.goto('/');
+    const grid = page.locator('.compact-games');
+    await expect(grid.locator('.game')).toHaveCount(4);
+    await expect(grid.locator('.game').filter({ hasText: 'Indianapolis Colts' })).toHaveCount(1);
+    await expect(grid).toContainText(searchedTeam.name);
+    await expect(page.locator('.section-title')).toHaveCount(0);
+    await expect(grid.locator('.reorder-card, .remove-team')).toHaveCount(0);
+    addedError = 'Fixture custom feed failed.';
+    await page.clock.runFor(20_000);
+    await expect(grid.getByRole('alert')).toHaveText('Fixture custom feed failed.');
+    await expect(grid.locator('.score-lines')).toHaveCount(4);
+    await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+    await page.keyboard.press('f');
+    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await expect(grid).not.toContainText(searchedTeam.name);
+    await expect(grid.getByRole('alert')).toHaveCount(0);
+    await expect(grid.locator('.game')).toHaveCount(2);
 });
 
 test('two added college teams sharing a game show one card and keep both removal controls', async ({ page }) => {

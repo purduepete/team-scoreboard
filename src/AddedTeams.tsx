@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, MoveDown, MoveUp, Plus, X } from 'lucide-react';
-import type { DragEvent } from 'react';
+import type { DragEvent, ReactNode } from 'react';
 import type { Feed, Game, SearchTeam, TeamCategory } from '../shared/contracts';
 import { GameCard } from './GameCard';
 import { Tooltip } from './Tooltip';
@@ -61,6 +61,7 @@ export function AddedTeams({
     onToggle,
     onAdd,
     onCountChange,
+    renderCompact,
 }: {
     active: boolean;
     dashboardFeeds: Feed[];
@@ -70,6 +71,7 @@ export function AddedTeams({
     onToggle: () => void;
     onAdd: () => void;
     onCountChange: (count: number) => void;
+    renderCompact?: (games: Game[], status: ReactNode, flashes: Record<string, number>) => ReactNode;
 }) {
     const [saved, setSaved] = useState(initialPins);
     useEffect(() => onCountChange(saved.pins.length), [saved.pins.length, onCountChange]);
@@ -442,6 +444,50 @@ export function AddedTeams({
                 </Tooltip>
             </>
         ) : null;
+    const renderStatus = (card: (typeof statusCards)[number], index: number) => {
+        const result = card.entry?.result;
+        const hasGames = result && todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
+        return (
+            <article
+                key={card.key}
+                className="game custom-status-card"
+                aria-label={card.name}
+                {...(!renderCompact ? cardDragProps(card.key) : {})}
+            >
+                {!renderCompact && (
+                    <div className="heading-actions">
+                        {!hasGames && removeButton(card.pin, card.name)}
+                        {reorderButtons(card.key, card.name, index)}
+                    </div>
+                )}
+                {renderCompact && <h3>{card.name}</h3>}
+                {card.entry?.error && <p role="alert">{card.entry.error}</p>}
+                {!result && !card.entry?.error && <p role="status">Loading team…</p>}
+                {result?.feed.error && <p role="alert">{result.feed.error}</p>}
+                {result?.feed.pending && !card.entry?.error && !result.feed.error && (
+                    <p role="status">Loading scores…</p>
+                )}
+                {result?.feed.stale && hasGames && <p role="status">Showing previously fetched scores.</p>}
+                {result &&
+                    !result.feed.error &&
+                    !result.feed.pending &&
+                    !result.feed.stale &&
+                    !todayGames(result.feed.games).length && <p>No game today.</p>}
+            </article>
+        );
+    };
+    if (renderCompact) {
+        return (
+            <>
+                {active && saved.error && <p role="alert">{saved.error}</p>}
+                {renderCompact(
+                    gameCards.map((card) => card.game),
+                    statusCards.map(renderStatus),
+                    flashes
+                )}
+            </>
+        );
+    }
     return (
         <section className="added-teams" aria-label="Custom" hidden={!active || saved.pins.length === 0}>
             <h2 className="section-title">
@@ -563,37 +609,7 @@ export function AddedTeams({
                 <div className="games custom-games">
                     {orderedCards.map((card, index) => {
                         if (card.kind === 'status') {
-                            const result = card.entry?.result;
-                            const hasGames =
-                                result &&
-                                todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
-                            return (
-                                <article
-                                    key={card.key}
-                                    className="game custom-status-card"
-                                    aria-label={card.name}
-                                    {...cardDragProps(card.key)}
-                                >
-                                    <div className="heading-actions">
-                                        {!hasGames && removeButton(card.pin, card.name)}
-                                        {reorderButtons(card.key, card.name, index)}
-                                    </div>
-                                    {card.entry?.error && <p role="alert">{card.entry.error}</p>}
-                                    {!result && !card.entry?.error && <p role="status">Loading team…</p>}
-                                    {result?.feed.error && <p role="alert">{result.feed.error}</p>}
-                                    {result?.feed.pending && !card.entry?.error && !result.feed.error && (
-                                        <p role="status">Loading scores…</p>
-                                    )}
-                                    {result?.feed.stale && hasGames && (
-                                        <p role="status">Showing previously fetched scores.</p>
-                                    )}
-                                    {result &&
-                                        !result.feed.error &&
-                                        !result.feed.pending &&
-                                        !result.feed.stale &&
-                                        !todayGames(result.feed.games).length && <p>No game today.</p>}
-                                </article>
-                            );
+                            return renderStatus(card, index);
                         }
                         const relatedTeams = selected.filter(
                             ({ entry }) =>

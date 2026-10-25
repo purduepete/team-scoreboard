@@ -1,8 +1,16 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 
-export function Tooltip({ content, children }: { content: string; children: ReactNode }) {
+export function Tooltip({
+    content,
+    children,
+    placement = 'auto',
+}: {
+    content: string;
+    children: ReactNode;
+    placement?: 'auto' | 'below';
+}) {
     const anchor = useRef<HTMLSpanElement>(null);
     const tooltip = useRef<HTMLDivElement>(null);
     const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -24,17 +32,17 @@ export function Tooltip({ content, children }: { content: string; children: Reac
 
     useEffect(() => () => clearTimeout(hideTimer.current), []);
 
-    const reposition = () => {
+    const reposition = useCallback(() => {
         const target =
             anchor.current?.querySelector<HTMLElement>('button, a, [tabindex], [role="img"]') ?? anchor.current;
         const rect = target?.getBoundingClientRect();
         if (!rect) return;
         const box = tooltip.current?.getBoundingClientRect();
         const height = box?.height ?? 36;
-        const above = rect.top >= height + 12;
+        const above = placement !== 'below' && rect.top >= height + 12;
         const left = Math.max(8, Math.min(rect.left, window.innerWidth - (box?.width ?? 280) - 8));
         setPosition({ top: above ? rect.top - 8 : rect.bottom + 8, left, above });
-    };
+    }, [placement]);
 
     useLayoutEffect(() => {
         if (!open) return;
@@ -56,7 +64,7 @@ export function Tooltip({ content, children }: { content: string; children: Reac
             document.removeEventListener('pointerdown', dismiss);
             document.removeEventListener('keydown', escape);
         };
-    }, [open]);
+    }, [open, reposition]);
 
     const show = () => {
         if (window.matchMedia('(any-pointer: coarse)').matches) return;

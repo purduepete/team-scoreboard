@@ -11,6 +11,7 @@ import {
     Clock3,
     Keyboard,
     LoaderCircle,
+    LayoutGrid,
     Plus,
     RefreshCw,
     Search,
@@ -27,7 +28,7 @@ import { SelectField } from './SelectField';
 import { Tooltip } from './Tooltip';
 import { ThemeMenu } from './ThemeMenu';
 import { useTheme } from './theme';
-import { groupGames, isFavorite, resultDays, visibleGames } from './games';
+import { compactGames, groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Current', upcoming: 'Upcoming', recent: 'Recent' };
@@ -75,6 +76,21 @@ export function App() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
+    const [compact, setCompact] = useState(() => {
+        try {
+            return localStorage.getItem('team-scoreboard-compact') === 'true';
+        } catch (error) {
+            console.warn('Compact mode could not be restored.', error);
+            return false;
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem('team-scoreboard-compact', String(compact));
+        } catch (error) {
+            console.warn('Compact mode could not be saved.', error);
+        }
+    }, [compact]);
     const [team, setTeam] = useState<string[]>(['all']);
     const allTeams = team.includes('all');
     const filterKey = JSON.stringify([...team].sort());
@@ -315,6 +331,8 @@ export function App() {
             if (!refreshing) void forceRefresh('live');
         } else if (statusPage) {
             return;
+        } else if (compact) {
+            return;
         } else if (views[event.code]) {
             setView(views[event.code]);
         } else if (filterKeys[key]) {
@@ -382,15 +400,22 @@ export function App() {
                                 )}
                             </button>
                         </Tooltip>
-                        <Tooltip content={statusPage ? 'Back to scores' : 'Source status'}>
-                            <a
+                        <Tooltip content={compact ? 'Exit compact mode' : 'Compact mode'}>
+                            <button
+                                type="button"
                                 className="icon-button"
-                                href={statusPage ? '#' : '#status'}
-                                aria-label={statusPage ? 'Back to scores' : 'Source status'}
-                                aria-current={statusPage ? 'page' : undefined}
+                                aria-label={compact ? 'Exit compact mode' : 'Compact mode'}
+                                aria-pressed={compact}
+                                onClick={() => {
+                                    setCompact((value) => !value);
+                                    setEditing(false);
+                                    setFindingTeam(false);
+                                    setToolsOpen(false);
+                                    if (statusPage) location.hash = '';
+                                }}
                             >
-                                <Activity size={18} aria-hidden="true" />
-                            </a>
+                                <LayoutGrid size={18} aria-hidden="true" />
+                            </button>
                         </Tooltip>
                         <ThemeMenu theme={theme} setTheme={setTheme} />
                     </div>
@@ -400,6 +425,9 @@ export function App() {
                 {statusPage ? (
                     <section className="page-heading">
                         <h1>Source status</h1>
+                        <a href="#" className="button-link">
+                            Back to scores
+                        </a>
                     </section>
                 ) : null}
                 {error && (
@@ -416,7 +444,7 @@ export function App() {
                 {loading && <p role="status">Loading saved favorites…</p>}
                 {data && (
                     <>
-                        {!statusPage && editing && (
+                        {!statusPage && !compact && editing && (
                             <section className="panel" aria-label="Edit favorite teams">
                                 <div className="section-heading">
                                     <div>
@@ -474,7 +502,7 @@ export function App() {
                         )}
                         {!statusPage && (
                             <section className="panel">
-                                <div className="toolbar">
+                                <div className="toolbar" hidden={compact}>
                                     <div
                                         className="tabs"
                                         role="group"
@@ -525,14 +553,6 @@ export function App() {
                                                 className="heading-actions"
                                                 data-open={toolsOpen}
                                             >
-                                                {calendarUrl && (
-                                                    <CalendarMenu
-                                                        url={calendarUrl}
-                                                        onCopyError={() =>
-                                                            setError('Could not copy the calendar link.')
-                                                        }
-                                                    />
-                                                )}
                                                 <button
                                                     type="button"
                                                     className="icon-button"
@@ -554,6 +574,24 @@ export function App() {
                                                 >
                                                     <Plus size={16} aria-hidden="true" /> Edit favorites
                                                 </button>
+                                                <Tooltip content="Source status">
+                                                    <a
+                                                        href="#status"
+                                                        className="icon-button tools-status"
+                                                        aria-label="Source status"
+                                                        onClick={() => setToolsOpen(false)}
+                                                    >
+                                                        <Activity size={16} aria-hidden="true" />
+                                                    </a>
+                                                </Tooltip>
+                                                {calendarUrl && (
+                                                    <CalendarMenu
+                                                        url={calendarUrl}
+                                                        onCopyError={() =>
+                                                            setError('Could not copy the calendar link.')
+                                                        }
+                                                    />
+                                                )}
                                             </div>
                                         </div>
                                         <SelectField
@@ -610,65 +648,67 @@ export function App() {
                                         )}
                                     </div>
                                 </div>
-                                {sections.map((section) => {
-                                    const open = isOpen(section.key);
-                                    return (
-                                        <section
-                                            className="league-section"
-                                            key={section.key}
-                                            aria-label={section.label}
-                                        >
-                                            <h2 className="section-title">
-                                                <button
-                                                    type="button"
-                                                    aria-expanded={open}
-                                                    aria-controls={`section-${section.key}`}
-                                                    onClick={() => toggleSection(section.key)}
-                                                >
-                                                    <ChevronRight
-                                                        size={20}
-                                                        aria-hidden="true"
-                                                        className={open ? 'chevron open' : 'chevron'}
-                                                    />
-                                                    <span>{section.label}</span>
-                                                    <small>
-                                                        {section.count} {section.count === 1 ? 'game' : 'games'}
-                                                    </small>
-                                                </button>
-                                            </h2>
-                                            <div id={`section-${section.key}`} hidden={!open}>
-                                                {section.days.map((group) => (
-                                                    <section
-                                                        className="game-group"
-                                                        key={group.key}
-                                                        aria-label={` · ${group.label}`}
+                                {!compact &&
+                                    sections.map((section) => {
+                                        const open = isOpen(section.key);
+                                        return (
+                                            <section
+                                                className="league-section"
+                                                key={section.key}
+                                                aria-label={section.label}
+                                            >
+                                                <h2 className="section-title">
+                                                    <button
+                                                        type="button"
+                                                        aria-expanded={open}
+                                                        aria-controls={`section-${section.key}`}
+                                                        onClick={() => toggleSection(section.key)}
                                                     >
-                                                        <h3 className="group-heading">
-                                                            <CalendarDays size={16} aria-hidden="true" />
-                                                            <span>{group.label}</span>
-                                                            <small>
-                                                                {group.games.length}{' '}
-                                                                {group.games.length === 1 ? 'game' : 'games'}
-                                                            </small>
-                                                        </h3>
-                                                        <div className="games">
-                                                            {group.games.map((game) => (
-                                                                <GameCard
-                                                                    key={game.id}
-                                                                    game={game}
-                                                                    favorite={isFavorite(game, highlightIds)}
-                                                                    view={view}
-                                                                    flashes={flashes}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </section>
-                                                ))}
-                                            </div>
-                                        </section>
-                                    );
-                                })}
-                                {!games.length &&
+                                                        <ChevronRight
+                                                            size={20}
+                                                            aria-hidden="true"
+                                                            className={open ? 'chevron open' : 'chevron'}
+                                                        />
+                                                        <span>{section.label}</span>
+                                                        <small>
+                                                            {section.count} {section.count === 1 ? 'game' : 'games'}
+                                                        </small>
+                                                    </button>
+                                                </h2>
+                                                <div id={`section-${section.key}`} hidden={!open}>
+                                                    {section.days.map((group) => (
+                                                        <section
+                                                            className="game-group"
+                                                            key={group.key}
+                                                            aria-label={` · ${group.label}`}
+                                                        >
+                                                            <h3 className="group-heading">
+                                                                <CalendarDays size={16} aria-hidden="true" />
+                                                                <span>{group.label}</span>
+                                                                <small>
+                                                                    {group.games.length}{' '}
+                                                                    {group.games.length === 1 ? 'game' : 'games'}
+                                                                </small>
+                                                            </h3>
+                                                            <div className="games">
+                                                                {group.games.map((game) => (
+                                                                    <GameCard
+                                                                        key={game.id}
+                                                                        game={game}
+                                                                        favorite={isFavorite(game, highlightIds)}
+                                                                        view={view}
+                                                                        flashes={flashes}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </section>
+                                                    ))}
+                                                </div>
+                                            </section>
+                                        );
+                                    })}
+                                {!compact &&
+                                    !games.length &&
                                     (view === 'live' ? (
                                         <div className="empty-state">
                                             <Trophy size={28} />
@@ -686,12 +726,39 @@ export function App() {
                                             </h2>
                                             <p>
                                                 Some feeds may still be refreshing, and off-season sports have no games.
-                                                Check source status from the header.
+                                                Check source status from Tools.
                                             </p>
                                         </div>
                                     ))}
                                 <AddedTeams
                                     onCountChange={setCustomCount}
+                                    renderCompact={
+                                        compact
+                                            ? (customGames, customStatus, customFlashes) => (
+                                                  <>
+                                                      <div className="games compact-games" aria-label="Compact games">
+                                                          {compactGames(
+                                                              [...games, ...(showCustom ? customGames : [])],
+                                                              favoriteIds
+                                                          ).map((game) => (
+                                                              <GameCard
+                                                                  key={game.id}
+                                                                  game={game}
+                                                                  favorite={isFavorite(game, highlightIds)}
+                                                                  view={view}
+                                                                  flashes={{ ...customFlashes, ...flashes }}
+                                                              />
+                                                          ))}
+                                                          {showCustom && customStatus}
+                                                      </div>
+                                                      {!games.length &&
+                                                          (!showCustom || (!customGames.length && !customCount)) && (
+                                                              <p role="status">No games match the current selection.</p>
+                                                          )}
+                                                  </>
+                                              )
+                                            : undefined
+                                    }
                                     active={showCustom}
                                     dashboardFeeds={feeds}
                                     open={findingTeam}

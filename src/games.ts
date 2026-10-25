@@ -123,6 +123,35 @@ const sections = [
     { key: 'MLB', label: 'MLB' },
 ];
 
+export function compactGames(games: Game[], favoriteIds: string[]): Game[] {
+    const leagues = new Map<string, string>();
+    for (const game of games) {
+        const previous = leagues.get(game.id);
+        const previousIndex = sections.findIndex((section) => section.key === previous);
+        const index = sections.findIndex((section) => section.key === game.league);
+        if (!previous || (index >= 0 && (previousIndex < 0 || index < previousIndex))) {
+            leagues.set(game.id, game.league);
+        }
+    }
+    const unique = [...reconcile(games).values()].map((game) => ({ ...game, league: leagues.get(game.id)! }));
+    const time = (game: Game) => (game.startTime ? Date.parse(game.startTime) : Number.MAX_SAFE_INTEGER);
+    const league = (game: Game) => {
+        const index = sections.findIndex((section) => section.key === game.league);
+        return index < 0 ? sections.length : index;
+    };
+    return unique.sort((a, b) => {
+        const aFavorite = isFavorite(a, favoriteIds);
+        const bFavorite = isFavorite(b, favoriteIds);
+        const favorite = Number(bFavorite) - Number(aFavorite);
+        if (favorite) return favorite;
+        if (!aFavorite) {
+            const byLeague = league(a) - league(b) || a.league.localeCompare(b.league);
+            if (byLeague) return byLeague;
+        }
+        return time(a) - time(b) || a.id.localeCompare(b.id);
+    });
+}
+
 function dayLabel(day: Date, today: Date): string {
     const full = day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     const offset = Math.round((day.getTime() - today.getTime()) / 86_400_000);

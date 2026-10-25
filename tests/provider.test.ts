@@ -15,7 +15,7 @@ import {
 } from '../server/provider.js';
 import { FeedCache } from '../server/feeds.js';
 import type { FeedSource } from '../server/feeds.js';
-import { formatStart, formatTime, groupGames, visibleGames } from '../src/games.js';
+import { compactGames, formatStart, formatTime, groupGames, visibleGames } from '../src/games.js';
 
 const team = teams.find((item) => item.id === '134927')!;
 const [nfl, nba] = leagues;
@@ -134,6 +134,36 @@ describe('window and filters', () => {
         id,
         status: gameStatus,
         startTime: new Date(Date.UTC(2026, 9, day, 17)).toISOString(),
+    });
+    it('orders compact favorites by time, then other games by league and time, without duplicate events', () => {
+        const makeGame = (id: string, league: string, day: number, favorite = false): Game => ({
+            ...make(id, day, 'upcoming'),
+            league,
+            teamIds: favorite ? ['favorite'] : [id],
+        });
+        const games = [
+            makeGame('nba-late', 'NBA', 20),
+            makeGame('favorite-late', 'NFL', 22, true),
+            makeGame('nfl-late', 'NFL', 21),
+            makeGame('favorite-early', 'NBA', 17, true),
+            makeGame('nba-early', 'NBA', 18),
+            makeGame('nfl-early', 'NFL', 19),
+            makeGame('shared', 'Big Ten', 16),
+            makeGame('shared', 'NCAA', 16),
+            { ...makeGame('undated', 'NFL', 16), startTime: null },
+        ];
+        expect(compactGames(games, ['favorite']).map((game) => game.id)).toEqual([
+            'favorite-early',
+            'favorite-late',
+            'shared',
+            'nfl-early',
+            'nfl-late',
+            'undated',
+            'nba-early',
+            'nba-late',
+        ]);
+        expect(compactGames(games, ['favorite']).find((game) => game.id === 'shared')?.league).toBe('NCAA');
+        expect(games[0].id).toBe('nba-late');
     });
     it('keeps live games, the last 3 finals and the next 5 upcoming games', () => {
         const now = Date.UTC(2026, 9, 15, 12);
