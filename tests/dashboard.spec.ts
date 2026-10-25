@@ -191,8 +191,14 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await expect(page.locator('select, datalist')).toHaveCount(0);
     const theme = page.getByRole('button', { name: 'Appearance', exact: true });
     const pill = page.getByRole('radiogroup', { name: 'Theme' });
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    const search = page.getByRole('button', { name: 'Find team', exact: true });
+    await expect(search).toHaveCSS('border-top-width', '1px');
+    await expect(search).toHaveCSS('border-top-style', 'solid');
+    await expect(theme).toHaveCSS('border-top-width', '0px');
     await theme.focus();
     await theme.press('Enter');
+    await expect(pill.getByRole('radio')).toHaveText(['Light', 'Midnight', 'System']);
     await expect(pill.getByRole('radio', { name: 'Midnight' })).toBeFocused();
     await page.keyboard.press('ArrowLeft');
     await expect(pill.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true');
@@ -234,9 +240,100 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
     await page.getByRole('link', { name: 'Source status' }).click();
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Back to scores', exact: true })).toHaveCount(1);
+    await expect(page.locator('main').getByRole('link', { name: 'Back to scores', exact: true })).toHaveCount(0);
     await expect(page.locator('header').getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+for (const theme of ['light', 'midnight']) {
+    test(`phone layout fills the schedule row and collapses tools (${theme})`, async ({ page }) => {
+        calendarUrl = 'https://example.com/calendar.ics';
+        await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+        await expect(page.getByText('Game day, at a glance')).toHaveCount(0);
+        const schedule = page.getByRole('group', { name: 'Schedule view' });
+        await expect(schedule).toBeVisible();
+        const gap = await page
+            .locator('.scores-page > .panel')
+            .first()
+            .evaluate(
+                (panel) =>
+                    panel.getBoundingClientRect().top - document.querySelector('header')!.getBoundingClientRect().bottom
+            );
+        expect(gap).toBe(12);
+        const widths = await schedule.evaluate((element) => ({
+            pill: element.getBoundingClientRect().width,
+            row: element.parentElement!.getBoundingClientRect().width,
+        }));
+        expect(Math.abs(widths.pill - widths.row)).toBeLessThan(1);
+        const buttons = await schedule
+            .getByRole('button')
+            .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().width));
+        expect(Math.max(...buttons) - Math.min(...buttons)).toBeLessThan(1);
+        const tools = page.getByRole('button', { name: 'Tools', exact: true });
+        const finder = page.getByRole('button', { name: 'Find team', exact: true });
+        await expect(finder).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeHidden();
+        await tools.click();
+        await expect(finder).toBeVisible();
+        await expect(finder).toHaveCSS('border-top-width', '1px');
+        for (const width of [375, 390, 430]) {
+            await page.setViewportSize({ width, height: 844 });
+            const panel = page.locator('#score-tools-actions');
+            const layout = await panel.evaluate((element) => {
+                const bounds = element.getBoundingClientRect();
+                const buttons = Array.from(element.querySelectorAll('button')).map((button) =>
+                    button.getBoundingClientRect()
+                );
+                return {
+                    tops: buttons.map((button) => button.top),
+                    fits: buttons.every((button) => button.left >= bounds.left && button.right <= bounds.right),
+                    fills:
+                        Math.abs(buttons[0].left - bounds.left - 9) < 1 &&
+                        Math.abs(bounds.right - buttons.at(-1)!.right - 9) < 1,
+                    viewportFits: bounds.left >= 0 && bounds.right <= innerWidth,
+                };
+            });
+            expect(new Set(layout.tops).size).toBe(1);
+            expect(layout.fits).toBe(true);
+            expect(layout.fills).toBe(true);
+            expect(layout.viewportFits).toBe(true);
+        }
+        await page.setViewportSize({ width: 390, height: 844 });
+        await finder.click();
+        await expect(page.getByRole('dialog', { name: 'Find team', exact: true })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(finder).toBeFocused();
+        await page.getByRole('button', { name: 'Calendar', exact: true }).click();
+        await expect(page.getByRole('menu', { name: 'Calendar' })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: 'Edit favorites' }).click();
+        await expect(page.getByRole('region', { name: 'Edit favorite teams' })).toBeVisible();
+        await tools.focus();
+        await page.keyboard.press('Escape');
+        await expect(finder).toBeHidden();
+        await expect(tools).toBeFocused();
+        await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+        const pill = page.getByRole('radiogroup', { name: 'Theme' });
+        await expect(pill).toHaveCSS('height', '36px');
+        await expect(pill.getByRole('radio')).toHaveText(['Light', 'Midnight', 'System']);
+        await expect(pill.getByRole('radio', { name: 'Midnight' }).locator('.lucide-moon')).toBeVisible();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await page.screenshot({ path: `test-results/phone-layout-${theme}.png`, fullPage: true });
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await expect(tools).toBeVisible();
+        await expect(finder).toBeHidden();
+        const toolBox = await tools.boundingBox();
+        const filterBox = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
+        expect(filterBox!.x - (toolBox!.x + toolBox!.width)).toBe(8);
+        await tools.click();
+        await expect(finder).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toBeVisible();
+    });
+}
 
 test('refresh uses a centered circular loader and respects reduced motion', async ({ page }) => {
     await page.goto('/');
@@ -323,7 +420,7 @@ test('custom tooltips stay closed on touch-capable devices', async ({ browser })
 
 test('favorite edits survive reload, live scores and source errors are visible', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Game day, at a glance' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
     await expect(tabs).toHaveText(['Current', 'Upcoming', 'Recent']);
     await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -353,11 +450,13 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.getByRole('button', { name: 'Current', exact: true }).click();
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('Arizona Cardinals');
     await page.getByRole('button', { name: 'Add Arizona Cardinals' }).click();
     await expect(page.getByRole('button', { name: 'Remove Arizona Cardinals' })).toBeVisible();
     await page.reload();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('Arizona Cardinals');
     await page.getByRole('button', { name: 'Remove Arizona Cardinals' }).click();
@@ -412,6 +511,8 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     await expect(page.getByRole('button', { name: 'Results', exact: true })).toHaveCount(0);
     const tabRow = await page.locator('.tabs').boundingBox();
     const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
+    const tools = await page.getByRole('button', { name: 'Tools', exact: true }).boundingBox();
+    expect(show!.x - (tools!.x + tools!.width)).toBe(8);
     expect(Math.abs((show?.y ?? 0) - (tabRow?.y ?? 99))).toBeLessThan(4);
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
@@ -422,6 +523,7 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
 
 test('team finder works while empty Custom is hidden, with dismissal and focus return', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     const trigger = page.getByRole('button', { name: 'Find team', exact: true });
     await expect(trigger).toHaveText('');
     const favorites = await page.getByRole('button', { name: 'Edit favorites', exact: true }).boundingBox();
@@ -665,7 +767,7 @@ test('long channel lists truncate without wrapping the card footer', async ({ pa
     await expect(page.getByRole('tooltip')).toBeHidden();
     await info.click();
     await expect(page.getByRole('tooltip')).toBeVisible();
-    await page.getByRole('heading', { name: 'Game day, at a glance' }).click();
+    await page.locator('main').click({ position: { x: 2, y: 2 } });
     await expect(page.getByRole('tooltip')).toBeHidden();
     const time = await card.locator('time').boundingBox();
     const source = await card.getByRole('link', { name: 'Source' }).boundingBox();
@@ -726,6 +828,7 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
 test('team search errors are visible and a removed pending team cannot reappear', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 25, 9) });
     await page.goto('/');
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('button', { name: 'Find team', exact: true }).click();
     searchFailure = true;
     await page.getByLabel('Search teams', { exact: true }).fill('Alabama');
@@ -798,6 +901,7 @@ for (const theme of ['midnight', 'light']) {
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto('/');
+        await page.getByRole('button', { name: 'Tools', exact: true }).click();
         await page.getByRole('button', { name: 'Find team', exact: true }).click();
         await expect(page.getByLabel('Search teams', { exact: true })).toBeFocused();
         const sports = page.getByRole('group', { name: 'Sport', exact: true });
@@ -848,7 +952,7 @@ for (const theme of ['midnight', 'light']) {
         expect(refreshBodies).toEqual([]);
     });
 
-    test(`Purdue favorites keep the normal card background (${theme})`, async ({ page }) => {
+    test(`all favorites keep the normal card background (${theme})`, async ({ page }) => {
         const purdue = teams.find((team) => team.purdue && !team.umbrella && team.providerId)!;
         extraGames = [
             {
@@ -866,11 +970,18 @@ for (const theme of ['midnight', 'light']) {
         const card = page.locator('#section-NCAA .game');
         await expect(card).toHaveClass('game favorite');
         await expect(card.getByLabel('Favorite', { exact: true })).toBeVisible();
+        await expect(card.locator('.favorite-marker')).toHaveText('');
+        await expect(card.getByLabel('Favorite', { exact: true })).toHaveAttribute('width', '16');
         await expect(card).toHaveCSS('background-color', theme === 'midnight' ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)');
         await expect(card).toHaveCSS('border-left-width', '4px');
+        const accent = theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)';
+        await expect(card).toHaveCSS('border-top-color', accent);
+        await expect(card).toHaveCSS('border-right-color', accent);
+        await expect(card).toHaveCSS('border-bottom-color', accent);
+        await expect(card.getByLabel('Favorite', { exact: true })).toHaveCSS('fill', accent);
         await expect(page.locator('#section-NFL .game.favorite')).toHaveCSS(
             'background-color',
-            theme === 'midnight' ? 'rgb(30, 41, 59)' : 'rgb(226, 232, 240)'
+            theme === 'midnight' ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)'
         );
     });
 
@@ -1030,6 +1141,7 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await page.keyboard.press('r');
     await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
 
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('x2');
     await expect(page.getByLabel('Find a team or sport')).toHaveValue('x2');
@@ -1089,12 +1201,14 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
 
 test('calendar menu appears only when the feed is configured', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Calendar' })).toHaveCount(0);
 
     calendarUrl = `https://team-scoreboard.jimlertech.com/calendar/${'t'.repeat(43)}.ics`;
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.reload();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     const trigger = page.getByRole('button', { name: 'Calendar' });
     await expect(page.getByRole('link', { name: 'Subscribe' })).toHaveCount(0);
     await trigger.click();

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Monitor, Palette, Sparkles, Sun } from 'lucide-react';
+import { Monitor, Moon, Palette, Sun } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import type { Theme } from './theme';
 
 const options: { value: Theme; label: string; Icon: typeof Sun }[] = [
-    { value: 'system', label: 'System', Icon: Monitor },
     { value: 'light', label: 'Light', Icon: Sun },
-    { value: 'midnight', label: 'Midnight', Icon: Sparkles },
+    { value: 'midnight', label: 'Midnight', Icon: Moon },
+    { value: 'system', label: 'System', Icon: Monitor },
 ];
 
 export function ThemeMenu({ theme, setTheme }: { theme: Theme; setTheme: (theme: Theme) => void }) {

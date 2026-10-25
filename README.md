@@ -108,3 +108,7 @@ A new file under `deploy\postgresql\` needs an independent review before release
 The theme defaults to Midnight and supports Light and live System preference. PWA appearance was checked on iPhone and iPad on 10/24/2026.
 
 The header shows the last refresh time, an icon-only refresh button, source status and an Appearance palette button. Appearance opens a square segmented theme pill. Refresh uses a centered circular loader while busy and respects reduced motion; source status remains available on both pages.
+
+The theme pill lists Light, Midnight and System, with the same compact spacing and moon icon as Home Automation. On phone widths, Current / Upcoming / Recent fills its row. At every width, Tools sits immediately left of the teams filter and opens Calendar, Search and Edit favorites in one row that fills the popup. The scores page has no introductory heading.
+
+Favorite game cards keep the normal background, with a thin accent outline, a 4px left stripe and a solid 16px star. Source status uses the header link to return to scores.

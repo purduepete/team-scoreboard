@@ -185,7 +185,11 @@ export function GameCard({
             )}
             <div className="game-meta">
                 <span>
-                    {favorite && <Star size={12} aria-label="Favorite" className="star" />}
+                    {favorite && (
+                        <span className="favorite-marker">
+                            <Star size={16} aria-label="Favorite" className="star" />
+                        </span>
+                    )}
                     {game.league} · {game.sport}
                     {game.week ? ` · Week ${game.week}` : ''}
                 </span>

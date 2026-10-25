@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Activity,
     AlertCircle,
-    ArrowLeft,
     ArrowUpRight,
     CalendarDays,
     Check,
@@ -15,6 +14,7 @@ import {
     Plus,
     RefreshCw,
     Search,
+    SlidersHorizontal,
     Trophy,
     X,
 } from 'lucide-react';
@@ -89,6 +89,19 @@ export function App() {
     const [help, setHelp] = useState(false);
     const [editing, setEditing] = useState(false);
     const [findingTeam, setFindingTeam] = useState(false);
+    const [toolsOpen, setToolsOpen] = useState(false);
+    const tools = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!toolsOpen) return;
+        const dismiss = (event: PointerEvent) => {
+            const target = event.target as Element;
+            if (!tools.current?.contains(target) && !target.closest('[role="menu"], [role="dialog"]')) {
+                setToolsOpen(false);
+            }
+        };
+        document.addEventListener('pointerdown', dismiss);
+        return () => document.removeEventListener('pointerdown', dismiss);
+    }, [toolsOpen]);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
     const statusPage = page === 'status';
@@ -379,44 +392,12 @@ export function App() {
                     </div>
                 </div>
             </header>
-            <main>
+            <main className={statusPage ? undefined : 'scores-page'}>
                 {statusPage ? (
                     <section className="page-heading">
                         <h1>Source status</h1>
-                        <a className="button-link" href="#">
-                            <ArrowLeft size={16} aria-hidden="true" /> Back to scores
-                        </a>
                     </section>
-                ) : (
-                    <section className="page-heading">
-                        <h1>Game day, at a glance</h1>
-                        <div className="heading-actions">
-                            {calendarUrl && (
-                                <CalendarMenu
-                                    url={calendarUrl}
-                                    onCopyError={() => setError('Could not copy the calendar link.')}
-                                />
-                            )}
-                            <button
-                                type="button"
-                                className="icon-button"
-                                aria-label="Find team"
-                                aria-haspopup="dialog"
-                                aria-expanded={findingTeam}
-                                onClick={() => {
-                                    setView('live');
-                                    setTeam('all');
-                                    setFindingTeam(true);
-                                }}
-                            >
-                                <Search size={16} aria-hidden="true" />
-                            </button>
-                            <button type="button" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
-                                <Plus size={16} aria-hidden="true" /> Edit favorites
-                            </button>
-                        </div>
-                    </section>
-                )}
+                ) : null}
                 {error && (
                     <div className="notice error" role="alert">
                         <AlertCircle size={18} aria-hidden="true" />
@@ -511,6 +492,66 @@ export function App() {
                                         ))}
                                     </div>
                                     <div className="toolbar-actions">
+                                        <div
+                                            className="score-tools"
+                                            ref={tools}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Escape' && toolsOpen) {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    setToolsOpen(false);
+                                                    tools.current
+                                                        ?.querySelector<HTMLButtonElement>('.tools-trigger')
+                                                        ?.focus();
+                                                }
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                className="tools-trigger"
+                                                aria-expanded={toolsOpen}
+                                                aria-controls="score-tools-actions"
+                                                onClick={() => setToolsOpen((value) => !value)}
+                                            >
+                                                <SlidersHorizontal size={16} aria-hidden="true" />
+                                                Tools
+                                            </button>
+                                            <div
+                                                id="score-tools-actions"
+                                                className="heading-actions"
+                                                data-open={toolsOpen}
+                                            >
+                                                {calendarUrl && (
+                                                    <CalendarMenu
+                                                        url={calendarUrl}
+                                                        onCopyError={() =>
+                                                            setError('Could not copy the calendar link.')
+                                                        }
+                                                    />
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    className="icon-button"
+                                                    aria-label="Find team"
+                                                    aria-haspopup="dialog"
+                                                    aria-expanded={findingTeam}
+                                                    onClick={() => {
+                                                        setView('live');
+                                                        setTeam('all');
+                                                        setFindingTeam(true);
+                                                    }}
+                                                >
+                                                    <Search size={16} aria-hidden="true" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditing((value) => !value)}
+                                                    aria-expanded={editing}
+                                                >
+                                                    <Plus size={16} aria-hidden="true" /> Edit favorites
+                                                </button>
+                                            </div>
+                                        </div>
                                         <SelectField
                                             label="Show"
                                             value={team}
