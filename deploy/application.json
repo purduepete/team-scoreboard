@@ -15,7 +15,8 @@
   "build": {
     "commands": [
       { "tool": "npm", "arguments": ["ci"], "workingDirectory": "." },
-      { "tool": "npm", "arguments": ["run", "build"], "workingDirectory": "." }
+      { "tool": "npm", "arguments": ["run", "build"], "workingDirectory": "." },
+      { "tool": "npm", "arguments": ["prune", "--omit=dev", "--ignore-scripts"], "workingDirectory": "." }
     ]
   },
   "launch": {
