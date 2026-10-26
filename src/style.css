@@ -885,7 +885,26 @@ small {
     color: var(--muted);
 }
 .game-meta {
+    flex-wrap: nowrap;
+    align-items: center;
     margin-bottom: 18px;
+}
+.game-description {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+.game-description-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.game-description .favorite-marker,
+.game-meta > :last-child {
+    flex-shrink: 0;
+}
+.game-meta > :last-child {
+    white-space: nowrap;
 }
 .score-lines {
     flex: 1;

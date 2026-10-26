@@ -184,6 +184,34 @@ test.beforeEach(async ({ page }) => {
         }
     });
 });
+test('long card metadata keeps favorites and status on one row', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+    liveExtra = { sport: "Women's Volleyball", week: 10, status: 'final', statusLabel: 'Final' };
+    await page.goto('/');
+    await expect(page.getByRole('region', { name: 'NBA', exact: true })).toBeVisible();
+    await expandSections(page);
+    for (const width of [390, 768, 1024, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const compact of [false, true]) {
+            if (compact) await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+            const card = page.locator('.game:visible').filter({ hasText: 'Indiana Pacers' }).first();
+            await expect(card.locator('.game-description-text')).toHaveText("NBA · Women's Volleyball · Week 10");
+            await expect(card.getByLabel('Favorite', { exact: true })).toBeVisible();
+            const layout = await card.locator('.game-meta').evaluate((meta) => {
+                const description = meta.querySelector('.game-description')!.getBoundingClientRect();
+                const status = meta.lastElementChild!.getBoundingClientRect();
+                return {
+                    sameRow: Math.abs(description.top + description.height / 2 - status.top - status.height / 2) < 1,
+                    separate: description.right <= status.left,
+                    inside: status.right <= meta.getBoundingClientRect().right + 1,
+                };
+            });
+            expect(layout).toEqual({ sameRow: true, separate: true, inside: true });
+            if (compact) await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+        }
+    }
+});
+
 test('scores stay close to the header on tablet and desktop without attribution', async ({ page }) => {
     await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
     await page.goto('/');

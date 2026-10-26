@@ -184,14 +184,16 @@ export function GameCard({
                 </Tooltip>
             )}
             <div className="game-meta">
-                <span>
+                <span className="game-description">
                     {favorite && (
                         <span className="favorite-marker">
                             <Star size={16} aria-label="Favorite" className="star" />
                         </span>
                     )}
-                    {game.league} · {game.sport}
-                    {game.week ? ` · Week ${game.week}` : ''}
+                    <span className="game-description-text">
+                        {game.league} · {game.sport}
+                        {game.week ? ` · Week ${game.week}` : ''}
+                    </span>
                 </span>
                 <span
                     className={
