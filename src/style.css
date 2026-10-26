@@ -130,6 +130,12 @@ main {
     padding: 36px max(16px, var(--safe-area-right)) calc(24px + var(--safe-area-bottom))
         max(16px, var(--safe-area-left));
 }
+.scores-page {
+    padding-top: 12px;
+}
+.scores-page > .panel:first-of-type {
+    margin-top: 0;
+}
 @media (min-width: 1024px) {
     header {
         padding-left: max(20px, var(--safe-area-left));
@@ -1076,12 +1082,6 @@ footer .refresh-time {
 @media (max-width: 600px) {
     main {
         padding-top: 24px;
-    }
-    .scores-page {
-        padding-top: 12px;
-    }
-    .scores-page > .panel:first-child {
-        margin-top: 0;
     }
     .brand {
         font-size: 0.85rem;

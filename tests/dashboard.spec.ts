@@ -184,6 +184,38 @@ test.beforeEach(async ({ page }) => {
         }
     });
 });
+test('scores stay close to the header on tablet and desktop without attribution', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+    await page.goto('/');
+    await expect(page.locator('footer .refresh-time')).toBeVisible();
+    for (const theme of ['light', 'midnight']) {
+        await page.evaluate((theme) => {
+            localStorage.setItem('team-scoreboard-theme', theme);
+        }, theme);
+        await page.reload();
+        await expect(page.locator('.toolbar')).toBeVisible();
+        for (const width of [768, 1024, 1280, 1440, 1920]) {
+            await page.setViewportSize({ width, height: 900 });
+            for (const compact of [false, true]) {
+                if (compact) await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+                const layout = await page
+                    .locator('.scores-page > .panel')
+                    .first()
+                    .evaluate((panel) => ({
+                        gap:
+                            panel.getBoundingClientRect().top -
+                            document.querySelector('header')!.getBoundingClientRect().bottom,
+                        overflow: document.documentElement.scrollWidth > innerWidth,
+                    }));
+                expect(layout).toEqual({ gap: 12, overflow: false });
+                await expect(page.getByText('Coverage and game times may change.', { exact: false })).toHaveCount(0);
+                await expect(page.locator('footer .refresh-time')).toBeVisible();
+                if (compact) await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+            }
+        }
+    }
+});
+
 test('themes, system tracking, keyboard dropdowns and mobile width', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
@@ -505,14 +537,13 @@ for (const theme of ['light', 'midnight']) {
         await expect(page.locator('footer .refresh-time svg')).toBeVisible();
         await page.setViewportSize({ width: 1280, height: 900 });
         const footerLayout = await page.locator('footer').evaluate((footer) => {
-            const note = footer.querySelector('.data-note')!.getBoundingClientRect();
             const refresh = footer.querySelector('.refresh-time')!.getBoundingClientRect();
             return {
-                sameLine: Math.abs(note.top + note.height / 2 - refresh.top - refresh.height / 2) < 1,
                 right: Math.abs(refresh.right - footer.getBoundingClientRect().right) < 1,
             };
         });
-        expect(footerLayout).toEqual({ sameLine: true, right: true });
+        expect(footerLayout).toEqual({ right: true });
+        await expect(page.locator('.data-note')).toHaveCount(0);
         await page.setViewportSize({ width: 390, height: 844 });
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         const show = page.getByRole('button', { name: 'Show', exact: true });

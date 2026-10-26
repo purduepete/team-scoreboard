@@ -856,13 +856,6 @@ export function App() {
                     </>
                 )}
                 <footer>
-                    <span className="data-note">
-                        Data from{' '}
-                        <a href="https://www.espn.com" target="_blank" rel="noreferrer">
-                            ESPN
-                        </a>
-                        . Coverage and game times may change. No affiliation with the teams or leagues.
-                    </span>
                     {updated && (
                         <div className="refresh-time">
                             <Clock3 size={13} aria-hidden="true" />
