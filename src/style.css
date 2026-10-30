@@ -835,6 +835,13 @@ small {
 .loading-entrance {
     display: inline-flex;
 }
+/* Caret browsing would otherwise draw a text caret beside the ring. */
+.loading-entrance,
+[role='status'] {
+    caret-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
 .loading-entrance,
 .score-results[data-initial-enter='true'] {
     animation: loading-enter 0.6s ease-out;
