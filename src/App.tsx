@@ -28,6 +28,7 @@ import { CalendarMenu } from './CalendarMenu';
 import { SelectField } from './SelectField';
 import { Tooltip } from './Tooltip';
 import { ThemeMenu } from './ThemeMenu';
+import { LoadingSpinner } from './LoadingSpinner';
 import { useTheme } from './theme';
 import { compactGames, groupGames, isFavorite, resultDays, visibleGames } from './games';
 import type { View } from './games';
@@ -75,6 +76,13 @@ export function App() {
     const [data, setData] = useState<Dashboard | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const resultsEntered = useRef(false);
+    const enterResults = useCallback((element: HTMLDivElement | null) => {
+        if (element && !resultsEntered.current) {
+            element.dataset.initialEnter = 'true';
+            resultsEntered.current = true;
+        }
+    }, []);
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
     const [activeOnly, setActiveOnly] = useState(() => {
@@ -456,7 +464,11 @@ export function App() {
                         </button>
                     </div>
                 )}
-                {loading && <p role="status">Loading saved favorites…</p>}
+                {loading && (
+                    <div className="page-loading">
+                        <LoadingSpinner label="Loading saved favorites" />
+                    </div>
+                )}
                 {data && (
                     <>
                         {!statusPage && !compact && editing && (
@@ -664,141 +676,146 @@ export function App() {
                                         )}
                                     </div>
                                 </div>
-                                {!compact &&
-                                    sections.map((section) => {
-                                        const open = isOpen(section.key);
-                                        return (
-                                            <section
-                                                className="league-section"
-                                                key={section.key}
-                                                aria-label={section.label}
-                                            >
-                                                <h2 className="section-title">
-                                                    <button
-                                                        type="button"
-                                                        aria-expanded={open}
-                                                        aria-controls={`section-${section.key}`}
-                                                        onClick={() => toggleSection(section.key)}
-                                                    >
-                                                        <ChevronRight
-                                                            size={20}
-                                                            aria-hidden="true"
-                                                            className={open ? 'chevron open' : 'chevron'}
-                                                        />
-                                                        <span>{section.label}</span>
-                                                        <small>
-                                                            {section.count} {section.count === 1 ? 'game' : 'games'}
-                                                        </small>
-                                                    </button>
-                                                </h2>
-                                                <div id={`section-${section.key}`} hidden={!open}>
-                                                    {section.days.map((group) => (
-                                                        <section
-                                                            className="game-group"
-                                                            key={group.key}
-                                                            aria-label={` · ${group.label}`}
+                                <div className="score-results" ref={enterResults}>
+                                    {!compact &&
+                                        sections.map((section) => {
+                                            const open = isOpen(section.key);
+                                            return (
+                                                <section
+                                                    className="league-section"
+                                                    key={section.key}
+                                                    aria-label={section.label}
+                                                >
+                                                    <h2 className="section-title">
+                                                        <button
+                                                            type="button"
+                                                            aria-expanded={open}
+                                                            aria-controls={`section-${section.key}`}
+                                                            onClick={() => toggleSection(section.key)}
                                                         >
-                                                            <h3 className="group-heading">
-                                                                <CalendarDays size={16} aria-hidden="true" />
-                                                                <span>{group.label}</span>
-                                                                <small>
-                                                                    {group.games.length}{' '}
-                                                                    {group.games.length === 1 ? 'game' : 'games'}
-                                                                </small>
-                                                            </h3>
-                                                            <div className="games">
-                                                                {group.games.map((game) => (
-                                                                    <GameCard
-                                                                        key={game.id}
-                                                                        game={game}
-                                                                        favorite={isFavorite(game, highlightIds)}
-                                                                        view={effectiveView}
-                                                                        flashes={flashes}
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                        </section>
-                                                    ))}
-                                                </div>
-                                            </section>
-                                        );
-                                    })}
-                                {!compact && activeOnly && !games.length && (!showCustom || !customCount) && (
-                                    <p role="status">No active games match the selected teams.</p>
-                                )}
-                                {!compact &&
-                                    !activeOnly &&
-                                    !games.length &&
-                                    (view === 'live' ? (
-                                        <div className="empty-state">
-                                            <Trophy size={28} />
-                                            <h2>No games today</h2>
-                                            <p>
-                                                Today's games, live scores and finals appear here. Check Upcoming for
-                                                the next games.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="empty-state">
-                                            <CalendarDays size={28} />
-                                            <h2>
-                                                No {view === 'recent' ? 'final results' : 'upcoming games'} returned
-                                            </h2>
-                                            <p>
-                                                Some feeds may still be refreshing, and off-season sports have no games.
-                                                Check source status from Tools.
-                                            </p>
-                                        </div>
-                                    ))}
-                                <AddedTeams
-                                    favoriteIds={favoriteIds}
-                                    onCountChange={setCustomCount}
-                                    renderCompact={
-                                        compact
-                                            ? (customGames, customStatus, customFlashes) => (
-                                                  <>
-                                                      <div className="games compact-games" aria-label="Compact games">
-                                                          {compactGames(
-                                                              [...games, ...(showCustom ? customGames : [])],
-                                                              favoriteIds
-                                                          ).map((game) => (
-                                                              <GameCard
-                                                                  key={game.id}
-                                                                  game={game}
-                                                                  favorite={isFavorite(game, highlightIds)}
-                                                                  view={effectiveView}
-                                                                  flashes={{ ...customFlashes, ...flashes }}
-                                                              />
-                                                          ))}
-                                                          {showCustom && customStatus}
-                                                      </div>
-                                                      {!games.length &&
-                                                          (!showCustom ||
-                                                              (!customGames.length &&
-                                                                  (activeOnly
-                                                                      ? !Children.count(customStatus)
-                                                                      : !customCount))) && (
-                                                              <p role="status">
-                                                                  {activeOnly
-                                                                      ? 'No active games match the selected teams.'
-                                                                      : 'No games match the current selection.'}
-                                                              </p>
-                                                          )}
-                                                  </>
-                                              )
-                                            : undefined
-                                    }
-                                    active={showCustom}
-                                    activeOnly={activeOnly}
-                                    dashboardFeeds={feeds}
-                                    open={findingTeam}
-                                    onClose={() => setFindingTeam(false)}
-                                    expanded={isOpen('custom')}
-                                    onToggle={() => toggleSection('custom')}
-                                    onAdd={() => {
-                                        if (!isOpen('custom')) toggleSection('custom');
-                                    }}
-                                />
+                                                            <ChevronRight
+                                                                size={20}
+                                                                aria-hidden="true"
+                                                                className={open ? 'chevron open' : 'chevron'}
+                                                            />
+                                                            <span>{section.label}</span>
+                                                            <small>
+                                                                {section.count} {section.count === 1 ? 'game' : 'games'}
+                                                            </small>
+                                                        </button>
+                                                    </h2>
+                                                    <div id={`section-${section.key}`} hidden={!open}>
+                                                        {section.days.map((group) => (
+                                                            <section
+                                                                className="game-group"
+                                                                key={group.key}
+                                                                aria-label={` · ${group.label}`}
+                                                            >
+                                                                <h3 className="group-heading">
+                                                                    <CalendarDays size={16} aria-hidden="true" />
+                                                                    <span>{group.label}</span>
+                                                                    <small>
+                                                                        {group.games.length}{' '}
+                                                                        {group.games.length === 1 ? 'game' : 'games'}
+                                                                    </small>
+                                                                </h3>
+                                                                <div className="games">
+                                                                    {group.games.map((game) => (
+                                                                        <GameCard
+                                                                            key={game.id}
+                                                                            game={game}
+                                                                            favorite={isFavorite(game, highlightIds)}
+                                                                            view={effectiveView}
+                                                                            flashes={flashes}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                            </section>
+                                                        ))}
+                                                    </div>
+                                                </section>
+                                            );
+                                        })}
+                                    {!compact && activeOnly && !games.length && (!showCustom || !customCount) && (
+                                        <p role="status">No active games match the selected teams.</p>
+                                    )}
+                                    {!compact &&
+                                        !activeOnly &&
+                                        !games.length &&
+                                        (view === 'live' ? (
+                                            <div className="empty-state">
+                                                <Trophy size={28} />
+                                                <h2>No games today</h2>
+                                                <p>
+                                                    Today's games, live scores and finals appear here. Check Upcoming
+                                                    for the next games.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="empty-state">
+                                                <CalendarDays size={28} />
+                                                <h2>
+                                                    No {view === 'recent' ? 'final results' : 'upcoming games'} returned
+                                                </h2>
+                                                <p>
+                                                    Some feeds may still be refreshing, and off-season sports have no
+                                                    games. Check source status from Tools.
+                                                </p>
+                                            </div>
+                                        ))}
+                                    <AddedTeams
+                                        favoriteIds={favoriteIds}
+                                        onCountChange={setCustomCount}
+                                        renderCompact={
+                                            compact
+                                                ? (customGames, customStatus, customFlashes) => (
+                                                      <>
+                                                          <div
+                                                              className="games compact-games"
+                                                              aria-label="Compact games"
+                                                          >
+                                                              {compactGames(
+                                                                  [...games, ...(showCustom ? customGames : [])],
+                                                                  favoriteIds
+                                                              ).map((game) => (
+                                                                  <GameCard
+                                                                      key={game.id}
+                                                                      game={game}
+                                                                      favorite={isFavorite(game, highlightIds)}
+                                                                      view={effectiveView}
+                                                                      flashes={{ ...customFlashes, ...flashes }}
+                                                                  />
+                                                              ))}
+                                                              {showCustom && customStatus}
+                                                          </div>
+                                                          {!games.length &&
+                                                              (!showCustom ||
+                                                                  (!customGames.length &&
+                                                                      (activeOnly
+                                                                          ? !Children.count(customStatus)
+                                                                          : !customCount))) && (
+                                                                  <p role="status">
+                                                                      {activeOnly
+                                                                          ? 'No active games match the selected teams.'
+                                                                          : 'No games match the current selection.'}
+                                                                  </p>
+                                                              )}
+                                                      </>
+                                                  )
+                                                : undefined
+                                        }
+                                        active={showCustom}
+                                        activeOnly={activeOnly}
+                                        dashboardFeeds={feeds}
+                                        open={findingTeam}
+                                        onClose={() => setFindingTeam(false)}
+                                        expanded={isOpen('custom')}
+                                        onToggle={() => toggleSection('custom')}
+                                        onAdd={() => {
+                                            if (!isOpen('custom')) toggleSection('custom');
+                                        }}
+                                    />
+                                </div>
                             </section>
                         )}
                         {statusPage && (

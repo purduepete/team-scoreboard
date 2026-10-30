@@ -14,6 +14,8 @@ The header's Compact mode button shows a single grid using the current schedule 
 
 Favorites appear first across leagues, ordered by games in progress, scheduled games and completed games, then start time oldest to newest. Nonfavorites sort by league (Purdue, Big Ten, NFL, NBA, MLB, then other leagues), then the same status and start-time order. Eligible Custom games join the grid, shared events appear once, and Custom loading/error/no-game cards remain visible. Grouped Custom cards sort by favorites, status and start time by default; a manually saved Custom order still takes priority. Source status is in Tools; its page has a Back to scores link.
 
+The initial favorites load shows a centered, theme-colored 40px spinner after 250ms. Fast requests show no spinner. The spinner and initial results fade in over 0.6s; results replace the spinner immediately when ready. Navigation stays outside the fade, and refreshes and view changes don't replay it. Its loading label stays available to screen readers, and reduced motion disables both the fades and rotation.
+
 Tools has 2 rows: Find team and Edit favorites first, then the icon-only Source status link and Calendar. Each row uses one-third of the available button width on the left and two-thirds on the right. Calendar appears when the server has a configured feed.
 
 ## Add a college team for today

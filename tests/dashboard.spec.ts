@@ -184,6 +184,150 @@ test.beforeEach(async ({ page }) => {
         }
     });
 });
+test('initial loading spinner waits 250ms and follows themes and reduced motion', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 30, 12) });
+    await page.clock.pauseAt(new Date(2026, 9, 30, 12, 0, 1));
+    let release!: () => void;
+    const response = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await page.route('**/api/dashboard*', async (route) => {
+        await response;
+        await route.fallback();
+    });
+    await page.goto('/');
+    await expect(page.locator('.page-loading')).toBeVisible();
+    const spinner = page.getByRole('status').filter({ hasText: 'Loading saved favorites' });
+    await page.clock.runFor(249);
+    await expect(spinner).toHaveCount(0);
+    await page.clock.runFor(1);
+    await expect(spinner).toBeVisible();
+    await expect(spinner).toHaveText('Loading saved favorites');
+    await expect(spinner.locator('.sr-only')).toHaveCSS('width', '1px');
+    for (const theme of ['light', 'midnight']) {
+        await page.evaluate((theme) => {
+            document.documentElement.classList.toggle('theme-midnight', theme === 'midnight');
+        }, theme);
+        const styles = await spinner.locator('.loading-spinner').evaluate((element) => {
+            const style = getComputedStyle(element);
+            return {
+                width: style.width,
+                height: style.height,
+                track: style.borderRightColor,
+                arc: style.borderTopColor,
+                animation: style.animationDuration,
+            };
+        });
+        expect(styles).toEqual({
+            width: '40px',
+            height: '40px',
+            track: theme === 'light' ? 'rgb(203, 213, 225)' : 'rgb(51, 65, 85)',
+            arc: theme === 'light' ? 'rgb(47, 71, 123)' : 'rgb(107, 140, 174)',
+            animation: '1s',
+        });
+    }
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(spinner).toHaveCSS('animation-name', 'none');
+    await expect(spinner.locator('.loading-spinner')).toHaveCSS('animation-name', 'none');
+    release();
+    await expect(page.locator('.toolbar')).toBeVisible();
+    await expect(spinner).toHaveCount(0);
+    await expect(page.locator('.score-results')).toHaveCSS('animation-name', 'none');
+    await expect(page.locator('.score-results')).toHaveCSS('opacity', '1');
+});
+
+test('loading fades progress smoothly without fading navigation or replaying results', async ({ page }) => {
+    let release!: () => void;
+    const response = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await page.route('**/api/dashboard*', async (route) => {
+        await response;
+        await route.fallback();
+    });
+    await page.goto('/');
+    const spinner = page.getByRole('status').filter({ hasText: 'Loading saved favorites' });
+    await expect(spinner).toBeVisible();
+    const measureFade = async (selector: string) =>
+        page.locator(selector).evaluate((element) => {
+            const animation = element
+                .getAnimations()
+                .find((entry) => entry instanceof CSSAnimation && entry.animationName === 'loading-enter')!;
+            animation.pause();
+            const samples = [0, 300, 600].map((time) => {
+                animation.currentTime = time;
+                return Number(getComputedStyle(element).opacity);
+            });
+            animation.currentTime = 100;
+            return {
+                samples,
+                duration: animation.effect!.getTiming().duration,
+                easing: getComputedStyle(element).animationTimingFunction,
+            };
+        });
+    const spinnerFade = await measureFade('.loading-entrance');
+    expect(spinnerFade.duration).toBe(600);
+    expect(spinnerFade.easing).toBe('ease-out');
+    expect(spinnerFade.samples[0]).toBe(0);
+    expect(spinnerFade.samples[1]).toBeGreaterThan(0);
+    expect(spinnerFade.samples[1]).toBeLessThan(1);
+    expect(spinnerFade.samples[2]).toBe(1);
+    release();
+    await expect(page.locator('.toolbar')).toBeVisible();
+    await expect(spinner).toHaveCount(0);
+    const resultsFade = await measureFade('.score-results');
+    expect(resultsFade).toEqual(spinnerFade);
+    const toolbar = await page.locator('.toolbar').elementHandle();
+    const results = await page.locator('.score-results').elementHandle();
+    await expect(page.locator('.toolbar')).toHaveCSS('opacity', '1');
+    expect(
+        await page.locator('.toolbar').evaluate((element) => {
+            for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement) {
+                if (getComputedStyle(ancestor).animationName.includes('loading-enter')) return true;
+            }
+            return false;
+        })
+    ).toBe(false);
+    await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+    await page.getByRole('button', { name: 'Recent', exact: true }).click();
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    expect(await toolbar!.evaluate((element) => element === document.querySelector('.toolbar'))).toBe(true);
+    expect(await results!.evaluate((element) => element === document.querySelector('.score-results'))).toBe(true);
+    expect(await results!.evaluate((element) => element.getAnimations()[0].currentTime)).toBe(100);
+    await page.evaluate(() => {
+        location.hash = '#status';
+    });
+    await expect(page.getByRole('heading', { name: 'Source status' })).toBeVisible();
+    await page.getByRole('link', { name: 'Back to scores', exact: true }).click();
+    await expect(page.locator('.score-results')).toBeVisible();
+    await expect(page.locator('.score-results')).not.toHaveAttribute('data-initial-enter');
+});
+
+test('fast initial loads never display a spinner', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 30, 12) });
+    await page.clock.pauseAt(new Date(2026, 9, 30, 12, 0, 1));
+    await page.goto('/');
+    await expect(page.locator('.toolbar')).toBeVisible();
+    await expect(page.locator('.loading-spinner')).toHaveCount(0);
+    await page.clock.runFor(300);
+    await expect(page.locator('.loading-spinner')).toHaveCount(0);
+});
+
+test('failed initial loads remove the spinner and retain the error and retry', async ({ page }) => {
+    await page.route('**/api/dashboard*', (route) => route.fulfill({ status: 503, json: {} }));
+    await page.goto('/');
+    await expect(page.getByRole('alert')).toContainText('The server could not access saved favorites');
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await expect(page.locator('.page-loading')).toHaveCount(0);
+    await page.unroute('**/api/dashboard*');
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.locator('.score-results')).toBeVisible();
+    await expect(page.locator('.score-results')).toHaveCSS('animation-name', 'loading-enter');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.locator('.loading-entrance')).toHaveCount(0);
+});
+
 test('long card metadata keeps favorites and status on one row', async ({ page }) => {
     await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
     liveExtra = { sport: "Women's Volleyball", week: 10, status: 'final', statusLabel: 'Final' };
