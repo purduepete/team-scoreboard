@@ -16,6 +16,8 @@ Favorites appear first across leagues, ordered by games in progress, scheduled g
 
 The initial favorites load shows a centered, theme-colored 40px spinner after 250ms. Fast requests show no spinner. The spinner and initial results fade in over 0.6s; results replace the spinner immediately when ready. Navigation stays outside the fade, and refreshes and view changes don't replay it. Its loading label stays available to screen readers, and reduced motion disables both the fades and rotation.
 
+After cached scores appear, the automatic startup refetch keeps results visible with subtle dimming and an accessible busy state, then restores full opacity when it finishes or fails. The header's spinning Refresh icon is reserved for a manual refresh.
+
 Tools has 2 rows: Find team and Edit favorites first, then the icon-only Source status link and Calendar. Each row uses one-third of the available button width on the left and two-thirds on the right. Calendar appears when the server has a configured feed.
 
 ## Add a college team for today

@@ -129,6 +129,7 @@ export function App() {
         keys: [],
     });
     const [refreshing, setRefreshing] = useState(false);
+    const [startupRefreshing, setStartupRefreshing] = useState(false);
     const [help, setHelp] = useState(false);
     const [editing, setEditing] = useState(false);
     const [findingTeam, setFindingTeam] = useState(false);
@@ -259,9 +260,9 @@ export function App() {
     useEffect(() => {
         if (loaded.current) return;
         loaded.current = true;
-        setRefreshing(true);
+        setStartupRefreshing(true);
         void refresh(true, true).finally(() => {
-            if (mounted.current) setRefreshing(false);
+            if (mounted.current) setStartupRefreshing(false);
         });
     }, [refresh]);
 
@@ -676,7 +677,7 @@ export function App() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="score-results" ref={enterResults}>
+                                <div className="score-results" ref={enterResults} aria-busy={startupRefreshing}>
                                     {!compact &&
                                         sections.map((section) => {
                                             const open = isOpen(section.key);

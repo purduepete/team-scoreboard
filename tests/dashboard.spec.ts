@@ -304,6 +304,84 @@ test('loading fades progress smoothly without fading navigation or replaying res
     await expect(page.locator('.score-results')).not.toHaveAttribute('data-initial-enter');
 });
 
+test('cached results dim during startup refetch without spinning the header', async ({ page }) => {
+    let release!: () => void;
+    const response = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await page.route('**/api/dashboard*', async (route) => {
+        if (new URL(route.request().url()).searchParams.get('refresh') === 'all') await response;
+        await route.fallback();
+    });
+    await page.goto('/');
+    const results = page.locator('.score-results');
+    await expect(results).toBeVisible();
+    await expect(results).toHaveAttribute('aria-busy', 'true');
+    await expect(results).toHaveCSS('opacity', '0.65');
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Refreshing', exact: true })).toHaveCount(0);
+    await expect(page.locator('.loading-entrance')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(results).toHaveCSS('animation-name', 'none');
+    await expect(results).toHaveCSS('transition-duration', '0s');
+    release();
+    await expect(results).toHaveAttribute('aria-busy', 'false');
+    await expect(results).toHaveCSS('opacity', '1');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('failed startup refetch clears dimming and preserves cached scores', async ({ page }) => {
+    let release!: () => void;
+    const response = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await page.route('**/api/dashboard*', async (route) => {
+        if (new URL(route.request().url()).searchParams.get('refresh') === 'all') {
+            await response;
+            await route.fulfill({ status: 503, json: {} });
+        } else {
+            await route.fallback();
+        }
+    });
+    await page.goto('/');
+    const results = page.locator('.score-results');
+    await expect(results).toHaveAttribute('aria-busy', 'true');
+    release();
+    await expect(results).toHaveAttribute('aria-busy', 'false');
+    await expect(results).toHaveCSS('opacity', '1');
+    await expect(page.getByRole('region', { name: 'NBA', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+});
+
+test('startup completion does not stop a manual refresh indicator', async ({ page }) => {
+    let finishStartup!: () => void;
+    let finishManual!: () => void;
+    const startup = new Promise<void>((resolve) => {
+        finishStartup = resolve;
+    });
+    const manual = new Promise<void>((resolve) => {
+        finishManual = resolve;
+    });
+    await page.route('**/api/dashboard*', async (route) => {
+        if (new URL(route.request().url()).searchParams.get('refresh') === 'all') await startup;
+        await route.fallback();
+    });
+    await page.route('**/api/refresh', async (route) => {
+        await manual;
+        await route.fallback();
+    });
+    await page.goto('/');
+    await expect(page.locator('.score-results')).toHaveAttribute('aria-busy', 'true');
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    const busy = page.getByRole('button', { name: 'Refreshing', exact: true });
+    await expect(busy).toBeDisabled();
+    finishStartup();
+    await expect(page.locator('.score-results')).toHaveAttribute('aria-busy', 'false');
+    await expect(busy).toBeDisabled();
+    finishManual();
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+});
+
 test('fast initial loads never display a spinner', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 30, 12) });
     await page.clock.pauseAt(new Date(2026, 9, 30, 12, 0, 1));
