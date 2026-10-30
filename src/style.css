@@ -824,18 +824,16 @@ small {
     outline-offset: 3px;
 }
 .page-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
     display: flex;
+    align-items: center;
     justify-content: center;
-    padding: 24px 0;
+    background: var(--page);
 }
 .loading-entrance {
     display: inline-flex;
-}
-.score-results {
-    transition: opacity 0.3s ease-out;
-}
-.score-results[aria-busy='true'] {
-    opacity: 0.65;
 }
 .loading-entrance,
 .score-results[data-initial-enter='true'] {

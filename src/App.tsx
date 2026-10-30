@@ -10,7 +10,6 @@ import {
     ChevronsUpDown,
     Clock3,
     Keyboard,
-    LoaderCircle,
     LayoutGrid,
     Radio,
     Plus,
@@ -406,11 +405,7 @@ export function App() {
                                 aria-label={refreshing ? 'Refreshing' : 'Refresh'}
                                 aria-keyshortcuts="R"
                             >
-                                {refreshing ? (
-                                    <LoaderCircle size={18} aria-hidden="true" />
-                                ) : (
-                                    <RefreshCw size={18} aria-hidden="true" />
-                                )}
+                                <RefreshCw size={18} aria-hidden="true" />
                             </button>
                         </Tooltip>
                         <Tooltip content="Active games only">
