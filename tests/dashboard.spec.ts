@@ -1054,6 +1054,38 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     expect(new Set(requestedDays)).toEqual(new Set(['14']));
 });
 
+for (const device of [
+    { name: 'iPhone', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', platform: 'iPhone' },
+    { name: 'iPad desktop identity', userAgent: '', platform: 'MacIntel' },
+]) {
+    test(`team finder keeps the keyboard closed on ${device.name} and still edits on tap`, async ({ page }) => {
+        await page.addInitScript(({ userAgent, platform }) => {
+            if (userAgent) Object.defineProperty(navigator, 'userAgent', { get: () => userAgent });
+            Object.defineProperty(navigator, 'platform', { get: () => platform });
+            Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
+        }, device);
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Tools', exact: true }).click();
+        const trigger = page.getByRole('button', { name: 'Find team', exact: true });
+        await trigger.click();
+        const close = page.getByRole('button', { name: 'Close team search', exact: true });
+        await expect(close).toBeFocused();
+        const search = page.getByLabel('Search teams', { exact: true });
+        await page.keyboard.press('Shift+Tab');
+        expect(
+            await page
+                .getByRole('dialog', { name: 'Find team', exact: true })
+                .evaluate((dialog) => dialog.contains(document.activeElement))
+        ).toBe(true);
+        await search.click();
+        await expect(search).toBeFocused();
+        await page.keyboard.type('Ala');
+        await expect(search).toHaveValue('Ala');
+        await page.keyboard.press('Escape');
+        await expect(trigger).toBeFocused();
+    });
+}
+
 test('team finder works while empty Custom is hidden, with dismissal and focus return', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Tools', exact: true }).click();

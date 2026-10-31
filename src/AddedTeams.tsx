@@ -5,6 +5,7 @@ import type { DragEvent, ReactNode } from 'react';
 import type { Feed, Game, SearchTeam, TeamCategory } from '../shared/contracts';
 import { GameCard } from './GameCard';
 import { Tooltip } from './Tooltip';
+import { isAppleTouchDevice } from './device';
 import { categories, localDate, pinKey, pinLimit, pinsKey, readCardOrder, readPins, todayGames } from './added-teams';
 import type { TeamPin } from './added-teams';
 import { reconcile, withLiveFields } from '../shared/reconcile';
@@ -95,6 +96,7 @@ export function AddedTeams({
     const controller = useRef<AbortController | null>(null);
     const busy = useRef(false);
     const searchInput = useRef<HTMLInputElement>(null);
+    const closeButton = useRef<HTMLButtonElement>(null);
     const dialog = useRef<HTMLDivElement>(null);
     const close = useRef(onClose);
     close.current = onClose;
@@ -264,7 +266,8 @@ export function AddedTeams({
     useEffect(() => {
         if (!open || !active) return;
         const previousFocus = document.activeElement as HTMLElement | null;
-        searchInput.current?.focus();
+        // On iPhone and iPad, focusing the search field would open the software keyboard.
+        (isAppleTouchDevice() ? closeButton : searchInput).current?.focus();
         const before = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         const keydown = (event: KeyboardEvent) => {
@@ -528,6 +531,7 @@ export function AddedTeams({
                                 <div className="help-heading">
                                     <h2 id="team-finder-title">Find team</h2>
                                     <button
+                                        ref={closeButton}
                                         type="button"
                                         className="icon-button"
                                         aria-label="Close team search"
