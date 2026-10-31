@@ -25,6 +25,9 @@ interface SearchResult {
     error: string | null;
 }
 
+// A refresh of an already-loaded feed is also pending; only a feed with no data yet is still loading.
+const awaitingFirstLoad = (feed: Feed) => Boolean(feed.pending) && feed.updatedAt === null;
+
 async function get<T>(url: string, signal: AbortSignal): Promise<T> {
     const response = await fetch(url, { signal });
     let body;
@@ -377,7 +380,13 @@ export function AddedTeams({
         const name =
             result?.team.name ?? `${categories.find((item) => item.value === pin.category)?.label} team ${pin.id}`;
         const hasGames = result && todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
-        if ((hasGames || activeOnly) && !entry?.error && !result?.feed.error && result && !result.feed.pending)
+        if (
+            (hasGames || activeOnly) &&
+            !entry?.error &&
+            !result?.feed.error &&
+            result &&
+            !awaitingFirstLoad(result.feed)
+        )
             return [];
         return [{ key: `team:${pinKey(pin)}`, kind: 'status' as const, pin, entry, name }];
     });
@@ -486,14 +495,15 @@ export function AddedTeams({
                 {card.entry?.error && <p role="alert">{card.entry.error}</p>}
                 {!result && !card.entry?.error && <p role="status">Loading team…</p>}
                 {result?.feed.error && <p role="alert">{result.feed.error}</p>}
-                {result?.feed.pending && !card.entry?.error && !result.feed.error && (
+                {result && awaitingFirstLoad(result.feed) && !card.entry?.error && !result.feed.error && (
                     <p role="status">Loading scores…</p>
                 )}
-                {result?.feed.stale && hasGames && <p role="status">Showing previously fetched scores.</p>}
+                {result?.feed.stale && result.feed.error && hasGames && (
+                    <p role="status">Showing previously fetched scores.</p>
+                )}
                 {result &&
                     !result.feed.error &&
-                    !result.feed.pending &&
-                    !result.feed.stale &&
+                    !awaitingFirstLoad(result.feed) &&
                     !todayGames(result.feed.games).length && <p>No game today.</p>}
             </article>
         );

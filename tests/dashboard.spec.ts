@@ -88,6 +88,7 @@ const secondSearchedTeam: SearchTeam = {
 };
 let addedGames: Game[] = [];
 let addedPending = false;
+let addedNeverLoaded = false;
 let addedError: string | null = null;
 let searchFailure = false;
 let addedRequests = 0;
@@ -108,6 +109,7 @@ test.beforeEach(async ({ page }) => {
     calendarUrl = null;
     addedGames = [];
     addedPending = false;
+    addedNeverLoaded = false;
     addedError = null;
     searchFailure = false;
     addedRequests = 0;
@@ -127,7 +129,11 @@ test.beforeEach(async ({ page }) => {
             await route.fulfill({
                 json: {
                     team: url.searchParams.get('id') === '8' ? secondSearchedTeam : searchedTeam,
-                    feed: { ...leagueFeed('College football', '', addedGames, addedError), pending: addedPending },
+                    feed: {
+                        ...leagueFeed('College football', '', addedGames, addedError),
+                        pending: addedPending,
+                        ...(addedNeverLoaded ? { updatedAt: null } : {}),
+                    },
                 },
             });
         } else if (url.pathname === '/api/calendar') {
@@ -1126,18 +1132,27 @@ test('added teams distinguish no game, pending and errors and expire at local mi
             })
         )
     );
+    addedPending = true;
+    addedNeverLoaded = true;
     await page.goto('/');
     const added = page.getByRole('region', { name: 'Custom', exact: true });
     await added.locator('.section-title button').click();
+    await expect(added.getByRole('status')).toContainText('Loading scores');
+    await expect(added).not.toContainText('No game today.');
+    addedPending = false;
+    addedNeverLoaded = false;
+    await page.clock.runFor(20_000);
     await expect(added).toContainText('No game today.');
     const statusCard = added.locator('.custom-status-card');
     const statusBounds = await statusCard.boundingBox();
     await expect(statusCard.locator('.reorder-card')).toHaveCount(0);
     expect(statusBounds).not.toBeNull();
     addedPending = true;
-    await page.clock.runFor(20_000);
-    await expect(added.getByRole('status')).toContainText('Loading scores');
-    await expect(added).not.toContainText('No game today.');
+    const requestsBeforeRefresh = addedRequests;
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect.poll(() => addedRequests).toBeGreaterThan(requestsBeforeRefresh);
+    await expect(added).toContainText('No game today.');
+    await expect(added).not.toContainText('Loading scores');
     addedPending = false;
     addedError = 'Fixture scores unavailable.';
     await page.clock.runFor(5000);
