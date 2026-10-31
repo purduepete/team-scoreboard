@@ -75,6 +75,13 @@ export function App() {
     const [data, setData] = useState<Dashboard | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [firstLoad, setFirstLoad] = useState('loading');
+    const [calendarReady, setCalendarReady] = useState(false);
+    const [addedReady, setAddedReady] = useState(false);
+    const addedLoaded = useCallback((failure?: string) => {
+        setAddedReady(true);
+        if (failure) setError(failure);
+    }, []);
     const resultsEntered = useRef(false);
     const enterResults = useCallback((element: HTMLDivElement | null) => {
         if (element && !resultsEntered.current) {
@@ -148,6 +155,11 @@ export function App() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
     const statusPage = page === 'status';
+    useEffect(() => {
+        if (firstLoad !== 'loading') return;
+        if (error) setFirstLoad('error');
+        else if (!loading && calendarReady && (statusPage || addedReady)) setFirstLoad('ready');
+    }, [firstLoad, error, loading, calendarReady, statusPage, addedReady]);
     const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
     // Score cells that changed on the last poll, keyed `${id}:home|away`, with a stamp to restart the animation.
     const [flashes, setFlashes] = useState<Record<string, number>>({});
@@ -218,11 +230,30 @@ export function App() {
         void refresh(false, true);
     }, [refresh]);
     useEffect(() => {
-        request<{ url: string }>('/api/calendar')
-            .then((body) => {
-                if (mounted.current && /^https:\/\//.test(body.url)) setCalendarUrl(body.url);
+        fetch('/api/calendar', { signal: AbortSignal.timeout(15_000) })
+            .then(async (response) => {
+                const body: { url?: string; error?: string } = await response.json();
+                if (!response.ok) {
+                    if (response.status === 404 && body.error === 'The calendar feed is not configured.') return null;
+                    throw new Error(`Calendar request failed (${response.status}).`);
+                }
+                if (typeof body.url !== 'string' || !/^https:\/\//.test(body.url))
+                    throw new Error('The calendar subscription link is invalid.');
+                return body;
             })
-            .catch(() => undefined);
+            .then((body) => {
+                if (mounted.current && body?.url) setCalendarUrl(body.url);
+            })
+            .catch((failure) => {
+                console.error('Could not load the calendar subscription.', failure);
+                if (mounted.current)
+                    setError(
+                        `Could not load the calendar subscription. ${failure instanceof Error ? failure.message : 'Please try again.'}`
+                    );
+            })
+            .finally(() => {
+                if (mounted.current) setCalendarReady(true);
+            });
     }, []);
     useEffect(() => {
         const onHash = () => setPage(location.hash === '#status' ? 'status' : 'scores');
@@ -388,7 +419,12 @@ export function App() {
         .at(-1);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return (
-        <>
+        <div data-first-load={firstLoad}>
+            {firstLoad === 'loading' && (
+                <div className="page-loading first-loading">
+                    <LoadingSpinner label="Loading Team Scoreboard" />
+                </div>
+            )}
             <header>
                 <div className="header-inner">
                     <a className="brand" href="/" aria-label="Team Scoreboard home">
@@ -458,11 +494,6 @@ export function App() {
                         <button type="button" onClick={() => void refresh()}>
                             Retry
                         </button>
-                    </div>
-                )}
-                {loading && (
-                    <div className="page-loading">
-                        <LoadingSpinner label="Loading saved favorites" />
                     </div>
                 )}
                 {data && (
@@ -760,6 +791,7 @@ export function App() {
                                             </div>
                                         ))}
                                     <AddedTeams
+                                        onInitialReady={addedLoaded}
                                         favoriteIds={favoriteIds}
                                         onCountChange={setCustomCount}
                                         renderCompact={
@@ -928,6 +960,6 @@ export function App() {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

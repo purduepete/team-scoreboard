@@ -66,6 +66,7 @@ export function AddedTeams({
     onAdd,
     onCountChange,
     renderCompact,
+    onInitialReady,
 }: {
     active: boolean;
     activeOnly?: boolean;
@@ -78,10 +79,20 @@ export function AddedTeams({
     onAdd: () => void;
     onCountChange: (count: number) => void;
     renderCompact?: (games: Game[], status: ReactNode, flashes: Record<string, number>) => ReactNode;
+    onInitialReady: (failure?: string) => void;
 }) {
     const [saved, setSaved] = useState(initialPins);
     useEffect(() => onCountChange(saved.pins.length), [saved.pins.length, onCountChange]);
     const [entries, setEntries] = useState<Record<string, Entry>>({});
+    const initialReported = useRef(false);
+    useEffect(() => {
+        if (initialReported.current) return;
+        const failure = saved.error || Object.values(entries).find((entry) => entry.error)?.error;
+        if (failure || saved.pins.every((pin) => entries[pinKey(pin)])) {
+            initialReported.current = true;
+            onInitialReady(failure);
+        }
+    }, [saved.error, saved.pins, entries, onInitialReady]);
     const [category, setCategory] = useState<TeamCategory>('college-football');
     const [query, setQuery] = useState('');
     const [search, setSearch] = useState<SearchResult | null>(null);

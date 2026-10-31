@@ -846,6 +846,24 @@ small {
 .score-results[data-initial-enter='true'] {
     animation: loading-enter 0.6s ease-out;
 }
+[data-first-load='loading'] > :not(.first-loading) {
+    visibility: hidden;
+    opacity: 0;
+}
+[data-first-load='ready'] > :is(header, main, footer) {
+    animation: loading-enter 0.6s ease-out both;
+}
+[data-first-load] .score-results[data-initial-enter='true'] {
+    animation: none;
+}
+.first-loading {
+    inset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-first-load='ready'] > :is(header, main, footer) {
+        animation: none;
+    }
+}
 @keyframes loading-enter {
     from {
         opacity: 0;
@@ -1197,6 +1215,7 @@ footer .refresh-time {
 }
 
 .help-backdrop {
+    animation: loading-enter 0.25s ease-out both;
     position: fixed;
     inset: 0;
     z-index: 200;
@@ -1208,6 +1227,7 @@ footer .refresh-time {
     background: rgb(2 6 23 / 0.6);
 }
 .help-dialog {
+    animation: loading-enter 0.25s ease-out both;
     width: min(420px, 100%);
     max-height: 100%;
     overflow-y: auto;
