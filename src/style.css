@@ -717,10 +717,10 @@ small {
     content: '';
     position: absolute;
     box-sizing: border-box;
-    top: -13px;
+    top: -17px;
     left: -1px;
     right: -1px;
-    height: 10px;
+    height: 16px;
     border-top: 1px solid var(--accent);
     border-bottom: 1px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 25%, var(--panel));
@@ -733,17 +733,23 @@ small {
         top: -1px;
         right: auto;
         bottom: -1px;
-        left: -13px;
-        width: 10px;
+        left: -17px;
+        width: 16px;
         height: auto;
         border-top: 0;
         border-bottom: 0;
         border-left: 1px solid var(--accent);
         border-right: 1px solid var(--accent);
     }
+    .compact-games:has(> :nth-child(2)) > .compact-group-start:nth-child(2n)::before {
+        display: block;
+    }
 }
 @container (min-width: 932px) {
-    .compact-games:has(> :nth-child(3)) > .compact-group-start:nth-child(3n + 2)::before {
+    .compact-games:has(> :nth-child(3)) > .compact-group-start:nth-child(n)::before {
+        display: none;
+    }
+    .compact-games:has(> :nth-child(3)) > .compact-group-start:not(:nth-child(3n + 1))::before {
         display: block;
     }
 }
@@ -751,7 +757,7 @@ small {
     .compact-games:has(> :nth-child(4)) > .compact-group-start:nth-child(n)::before {
         display: none;
     }
-    .compact-games:has(> :nth-child(4)) > .compact-group-start:is(:nth-child(4n + 2), :nth-child(4n + 3))::before {
+    .compact-games:has(> :nth-child(4)) > .compact-group-start:not(:nth-child(4n + 1))::before {
         display: block;
     }
 }

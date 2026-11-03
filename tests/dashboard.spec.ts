@@ -923,7 +923,7 @@ for (const theme of ['light', 'midnight']) {
             };
         });
         expect(divider.width).toBeGreaterThan(50);
-        expect(divider.height).toBe('10px');
+        expect(divider.height).toBe('16px');
         expect(divider.color).toBe(divider.expectedColor);
         expect(divider.topWidth).toBe('1px');
         expect(divider.bottomWidth).toBe('1px');
@@ -1063,8 +1063,20 @@ test('compact dividers follow occupied grid columns on resize', async ({ page })
         cards.evaluateAll((elements) =>
             elements.map((card) => {
                 const line = getComputedStyle(card, '::before');
+                const cardStyle = getComputedStyle(card);
+                const bounds = card.getBoundingClientRect();
+                const dividerLeft = bounds.left + parseFloat(cardStyle.borderLeftWidth) + parseFloat(line.left);
+                const dividerTop = bounds.top + parseFloat(cardStyle.borderTopWidth) + parseFloat(line.top);
                 return {
-                    x: Math.round(card.getBoundingClientRect().x),
+                    x: Math.round(bounds.x),
+                    left: bounds.left,
+                    right: bounds.right,
+                    top: bounds.top,
+                    bottom: bounds.bottom,
+                    dividerLeft,
+                    dividerRight: dividerLeft + parseFloat(line.width),
+                    dividerTop,
+                    dividerBottom: dividerTop + parseFloat(line.height),
                     visible: line.content !== 'none' && line.display !== 'none',
                     width: parseFloat(line.width),
                     height: parseFloat(line.height),
@@ -1081,28 +1093,36 @@ test('compact dividers follow occupied grid columns on resize', async ({ page })
         for (const index of visible) {
             if (columns === 1) {
                 expect(items[index].width).toBeGreaterThan(50);
-                expect(items[index].height).toBe(10);
+                expect(items[index].height).toBe(16);
+                expect(items[index].dividerLeft).toBeCloseTo(items[index].left, 2);
+                expect(items[index].dividerRight).toBeCloseTo(items[index].right, 2);
+                expect(items[index].dividerTop).toBeCloseTo(items[index - 1].bottom, 2);
+                expect(items[index].dividerBottom).toBeCloseTo(items[index].top, 2);
             } else {
-                expect(items[index].width).toBe(10);
+                expect(items[index].width).toBe(16);
                 expect(items[index].height).toBeGreaterThan(50);
                 expect(items[index].leftBorder).toBe(1);
                 expect(items[index].rightBorder).toBe(1);
+                expect(items[index].dividerLeft).toBeCloseTo(items[index - 1].right, 2);
+                expect(items[index].dividerRight).toBeCloseTo(items[index].left, 2);
+                expect(items[index].dividerTop).toBeCloseTo(items[index].top, 2);
+                expect(items[index].dividerBottom).toBeCloseTo(items[index].bottom, 2);
             }
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     };
     await checkColumns(390, 1, [1, 2, 3, 4, 5]);
-    await checkColumns(800, 2, []);
-    await checkColumns(1120, 3, [1, 4]);
-    await checkColumns(1500, 4, [1, 2, 5]);
+    await checkColumns(800, 2, [1, 3, 5]);
+    await checkColumns(1120, 3, [1, 2, 4, 5]);
+    await checkColumns(1500, 4, [1, 2, 3, 5]);
     displayedGames = fixtures.slice(0, 2);
     await page.reload();
     await expect(cards).toHaveCount(2);
-    await checkColumns(1500, 2, []);
+    await checkColumns(1500, 2, [1]);
     displayedGames = fixtures.slice(0, 3);
     await page.reload();
     await expect(cards).toHaveCount(3);
-    await checkColumns(1500, 3, [1]);
+    await checkColumns(1500, 3, [1, 2]);
     await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
     await expect(page.locator('.compact-group-start')).toHaveCount(0);
     await page.getByRole('button', { name: 'Show', exact: true }).click();
