@@ -710,6 +710,51 @@ small {
 .league-section + .league-section {
     margin-top: 12px;
 }
+.compact-games {
+    container-type: inline-size;
+}
+.compact-games .compact-group-start::before {
+    content: '';
+    position: absolute;
+    box-sizing: border-box;
+    top: -13px;
+    left: -1px;
+    right: -1px;
+    height: 10px;
+    border-top: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 25%, var(--panel));
+    pointer-events: none;
+}
+/* The 300px track minimum and 16px gap set the column thresholds. */
+@container (min-width: 616px) {
+    .compact-games .compact-group-start::before {
+        display: none;
+        top: -1px;
+        right: auto;
+        bottom: -1px;
+        left: -13px;
+        width: 10px;
+        height: auto;
+        border-top: 0;
+        border-bottom: 0;
+        border-left: 1px solid var(--accent);
+        border-right: 1px solid var(--accent);
+    }
+}
+@container (min-width: 932px) {
+    .compact-games:has(> :nth-child(3)) > .compact-group-start:nth-child(3n + 2)::before {
+        display: block;
+    }
+}
+@container (min-width: 1248px) {
+    .compact-games:has(> :nth-child(4)) > .compact-group-start:nth-child(n)::before {
+        display: none;
+    }
+    .compact-games:has(> :nth-child(4)) > .compact-group-start:is(:nth-child(4n + 2), :nth-child(4n + 3))::before {
+        display: block;
+    }
+}
 @keyframes section-open {
     from {
         opacity: 0;

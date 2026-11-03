@@ -900,6 +900,35 @@ for (const theme of ['light', 'midnight']) {
         await compact.click();
         const cards = page.locator('.compact-games .game');
         await expect(cards).toHaveCount(8);
+        const groupStarts = page.locator('.compact-games .compact-group-start');
+        await expect(groupStarts).toHaveCount(2);
+        await expect(groupStarts.nth(0)).toContainText('Active NFL');
+        await expect(groupStarts.nth(1)).toContainText('Boston Celtics');
+        const divider = await groupStarts.first().evaluate((card) => {
+            const style = getComputedStyle(card, '::before');
+            const sample = document.createElement('span');
+            sample.style.color = 'color-mix(in srgb, var(--accent) 25%, var(--panel))';
+            card.append(sample);
+            const expectedColor = getComputedStyle(sample).color;
+            sample.remove();
+            return {
+                width: parseFloat(style.width),
+                height: style.height,
+                color: style.backgroundColor,
+                expectedColor,
+                topWidth: style.borderTopWidth,
+                topColor: style.borderTopColor,
+                bottomWidth: style.borderBottomWidth,
+                bottomColor: style.borderBottomColor,
+            };
+        });
+        expect(divider.width).toBeGreaterThan(50);
+        expect(divider.height).toBe('10px');
+        expect(divider.color).toBe(divider.expectedColor);
+        expect(divider.topWidth).toBe('1px');
+        expect(divider.bottomWidth).toBe('1px');
+        expect(divider.topColor).toBe(theme === 'light' ? 'rgb(47, 71, 123)' : 'rgb(107, 140, 174)');
+        expect(divider.bottomColor).toBe(divider.topColor);
         for (const [index, home] of [
             'Indiana Pacers',
             'Indianapolis Colts',
@@ -998,6 +1027,91 @@ for (const theme of ['light', 'midnight']) {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
 }
+
+test('compact dividers follow occupied grid columns on resize', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 22, 12));
+    const fixtures: Game[] = ['NBA', 'NCAA', 'Big Ten', 'NFL', 'NBA', 'MLB'].map((league, index) => ({
+        ...game,
+        id: `divider-${index}`,
+        league,
+        teamIds: [index === 0 ? 'divider-favorite' : `divider-team-${index}`],
+        home: `Divider team ${index}`,
+        status: 'live',
+        statusLabel: 'In progress',
+    }));
+    let displayedGames = fixtures;
+    await page.route('**/api/dashboard**', async (route) => {
+        await route.fulfill({
+            json: {
+                favorites: ['divider-favorite'],
+                teams: [],
+                feeds: [leagueFeed('Fixture', '14', displayedGames)],
+                liveAvailable: true,
+                notice: 'Fixture data.',
+            } satisfies Dashboard,
+        });
+    });
+    await page.goto('/');
+    await expect(page.locator('.league-section')).toHaveCount(5);
+    await expect(page.locator('.compact-group-start')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    const cards = page.locator('.compact-games .game');
+    const groupStarts = page.locator('.compact-games .compact-group-start');
+    await expect(cards).toHaveCount(6);
+    await expect(groupStarts).toHaveCount(5);
+    const layout = () =>
+        cards.evaluateAll((elements) =>
+            elements.map((card) => {
+                const line = getComputedStyle(card, '::before');
+                return {
+                    x: Math.round(card.getBoundingClientRect().x),
+                    visible: line.content !== 'none' && line.display !== 'none',
+                    width: parseFloat(line.width),
+                    height: parseFloat(line.height),
+                    leftBorder: parseFloat(line.borderLeftWidth),
+                    rightBorder: parseFloat(line.borderRightWidth),
+                };
+            })
+        );
+    const checkColumns = async (width: number, columns: number, visible: number[]) => {
+        await page.setViewportSize({ width, height: 900 });
+        await expect.poll(async () => new Set((await layout()).map((card) => card.x)).size).toBe(columns);
+        const items = await layout();
+        expect(items.flatMap((card, index) => (card.visible ? [index] : []))).toEqual(visible);
+        for (const index of visible) {
+            if (columns === 1) {
+                expect(items[index].width).toBeGreaterThan(50);
+                expect(items[index].height).toBe(10);
+            } else {
+                expect(items[index].width).toBe(10);
+                expect(items[index].height).toBeGreaterThan(50);
+                expect(items[index].leftBorder).toBe(1);
+                expect(items[index].rightBorder).toBe(1);
+            }
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    };
+    await checkColumns(390, 1, [1, 2, 3, 4, 5]);
+    await checkColumns(800, 2, []);
+    await checkColumns(1120, 3, [1, 4]);
+    await checkColumns(1500, 4, [1, 2, 5]);
+    displayedGames = fixtures.slice(0, 2);
+    await page.reload();
+    await expect(cards).toHaveCount(2);
+    await checkColumns(1500, 2, []);
+    displayedGames = fixtures.slice(0, 3);
+    await page.reload();
+    await expect(cards).toHaveCount(3);
+    await checkColumns(1500, 3, [1]);
+    await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+    await expect(page.locator('.compact-group-start')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show', exact: true }).click();
+    await page.getByRole('option', { name: 'Favorites', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await expect(page.locator('.compact-games .game')).toHaveCount(1);
+    await expect(page.locator('.compact-group-start')).toHaveCount(0);
+});
 
 test('favorites lead each day, Show sits on the tab row and refresh posts the fixed 14-day window', async ({
     page,

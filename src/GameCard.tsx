@@ -155,6 +155,7 @@ function useSituation(game: Game) {
 export function GameCard({
     game,
     favorite = false,
+    className,
     view,
     flashes = {},
     actions,
@@ -163,6 +164,7 @@ export function GameCard({
 }: {
     game: Game;
     favorite?: boolean;
+    className?: string;
     view: View;
     flashes?: Record<string, number>;
     actions?: ReactNode;
@@ -172,7 +174,7 @@ export function GameCard({
     const football = game.sport === 'Football';
     const situation = useSituation(game);
     return (
-        <article className={`game${favorite ? ' favorite' : ''}`} {...reorder}>
+        <article className={`game${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`} {...reorder}>
             {game.league === 'NBA' && game.national && (
                 <Tooltip content={`National broadcast: ${game.national}`}>
                     <span

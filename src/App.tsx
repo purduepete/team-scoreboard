@@ -805,15 +805,32 @@ export function App() {
                                                               {compactGames(
                                                                   [...games, ...(showCustom ? customGames : [])],
                                                                   favoriteIds
-                                                              ).map((game) => (
-                                                                  <GameCard
-                                                                      key={game.id}
-                                                                      game={game}
-                                                                      favorite={isFavorite(game, highlightIds)}
-                                                                      view={effectiveView}
-                                                                      flashes={{ ...customFlashes, ...flashes }}
-                                                                  />
-                                                              ))}
+                                                              ).map((game, index, sorted) => {
+                                                                  const previous = sorted[index - 1];
+                                                                  const favorite = isFavorite(game, favoriteIds);
+                                                                  const startsGroup =
+                                                                      previous !== undefined &&
+                                                                      (favorite !== isFavorite(previous, favoriteIds) ||
+                                                                          (!favorite &&
+                                                                              game.league !== previous.league));
+                                                                  return (
+                                                                      <GameCard
+                                                                          key={game.id}
+                                                                          className={
+                                                                              startsGroup
+                                                                                  ? 'compact-group-start'
+                                                                                  : undefined
+                                                                          }
+                                                                          game={game}
+                                                                          favorite={isFavorite(game, highlightIds)}
+                                                                          view={effectiveView}
+                                                                          flashes={{
+                                                                              ...customFlashes,
+                                                                              ...flashes,
+                                                                          }}
+                                                                      />
+                                                                  );
+                                                              })}
                                                               {showCustom && customStatus}
                                                           </div>
                                                           {!games.length &&
