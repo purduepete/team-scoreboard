@@ -21,6 +21,12 @@ export function useTheme() {
             document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
             document.documentElement.style.backgroundColor = dark ? '#020617' : '#ffffff';
             document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#020617' : '#ffffff');
+            document
+                .querySelector('link[rel="icon"]')
+                ?.setAttribute('href', dark ? '/favicon.svg' : '/favicon-light.svg');
+            document
+                .querySelector('link[rel="apple-touch-icon"]')
+                ?.setAttribute('href', dark ? '/apple-touch-icon.png' : '/apple-touch-icon-light.png');
         };
         apply();
         try {

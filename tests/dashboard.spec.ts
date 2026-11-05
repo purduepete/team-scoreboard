@@ -476,6 +476,10 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await expect(page.locator('html')).toHaveClass(/theme-midnight/);
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png');
+    await expect(page.locator('.brand-icon-dark')).toBeVisible();
+    await expect(page.locator('.brand-icon-light')).toBeHidden();
     await expect(page.locator('select, datalist')).toHaveCount(0);
     const theme = page.getByRole('button', { name: 'Appearance', exact: true });
     const pill = page.getByRole('radiogroup', { name: 'Theme' });
@@ -492,6 +496,10 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await expect(pill.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('html')).toHaveClass('light');
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ffffff');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon-light.svg');
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon-light.png');
+    await expect(page.locator('.brand-icon-light')).toBeVisible();
+    await expect(page.locator('.brand-icon-dark')).toBeHidden();
     await page.keyboard.press('Escape');
     await expect(pill).toHaveCount(0);
     await expect(theme).toBeFocused();
@@ -501,8 +509,16 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await pill.getByRole('radio', { name: 'System' }).click();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/theme-midnight/);
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png');
+    await expect(page.locator('.brand-icon-dark')).toBeVisible();
+    await expect(page.locator('.brand-icon-light')).toBeHidden();
     await page.emulateMedia({ colorScheme: 'light' });
     await expect(page.locator('html')).toHaveClass('light');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon-light.svg');
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon-light.png');
+    await expect(page.locator('.brand-icon-light')).toBeVisible();
+    await expect(page.locator('.brand-icon-dark')).toBeHidden();
     const popover = await page.getByRole('dialog', { name: 'Appearance settings' }).boundingBox();
     expect(popover!.x).toBeGreaterThanOrEqual(0);
     expect(popover!.x + popover!.width).toBeLessThanOrEqual(390);
@@ -521,10 +537,44 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.locator('header')).toHaveCSS('position', 'sticky');
     await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveCount(0);
-    const icon = await page.request.get('/apple-touch-icon.png');
-    expect(icon.status()).toBe(200);
-    expect((await icon.body()).readUInt32BE(16)).toBe(180);
-    expect((await icon.body()).readUInt32BE(20)).toBe(180);
+    for (const path of ['/favicon.svg', '/favicon-light.svg']) {
+        expect((await page.request.get(path)).status()).toBe(200);
+    }
+    for (const path of ['/apple-touch-icon.png', '/apple-touch-icon-light.png']) {
+        const icon = await page.request.get(path);
+        expect(icon.status()).toBe(200);
+        expect((await icon.body()).readUInt32BE(16)).toBe(180);
+        expect((await icon.body()).readUInt32BE(20)).toBe(180);
+    }
+    const iconColors = await page.evaluate(async () => {
+        const sample = async (path: string, size: number) => {
+            const image = new Image();
+            image.src = path;
+            await image.decode();
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('Canvas 2D context is unavailable.');
+            context.drawImage(image, 0, 0, size, size);
+            const pixel = (x: number, y: number) =>
+                Array.from(context.getImageData(Math.floor((x * size) / 64), Math.floor((y * size) / 64), 1, 1).data);
+            return { background: pixel(32, 4), corner: pixel(0, 0), frame: pixel(18, 10), ember: pixel(14.5, 20) };
+        };
+        return Promise.all([
+            sample('/favicon.svg', 64),
+            sample('/favicon-light.svg', 64),
+            sample('/apple-touch-icon.png', 180),
+            sample('/apple-touch-icon-light.png', 180),
+        ]);
+    });
+    for (const [index, colors] of iconColors.entries()) {
+        const background = index % 2 === 0 ? [2, 6, 23, 255] : [255, 255, 255, 255];
+        const frame = index % 2 === 0 ? [232, 238, 247, 255] : [27, 42, 65, 255];
+        expect(colors.background).toEqual(background);
+        expect(colors.frame).toEqual(frame);
+        expect(colors.ember).toEqual([226, 122, 0, 255]);
+        if (index >= 2) expect(colors.corner).toEqual(background);
+    }
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
     await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('link', { name: 'Source status' }).click();

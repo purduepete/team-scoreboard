@@ -428,7 +428,10 @@ export function App() {
             <header>
                 <div className="header-inner">
                     <a className="brand" href="/" aria-label="Team Scoreboard home">
-                        <Trophy size={22} aria-hidden="true" />
+                        <span className="brand-icons" aria-hidden="true">
+                            <img className="brand-icon brand-icon-light" src="/favicon-light.svg" alt="" />
+                            <img className="brand-icon brand-icon-dark" src="/favicon.svg" alt="" />
+                        </span>
                         <span>Team Scoreboard</span>
                     </a>
                     <div className="header-actions">

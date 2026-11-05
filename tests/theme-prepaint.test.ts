@@ -23,8 +23,18 @@ describe('pre-paint theme', () => {
     ])('sets the backdrop for $saved with system dark=$dark', ({ saved, dark, expected }) => {
         const root = { className: '', style: { colorScheme: '', backgroundColor: '' } };
         const meta = { content: '' };
+        const icon = { href: '' };
+        const touchIcon = { href: '' };
         runInNewContext(script, {
-            document: { documentElement: root, querySelector: () => meta },
+            document: {
+                documentElement: root,
+                querySelector: (selector: string) => {
+                    if (selector === 'meta[name="theme-color"]') return meta;
+                    if (selector === 'link[rel="icon"]') return icon;
+                    if (selector === 'link[rel="apple-touch-icon"]') return touchIcon;
+                    throw new Error(`Unexpected selector: ${selector}`);
+                },
+            },
             localStorage: { getItem: () => saved },
             matchMedia: () => ({ matches: dark }),
             console,
@@ -32,5 +42,7 @@ describe('pre-paint theme', () => {
         expect(root.style.backgroundColor).toBe(expected);
         expect(root.style.colorScheme).toBe(expected === '#ffffff' ? 'light' : 'dark');
         expect(meta.content).toBe(expected);
+        expect(icon.href).toBe(expected === '#ffffff' ? '/favicon-light.svg' : '/favicon.svg');
+        expect(touchIcon.href).toBe(expected === '#ffffff' ? '/apple-touch-icon-light.png' : '/apple-touch-icon.png');
     });
 });
