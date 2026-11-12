@@ -139,7 +139,12 @@ export function compareGames(a: Game, b: Game, favoriteIds: string[]): number {
     );
 }
 
-export function compactGames(games: Game[], favoriteIds: string[]): Game[] {
+// Recent matches the grouped view: newest day first, earliest game first within a day, undated last.
+export function compactGames(games: Game[], favoriteIds: string[], newestDayFirst = false): Game[] {
+    const dayRank = (game: Game) => {
+        const day = localDay(game);
+        return day ? -day.getTime() : Number.MAX_SAFE_INTEGER;
+    };
     const leagues = new Map<string, string>();
     for (const game of games) {
         const previous = leagues.get(game.id);
@@ -161,6 +166,10 @@ export function compactGames(games: Game[], favoriteIds: string[]): Game[] {
         if (!aFavorite) {
             const league = leagueRank(a) - leagueRank(b) || a.league.localeCompare(b.league);
             if (league) return league;
+        }
+        if (newestDayFirst) {
+            const day = dayRank(a) - dayRank(b);
+            if (day) return day;
         }
         return compareGames(a, b, favoriteIds);
     });

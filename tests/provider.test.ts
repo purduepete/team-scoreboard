@@ -165,6 +165,30 @@ describe('window and filters', () => {
         expect(compactGames(games, ['favorite']).find((game) => game.id === 'shared')?.league).toBe('NCAA');
         expect(games[0].id).toBe('nba-late');
     });
+    it('orders compact Recent newest day first and earliest game first within a day', () => {
+        const at = (id: string, day: number, hour: number, favorite = false): Game => ({
+            ...make(id, day, 'final'),
+            league: 'NBA',
+            teamIds: favorite ? ['favorite'] : [id],
+            startTime: new Date(2026, 9, day, hour).toISOString(),
+        });
+        const games = [
+            at('old', 20, 19),
+            at('new-late', 21, 19),
+            at('new-early', 21, 15),
+            at('fav-old', 20, 18, true),
+            at('fav-new', 21, 16, true),
+            { ...at('undated', 21, 12), startTime: null, date: null },
+        ];
+        expect(compactGames(games, ['favorite'], true).map((game) => game.id)).toEqual([
+            'fav-new',
+            'fav-old',
+            'new-early',
+            'new-late',
+            'old',
+            'undated',
+        ]);
+    });
     it('keeps live games, the last 3 finals and the next 5 upcoming games', () => {
         const now = Date.UTC(2026, 9, 15, 12);
         const games = [

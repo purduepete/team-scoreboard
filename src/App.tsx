@@ -847,7 +847,8 @@ export function App() {
                                                           >
                                                               {compactGames(
                                                                   [...games, ...(showCustom ? customGames : [])],
-                                                                  favoriteIds
+                                                                  favoriteIds,
+                                                                  effectiveView === 'recent'
                                                               ).map((game, index, sorted) => {
                                                                   const previous = sorted[index - 1];
                                                                   const favorite = isFavorite(game, favoriteIds);
