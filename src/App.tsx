@@ -29,7 +29,15 @@ import { Tooltip } from './Tooltip';
 import { ThemeMenu } from './ThemeMenu';
 import { LoadingSpinner } from './LoadingSpinner';
 import { useTheme } from './theme';
-import { compactGames, groupGames, isFavorite, resultDays, visibleGames } from './games';
+import {
+    compactGames,
+    groupGames,
+    isFavorite,
+    recentDayOptions,
+    resultDays,
+    visibleGames,
+    type RecentDays,
+} from './games';
 import type { View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Current', upcoming: 'Upcoming', recent: 'Recent' };
@@ -122,6 +130,22 @@ export function App() {
             console.warn('Compact mode could not be saved.', error);
         }
     }, [compact]);
+    const [recentDays, setRecentDays] = useState<RecentDays>(() => {
+        try {
+            const saved = Number(localStorage.getItem('team-scoreboard-recent-days'));
+            return recentDayOptions.find((days) => days === saved) ?? 1;
+        } catch (error) {
+            console.warn('Recent days could not be restored.', error);
+            return 1;
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem('team-scoreboard-recent-days', String(recentDays));
+        } catch (error) {
+            console.warn('Recent days could not be saved.', error);
+        }
+    }, [recentDays]);
     const [team, setTeam] = useState<string[]>(['all']);
     const allTeams = team.includes('all');
     const filterKey = JSON.stringify([...team].sort());
@@ -321,7 +345,9 @@ export function App() {
         feeds.flatMap((feed) => feed.games),
         effectiveView,
         team,
-        favoriteIds
+        favoriteIds,
+        new Date(),
+        recentDays
     ).filter((game) => !activeOnly || game.status === 'live');
     // Selections limited to favorites, individual teams or Purdue skip favorite highlighting.
     const noHighlight = team.every(
@@ -632,6 +658,20 @@ export function App() {
                                                 >
                                                     <Plus size={16} aria-hidden="true" /> Edit favorites
                                                 </button>
+                                                <div className="recent-days" role="group" aria-label="Recent days back">
+                                                    <span aria-hidden="true">Recent</span>
+                                                    {recentDayOptions.map((days) => (
+                                                        <button
+                                                            key={days}
+                                                            type="button"
+                                                            aria-pressed={recentDays === days}
+                                                            aria-label={`${days} ${days === 1 ? 'day' : 'days'}`}
+                                                            onClick={() => setRecentDays(days)}
+                                                        >
+                                                            {days}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                                 <Tooltip content="Source status">
                                                     <a
                                                         href="#status"

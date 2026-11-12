@@ -55,9 +55,12 @@ const isToday = (game: Game, now: Date) => localDay(game)?.getTime() === startOf
 // Filters are 'all', 'favorites', 'league:<NFL|NBA|MLB|Big Ten|NCAA>' or team ids, matched as a union.
 export const upcomingDays = 7;
 export const resultDays = 14;
+export const recentDayOptions = [1, 3, 5] as const;
+export type RecentDays = (typeof recentDayOptions)[number];
 
 // Live shows every game on today's local date; Upcoming and Recent split the rest by status.
-// Recent keeps finals from the last 14 local days plus past postponed or canceled games; Upcoming keeps
+// Recent keeps finals from the last windowDays local days (14 by default; the page passes the saved
+// 1, 3 or 5) plus past postponed or canceled games in that window; Upcoming keeps
 // today through the next 7 days and undated games, never a past date.
 export function visibleGames(
     games: Game[],

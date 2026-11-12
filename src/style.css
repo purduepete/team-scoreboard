@@ -418,7 +418,7 @@ small {
     position: absolute;
     left: 0;
     top: calc(100% + 8px);
-    width: min(320px, calc(100vw - 64px));
+    width: min(430px, calc(100vw - 64px));
     padding: 8px;
     flex-wrap: wrap;
     gap: 6px;
@@ -457,7 +457,48 @@ small {
 }
 .score-tools .heading-actions[data-open='true'] {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-columns: minmax(0, 2fr) minmax(0, 5fr) minmax(0, 5fr);
+}
+@media (min-width: 601px) {
+    .score-tools .heading-actions {
+        left: auto;
+        right: 0;
+    }
+}
+.score-tools .heading-actions > .tooltip-anchor > .menu-trigger {
+    grid-column: span 2;
+}
+.recent-days {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 0;
+    height: var(--header-control-height);
+    padding: 3px;
+    border: 1px solid var(--border);
+}
+.recent-days span {
+    display: flex;
+    align-items: center;
+    padding: 0 6px 0 4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.score-tools .heading-actions .recent-days button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    color: var(--muted);
+    background: transparent;
+}
+.score-tools .heading-actions .recent-days button:hover {
+    background: var(--raised);
+}
+.score-tools .heading-actions .recent-days button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--accent-text);
 }
 .score-tools .heading-actions > .tooltip-anchor {
     min-width: 0;

@@ -628,24 +628,27 @@ for (const theme of ['light', 'midnight']) {
             const panel = page.locator('#score-tools-actions');
             const layout = await panel.evaluate((element) => {
                 const bounds = element.getBoundingClientRect();
-                const buttons = Array.from(element.querySelectorAll('button, a')).map((button) =>
-                    button.getBoundingClientRect()
-                );
+                const buttons = Array.from(
+                    element.querySelectorAll(
+                        ':scope > button, :scope > .recent-days, :scope > .tooltip-anchor > button, :scope > .tooltip-anchor > a'
+                    )
+                ).map((button) => button.getBoundingClientRect());
                 return {
                     tops: buttons.map((button) => button.top),
                     fits: buttons.every((button) => button.left >= bounds.left && button.right <= bounds.right),
                     fills:
                         Math.abs(buttons[0].left - bounds.left - 9) < 1 &&
-                        Math.abs(bounds.right - buttons[1].right - 9) < 1,
+                        Math.abs(bounds.right - buttons[2].right - 9) < 1,
                     rows:
                         buttons[0].top === buttons[1].top &&
-                        buttons[2].top === buttons[3].top &&
-                        buttons[2].top > buttons[0].top,
+                        buttons[1].top === buttons[2].top &&
+                        buttons[3].top === buttons[4].top &&
+                        buttons[3].top > buttons[0].top,
                     viewportFits: bounds.left >= 0 && bounds.right <= innerWidth,
                     columnRatio: buttons[1].width / buttons[0].width,
                     matchingWidths:
-                        Math.abs(buttons[0].width - buttons[2].width) < 1 &&
-                        Math.abs(buttons[1].width - buttons[3].width) < 1,
+                        Math.abs(buttons[0].width - buttons[3].width) < 1 &&
+                        Math.abs(buttons[4].right - buttons[2].right) < 1,
                 };
             });
             expect(new Set(layout.tops).size).toBe(2);
@@ -653,15 +656,13 @@ for (const theme of ['light', 'midnight']) {
             expect(layout.fits).toBe(true);
             expect(layout.fills).toBe(true);
             expect(layout.viewportFits).toBe(true);
-            expect(layout.columnRatio).toBeCloseTo(2, 1);
+            expect(layout.columnRatio).toBeCloseTo(2.5, 1);
             expect(layout.matchingWidths).toBe(true);
         }
-        await expect(page.locator('#score-tools-actions').locator('button, a')).toHaveCount(4);
-        await expect(page.locator('#score-tools-actions').locator('button, a').nth(2)).toHaveAttribute(
-            'aria-label',
-            'Source status'
-        );
-        await expect(page.locator('#score-tools-actions').locator('button, a').nth(3)).toHaveText('Calendar');
+        const recentDays = page.getByRole('group', { name: 'Recent days back' });
+        await expect(recentDays.getByRole('button')).toHaveText(['1', '3', '5']);
+        await expect(page.getByRole('link', { name: 'Source status', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toBeVisible();
         const source = page.getByRole('link', { name: 'Source status', exact: true });
         await expect(source).toHaveText('');
         await expect(source.locator('svg')).toBeVisible();
@@ -1951,6 +1952,38 @@ for (const theme of ['midnight', 'light']) {
         await expect(page.locator('.game .final-label')).toHaveCount(0);
     });
 }
+
+test('Recent days back filters finals and is saved', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 28, 9) });
+    const final = (daysBack: number): Game => {
+        const day = new Date(2026, 9, 28 - daysBack, 12);
+        return {
+            ...game,
+            id: `final-${daysBack}`,
+            home: `final-${daysBack}`,
+            startTime: day.toISOString(),
+            date: `2026-10-${String(day.getDate()).padStart(2, '0')}`,
+            status: 'final',
+            statusLabel: 'Final',
+        };
+    };
+    extraGames = [final(1), final(3), final(5)];
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Recent', exact: true }).click();
+    await expandSections(page);
+    const finals = page.locator('.game').filter({ hasText: /final-\d/ });
+    const group = page.getByRole('group', { name: 'Recent days back' });
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await expect(group.getByRole('button', { name: '1 day', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(finals).toHaveCount(1);
+    await group.getByRole('button', { name: '3 days', exact: true }).click();
+    await expect(finals).toHaveCount(2);
+    await group.getByRole('button', { name: '5 days', exact: true }).click();
+    await expect(finals).toHaveCount(3);
+    await page.reload();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await expect(group.getByRole('button', { name: '5 days', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
 
 test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 26, 9) });
