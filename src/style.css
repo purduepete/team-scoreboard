@@ -452,7 +452,7 @@ small {
     color: var(--accent);
     background: var(--raised);
 }
-.toolbar[hidden] {
+.toolbar-actions[hidden] {
     display: none;
 }
 .score-tools .heading-actions[data-open='true'] {
@@ -465,8 +465,8 @@ small {
         right: 0;
     }
 }
-.score-tools .heading-actions > .tooltip-anchor > .menu-trigger {
-    grid-column: span 2;
+.score-tools .heading-actions > .recent-days:last-child {
+    grid-column: 3;
 }
 .recent-days {
     display: flex;
@@ -479,6 +479,7 @@ small {
 }
 .recent-days span {
     display: flex;
+    flex: 0 0 70px;
     align-items: center;
     padding: 0 6px 0 4px;
     color: var(--muted);
@@ -1101,6 +1102,12 @@ small {
     min-width: 0;
     align-items: center;
     gap: 4px 12px;
+}
+.compact-games .game-footer .when {
+    flex-wrap: wrap;
+}
+.compact-games .game-footer time {
+    white-space: normal;
 }
 .game-footer a,
 .game-footer time,

@@ -61,14 +61,14 @@ export type RecentDays = (typeof recentDayOptions)[number];
 // Live shows every game on today's local date; Upcoming and Recent split the rest by status.
 // Recent keeps finals from the last windowDays local days (14 by default; the page passes the saved
 // 1, 3 or 5) plus past postponed or canceled games in that window; Upcoming keeps
-// today through the next 7 days and undated games, never a past date.
+// the next windowDays local days (7 by default) and undated games.
 export function visibleGames(
     games: Game[],
     view: View,
     filter: string | string[],
     favoriteIds: string[],
     now = new Date(),
-    windowDays = resultDays
+    windowDays = view === 'upcoming' ? upcomingDays : resultDays
 ): Game[] {
     const filters = typeof filter === 'string' ? [filter] : filter;
     const today = startOfDay(now).getTime();
@@ -108,9 +108,7 @@ export function visibleGames(
                 days >= -windowDays &&
                 (game.status === 'final' || (days < 0 && game.status !== 'live'))
             );
-        return (
-            game.status !== 'final' && game.status !== 'live' && (days === null || (days >= 0 && days <= upcomingDays))
-        );
+        return game.status !== 'final' && game.status !== 'live' && (days === null || (days > 0 && days <= windowDays));
     });
 }
 

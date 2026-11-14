@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
 import type { HTMLAttributes, ReactNode } from 'react';
 import type { View } from './games';
-import { formatTime } from './games';
+import { formatStart, formatTime } from './games';
 import { Tooltip } from './Tooltip';
 
 function Broadcast({ name }: { name: string }) {
@@ -161,6 +161,7 @@ export function GameCard({
     actions,
     reorder,
     reorderActions,
+    showDate = false,
 }: {
     game: Game;
     favorite?: boolean;
@@ -170,6 +171,7 @@ export function GameCard({
     actions?: ReactNode;
     reorder?: HTMLAttributes<HTMLElement>;
     reorderActions?: ReactNode;
+    showDate?: boolean;
 }) {
     const football = game.sport === 'Football';
     const situation = useSituation(game);
@@ -253,7 +255,9 @@ export function GameCard({
             <div className="game-footer">
                 <span className="when">
                     {actions && <span className="custom-card-actions">{actions}</span>}
-                    <time dateTime={game.startTime ?? game.date ?? undefined}>{formatTime(game)}</time>
+                    <time dateTime={game.startTime ?? game.date ?? undefined}>
+                        {showDate ? formatStart(game) : formatTime(game)}
+                    </time>
                     {game.broadcast && <Broadcast name={game.broadcast} />}
                 </span>
                 <a href={game.sourceUrl} target="_blank" rel="noreferrer">

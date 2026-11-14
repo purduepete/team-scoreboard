@@ -633,6 +633,9 @@ for (const theme of ['light', 'midnight']) {
                         ':scope > button, :scope > .recent-days, :scope > .tooltip-anchor > button, :scope > .tooltip-anchor > a'
                     )
                 ).map((button) => button.getBoundingClientRect());
+                const ranges = Array.from(element.querySelectorAll('.recent-days'), (range) =>
+                    Array.from(range.querySelectorAll('button'), (button) => button.getBoundingClientRect())
+                );
                 return {
                     tops: buttons.map((button) => button.top),
                     fits: buttons.every((button) => button.left >= bounds.left && button.right <= bounds.right),
@@ -643,12 +646,15 @@ for (const theme of ['light', 'midnight']) {
                         buttons[0].top === buttons[1].top &&
                         buttons[1].top === buttons[2].top &&
                         buttons[3].top === buttons[4].top &&
+                        buttons[4].top === buttons[5].top &&
                         buttons[3].top > buttons[0].top,
                     viewportFits: bounds.left >= 0 && bounds.right <= innerWidth,
                     columnRatio: buttons[1].width / buttons[0].width,
                     matchingWidths:
                         Math.abs(buttons[0].width - buttons[3].width) < 1 &&
-                        Math.abs(buttons[4].right - buttons[2].right) < 1,
+                        Math.abs(buttons[4].width - buttons[1].width) < 1 &&
+                        Math.abs(buttons[5].right - buttons[2].right) < 1,
+                    numberOffsets: ranges[0].map((button, index) => button.left - ranges[1][index].left),
                 };
             });
             expect(new Set(layout.tops).size).toBe(2);
@@ -658,9 +664,15 @@ for (const theme of ['light', 'midnight']) {
             expect(layout.viewportFits).toBe(true);
             expect(layout.columnRatio).toBeCloseTo(2.5, 1);
             expect(layout.matchingWidths).toBe(true);
+            expect(layout.numberOffsets.map((offset) => Math.round(offset))).toEqual([0, 0, 0]);
         }
         const recentDays = page.getByRole('group', { name: 'Recent days back' });
         await expect(recentDays.getByRole('button')).toHaveText(['1', '3', '5']);
+        await expect(page.getByRole('group', { name: 'Upcoming days ahead' }).getByRole('button')).toHaveText([
+            '1',
+            '3',
+            '5',
+        ]);
         await expect(page.getByRole('link', { name: 'Source status', exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toBeVisible();
         const source = page.getByRole('link', { name: 'Source status', exact: true });
@@ -876,7 +888,7 @@ for (const theme of ['light', 'midnight']) {
         await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
         await expect(page.locator('.compact-games .game')).toHaveCount(1);
         await active.click();
-        await expect(page.locator('.compact-games .game')).toHaveCount(2);
+        await expect(page.locator('.compact-games .game')).toHaveCount(0);
         await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute(
             'aria-pressed',
@@ -992,11 +1004,14 @@ for (const theme of ['light', 'midnight']) {
         ].entries()) {
             await expect(cards.nth(index)).toContainText(home);
         }
-        await expect(page.locator('.toolbar')).toBeHidden();
+        await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
+        await expect(page.locator('.toolbar-actions')).toBeHidden();
         await expect(page.locator('.section-title, .group-heading')).toHaveCount(0);
         await expect(page.getByRole('link', { name: 'Source status' })).toBeHidden();
         await page.keyboard.press('a');
         await page.keyboard.press('3');
+        await expect(page.getByRole('button', { name: 'Recent', exact: true })).toHaveAttribute('aria-pressed', 'true');
+        await page.keyboard.press('1');
         await expect(cards).toHaveCount(8);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
@@ -1016,7 +1031,8 @@ for (const theme of ['light', 'midnight']) {
             'aria-pressed',
             'true'
         );
-        await expect(page.locator('.toolbar')).toBeHidden();
+        await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
+        await expect(page.locator('.toolbar-actions')).toBeHidden();
     });
 
     test(`Show supports multiple teams and leagues with exclusive All teams (${theme})`, async ({ page }) => {
@@ -1187,6 +1203,7 @@ test('compact dividers follow occupied grid columns on resize', async ({ page })
 test('favorites lead each day, Show sits on the tab row and refresh posts the fixed 14-day window', async ({
     page,
 }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 24, 12));
     await page.goto('/');
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expandSections(page);
@@ -1800,6 +1817,7 @@ for (const theme of ['midnight', 'light']) {
     });
 
     test(`all favorites keep the normal card background (${theme})`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date(2026, 9, 24, 12));
         const purdue = teams.find((team) => team.purdue && !team.umbrella && team.providerId)!;
         extraGames = [
             {
@@ -1914,16 +1932,17 @@ for (const theme of ['midnight', 'light']) {
         await page.goto('/');
         const cards = page.locator('.game');
         await expect(cards).toHaveCount(7);
+        await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
         await expandSections(page);
         await expect(cards.first()).toBeVisible();
         const expected = [
-            'favorite-final',
             'favorite-scheduled',
+            'favorite-final',
             'live-early',
             'live-late',
+            'scheduled',
             'final-early',
             'final-late',
-            'scheduled',
         ];
         for (const [index, id] of expected.entries()) await expect(cards.nth(index)).toContainText(id);
         await expect(page.locator('.game.ended')).toHaveCount(0);
@@ -1947,8 +1966,7 @@ for (const theme of ['midnight', 'light']) {
         await page.getByRole('button', { name: 'Current', exact: true }).click();
         await expect(page.locator('.game .final-label')).toHaveCount(3);
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
-        await expect(cards).toHaveCount(2);
-        await expect(cards.first()).toContainText('favorite-scheduled');
+        await expect(cards).toHaveCount(0);
         await expect(page.locator('.game .final-label')).toHaveCount(0);
     });
 }
@@ -1983,6 +2001,42 @@ test('Recent days back filters finals and is saved', async ({ page }) => {
     await page.reload();
     await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await expect(group.getByRole('button', { name: '5 days', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('Upcoming days ahead are saved and compact tabs show dates', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 28, 9) });
+    const scheduled = (daysAhead: number): Game => ({
+        ...game,
+        id: `upcoming-${daysAhead}`,
+        home: `upcoming-${daysAhead}`,
+        startTime: new Date(2026, 9, 28 + daysAhead, 12).toISOString(),
+    });
+    extraGames = [scheduled(0), scheduled(1), scheduled(3), scheduled(5)];
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+    await expandSections(page);
+    const group = page.getByRole('group', { name: 'Upcoming days ahead' });
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await expect(group.getByRole('button', { name: '1 day' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.game').filter({ hasText: /upcoming-\d/ })).toHaveCount(1);
+    await group.getByRole('button', { name: '3 days' }).click();
+    await expect(page.locator('.game').filter({ hasText: /upcoming-\d/ })).toHaveCount(2);
+    await group.getByRole('button', { name: '5 days' }).click();
+    await expect(page.locator('.game').filter({ hasText: /upcoming-\d/ })).toHaveCount(3);
+    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tools', exact: true })).toBeHidden();
+    await expect(page.locator('.compact-games .game').filter({ hasText: 'upcoming-1' }).locator('time')).toContainText(
+        'Oct 29'
+    );
+    await page.keyboard.press('1');
+    await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('2');
+    await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.reload();
+    await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await expect(group.getByRole('button', { name: '5 days' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ page }) => {

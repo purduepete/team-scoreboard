@@ -226,7 +226,7 @@ describe('window and filters', () => {
     });
     it.each(['live', 'upcoming', 'recent'] as const)('matches a union of Show filters in %s', (view) => {
         const now = new Date(2026, 9, 15, 12);
-        const day = view === 'recent' ? 14 : 15;
+        const day = view === 'recent' ? 14 : view === 'upcoming' ? 16 : 15;
         const status = view === 'recent' ? 'final' : view === 'live' ? 'live' : 'upcoming';
         const nfl = { ...make('nfl', day, status), league: 'NFL', teamIds: ['colts'] };
         const nba = { ...make('nba', day, status), league: 'NBA', teamIds: ['pacers'] };
@@ -240,7 +240,7 @@ describe('window and filters', () => {
         expect(ids(['league:NFL', 'league:NBA'])).toEqual(['nfl', 'nba']);
         expect(ids(['all'])).toEqual(['nfl', 'nba', 'mlb']);
     });
-    it('keeps 14 days of results by default and 7 days of upcoming games', () => {
+    it('keeps 14 days of results by default and the next 7 days of upcoming games', () => {
         const on = new Date(2026, 9, 22, 12);
         const games = [
             make('fin-14', 8, 'final'),
@@ -257,6 +257,29 @@ describe('window and filters', () => {
                 .sort()
         ).toEqual(['tba', 'up-7']);
     });
+    it.each([1, 3, 5])('shows only the next %i local days and undated games in Upcoming', (days) => {
+        const now = new Date(2026, 9, 31, 12);
+        const at = (offset: number, gameStatus: Game['status'] = 'upcoming'): Game => ({
+            ...make(`day-${offset}-${gameStatus}`, 31, gameStatus),
+            startTime: new Date(2026, 9, 31 + offset, 12).toISOString(),
+        });
+        const games = [
+            at(0),
+            at(1),
+            at(3),
+            at(5),
+            at(6),
+            at(1, 'live'),
+            at(1, 'final'),
+            { ...at(1), id: 'undated', startTime: null, date: null },
+            { ...at(1), id: 'date-only', startTime: null, date: '2026-11-01' },
+        ];
+        expect(visibleGames(games, 'upcoming', 'all', [], now, days).map((game) => game.id)).toEqual([
+            ...[1, 3, 5].filter((offset) => offset <= days).map((offset) => `day-${offset}-upcoming`),
+            'undated',
+            'date-only',
+        ]);
+    });
     it('keeps past postponed and canceled games out of Upcoming and lists them in Recent', () => {
         const on = new Date(2026, 9, 22, 12);
         const games = [
@@ -270,7 +293,7 @@ describe('window and filters', () => {
             visibleGames(games, 'upcoming', 'all', [], on)
                 .map((game) => game.id)
                 .sort()
-        ).toEqual(['ppd-next', 'today']);
+        ).toEqual(['ppd-next']);
         expect(
             visibleGames(games, 'recent', 'all', [], on)
                 .map((game) => game.id)
@@ -293,8 +316,8 @@ describe('window and filters', () => {
         });
         const now = new Date(2026, 9, 22, 9);
         const upcoming = [
-            at('early', 22, 13, ['nba-1'], 'upcoming'),
-            at('fav', 22, 20, ['134927'], 'upcoming'),
+            at('early', 23, 13, ['nba-1'], 'upcoming'),
+            at('fav', 23, 20, ['134927'], 'upcoming'),
             at('tomorrow', 23, 19, ['nba-2'], 'upcoming'),
             at('mlb', 23, 16, ['mlb-1'], 'upcoming', 'MLB'),
             at('boiler', 24, 12, ['purdue-football'], 'upcoming', 'NCAA'),
@@ -309,12 +332,8 @@ describe('window and filters', () => {
         expect(sections.map((section) => section.label)).toEqual(['Purdue', 'Big Ten', 'NFL', 'NBA', 'MLB']);
         const nba = sections[3];
         expect(nba.count).toBe(4);
-        expect(nba.days.map((group) => group.label.split(' · ')[0])).toEqual([
-            'Today',
-            'Tomorrow',
-            'Date to be announced',
-        ]);
-        expect(nba.days[0].games.map((game) => game.id)).toEqual(['fav', 'early']);
+        expect(nba.days.map((group) => group.label.split(' · ')[0])).toEqual(['Tomorrow', 'Date to be announced']);
+        expect(nba.days[0].games.map((game) => game.id)).toEqual(['fav', 'early', 'tomorrow']);
 
         const today = [
             at('done', 22, 10, ['nba-1'], 'final'),

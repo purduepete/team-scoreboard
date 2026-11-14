@@ -146,6 +146,22 @@ export function App() {
             console.warn('Recent days could not be saved.', error);
         }
     }, [recentDays]);
+    const [upcomingDays, setUpcomingDays] = useState<RecentDays>(() => {
+        try {
+            const saved = Number(localStorage.getItem('team-scoreboard-upcoming-days'));
+            return recentDayOptions.find((days) => days === saved) ?? 1;
+        } catch (error) {
+            console.warn('Upcoming days could not be restored.', error);
+            return 1;
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem('team-scoreboard-upcoming-days', String(upcomingDays));
+        } catch (error) {
+            console.warn('Upcoming days could not be saved.', error);
+        }
+    }, [upcomingDays]);
     const [team, setTeam] = useState<string[]>(['all']);
     const allTeams = team.includes('all');
     const filterKey = JSON.stringify([...team].sort());
@@ -347,7 +363,7 @@ export function App() {
         team,
         favoriteIds,
         new Date(),
-        recentDays
+        effectiveView === 'upcoming' ? upcomingDays : recentDays
     ).filter((game) => !activeOnly || game.status === 'live');
     // Selections limited to favorites, individual teams or Purdue skip favorite highlighting.
     const noHighlight = team.every(
@@ -413,10 +429,10 @@ export function App() {
             if (!refreshing) void forceRefresh('live');
         } else if (statusPage) {
             return;
+        } else if (views[event.code]) {
+            if (!activeOnly) setView(views[event.code]);
         } else if (compact) {
             return;
-        } else if (views[event.code]) {
-            setView(views[event.code]);
         } else if (filterKeys[key]) {
             setTeam([filterKeys[key]]);
         } else if (key === 'x') {
@@ -585,7 +601,7 @@ export function App() {
                         )}
                         {!statusPage && (
                             <section className="panel">
-                                <div className="toolbar" hidden={compact}>
+                                <div className="toolbar">
                                     <div
                                         className="tabs"
                                         role="group"
@@ -607,7 +623,7 @@ export function App() {
                                             </Tooltip>
                                         ))}
                                     </div>
-                                    <div className="toolbar-actions">
+                                    <div className="toolbar-actions" hidden={compact}>
                                         <div
                                             className="score-tools"
                                             ref={tools}
@@ -690,6 +706,24 @@ export function App() {
                                                         }
                                                     />
                                                 )}
+                                                <div
+                                                    className="recent-days"
+                                                    role="group"
+                                                    aria-label="Upcoming days ahead"
+                                                >
+                                                    <span aria-hidden="true">Upcoming</span>
+                                                    {recentDayOptions.map((days) => (
+                                                        <button
+                                                            key={days}
+                                                            type="button"
+                                                            aria-pressed={upcomingDays === days}
+                                                            aria-label={`${days} ${days === 1 ? 'day' : 'days'}`}
+                                                            onClick={() => setUpcomingDays(days)}
+                                                        >
+                                                            {days}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                         <SelectField
@@ -868,6 +902,7 @@ export function App() {
                                                                           game={game}
                                                                           favorite={isFavorite(game, highlightIds)}
                                                                           view={effectiveView}
+                                                                          showDate={effectiveView !== 'live'}
                                                                           flashes={{
                                                                               ...customFlashes,
                                                                               ...flashes,
