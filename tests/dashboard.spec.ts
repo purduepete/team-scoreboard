@@ -874,6 +874,10 @@ for (const theme of ['light', 'midnight']) {
         await expect(active).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Recent', exact: true })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveCSS('opacity', '0.45');
+        await expect(page.getByRole('button', { name: 'Recent', exact: true })).toHaveCSS('opacity', '0.45');
+        await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveCSS('opacity', '1');
         await expect(page.getByRole('status').filter({ hasText: 'No active games' })).toBeVisible();
         await expect(page.locator('.game')).toHaveCount(0);
         await show.click();

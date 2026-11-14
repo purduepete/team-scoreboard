@@ -1267,6 +1267,11 @@ footer .refresh-time {
     cursor: default;
     opacity: 1;
 }
+.tabs button:disabled:not(.selected) {
+    cursor: not-allowed;
+    opacity: 0.45;
+    background: transparent;
+}
 @media (max-width: 600px) {
     main {
         padding-top: 24px;
