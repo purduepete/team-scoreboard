@@ -40,7 +40,7 @@ import {
 } from './games';
 import type { View } from './games';
 
-const viewLabels: Record<View, string> = { live: 'Current', upcoming: 'Upcoming', recent: 'Recent' };
+const viewLabels: Record<View, string> = { live: 'Today', upcoming: 'Upcoming', recent: 'Recent' };
 const viewOrder: View[] = ['live', 'upcoming', 'recent'];
 const filterKeys: Record<string, string> = {
     a: 'all',
@@ -51,7 +51,7 @@ const filterKeys: Record<string, string> = {
 };
 
 const shortcutHelp: [string[], string][] = [
-    [['1'], 'Current'],
+    [['1'], 'Today'],
     [['2'], 'Upcoming'],
     [['3'], 'Recent'],
     [['A'], 'Show all teams'],

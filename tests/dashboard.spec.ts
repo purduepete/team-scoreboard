@@ -800,8 +800,8 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.goto('/');
     await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
     const tabs = page.getByRole('group', { name: 'Schedule view' }).getByRole('button');
-    await expect(tabs).toHaveText(['Current', 'Upcoming', 'Recent']);
-    await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(tabs).toHaveText(['Today', 'Upcoming', 'Recent']);
+    await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const nba = page.locator('.section-title button', { hasText: 'NBA' });
     await expect(nba).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByText('Q3 4:12')).toBeHidden();
@@ -826,7 +826,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await expect(page.getByText('Official link only', { exact: true }).first()).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(0);
     await page.getByRole('link', { name: 'Back to scores' }).first().click();
-    await page.getByRole('button', { name: 'Current', exact: true }).click();
+    await page.getByRole('button', { name: 'Today', exact: true }).click();
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(1);
     await page.getByRole('button', { name: 'Tools', exact: true }).click();
@@ -872,10 +872,7 @@ for (const theme of ['light', 'midnight']) {
         const active = page.getByRole('button', { name: 'Active games only', exact: true });
         await active.click();
         await expect(active).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute(
-            'aria-pressed',
-            'true'
-        );
+        await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
         await expect(page.getByRole('status').filter({ hasText: 'No active games' })).toBeVisible();
         await expect(page.locator('.game')).toHaveCount(0);
@@ -1016,10 +1013,7 @@ for (const theme of ['light', 'midnight']) {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
         await expect(show).toHaveText('2 selected');
-        await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute(
-            'aria-pressed',
-            'true'
-        );
+        await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
         await page.getByRole('button', { name: 'Tools', exact: true }).click();
         await page.getByRole('link', { name: 'Source status' }).click();
@@ -1083,7 +1077,7 @@ for (const theme of ['light', 'midnight']) {
         await show.press('Tab');
         await expect(list).toHaveCount(0);
         await show.click();
-        await page.getByRole('button', { name: 'Current', exact: true }).click();
+        await page.getByRole('button', { name: 'Today', exact: true }).click();
         await expect(list).toHaveCount(0);
         await show.click();
         await expect(list.locator('[aria-selected="true"]')).toHaveText(['Favorites', 'NFL']);
@@ -1802,7 +1796,7 @@ for (const theme of ['midnight', 'light']) {
         await expect(added.locator('.game')).toHaveCount(1);
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         await expect(added).toBeHidden();
-        await page.getByRole('button', { name: 'Current', exact: true }).click();
+        await page.getByRole('button', { name: 'Today', exact: true }).click();
         await expect(added).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
         await page.reload();
@@ -1867,10 +1861,7 @@ for (const theme of ['midnight', 'light']) {
         await expect(tabs).toHaveCSS('border-radius', '0px');
         const highlight = theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)';
         const sliderColor = (el: Element) => getComputedStyle(el, '::before').backgroundColor;
-        await expect(tabs.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute(
-            'aria-pressed',
-            'true'
-        );
+        await expect(tabs.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect.poll(() => tabs.evaluate(sliderColor)).toBe(highlight);
         await expect(collapse).toHaveAttribute('aria-pressed', 'true');
         await expect.poll(() => pill.evaluate(sliderColor)).toBe(highlight);
@@ -1897,7 +1888,7 @@ for (const theme of ['midnight', 'light']) {
         await page.screenshot({ path: `test-results/section-pill-${theme}-mobile.png`, fullPage: true });
     });
 
-    test(`Current favorites lead and only Current finals have a distinct status badge (${theme})`, async ({ page }) => {
+    test(`Today favorites lead and only Today finals have a distinct status badge (${theme})`, async ({ page }) => {
         await page.clock.install({ time: new Date(2026, 9, 25, 9) });
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         const fixture = (id: string, status: Game['status'], hour: number, favorite = false): Game => ({
@@ -1963,7 +1954,7 @@ for (const theme of ['midnight', 'light']) {
         await expect(page.locator('.game .final-label')).toHaveCount(0);
         await expect(page.locator('.game-meta').getByText('Final', { exact: true })).toHaveCount(3);
         await expect(cards.first()).toHaveCSS('background-image', 'none');
-        await page.getByRole('button', { name: 'Current', exact: true }).click();
+        await page.getByRole('button', { name: 'Today', exact: true }).click();
         await expect(page.locator('.game .final-label')).toHaveCount(3);
         await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         await expect(cards).toHaveCount(0);
@@ -2030,7 +2021,7 @@ test('Upcoming days ahead are saved and compact tabs show dates', async ({ page 
         'Oct 29'
     );
     await page.keyboard.press('1');
-    await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('2');
     await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.reload();
@@ -2051,7 +2042,7 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await page.keyboard.press('Numpad3');
     await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('Numpad1');
-    await expect(pressed('Current')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pressed('Today')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('3');
     const closed = page.locator('.section-title button[aria-expanded="false"]');
     const open = page.locator('.section-title button[aria-expanded="true"]');
@@ -2117,10 +2108,11 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
     await page.keyboard.press('?');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
+    await expect(dialog).toContainText('Today');
     await expect(dialog).toContainText('Expand or collapse all sections');
     await expect(dialog.locator('kbd', { hasText: /^C$/ })).toHaveCount(0);
     await page.keyboard.press('2');
-    await expect(page.getByRole('button', { name: 'Current', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     await page.keyboard.press('?');
