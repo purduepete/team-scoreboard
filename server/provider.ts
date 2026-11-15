@@ -404,6 +404,48 @@ interface ScoreboardEntry {
 
 export const liveRefreshMs = 30_000;
 export const maxDaysBack = 14;
+const footballPlaySchema = z.object({
+    id: z.string(),
+    type: z.object({ text: z.string() }),
+    homeScore: z.number(),
+    awayScore: z.number(),
+    scoringPlay: z.boolean(),
+});
+const footballDrivesSchema = z.object({
+    drives: z.object({
+        previous: z.array(z.object({ plays: z.array(footballPlaySchema).optional() })).optional(),
+        current: z.object({ plays: z.array(footballPlaySchema).optional() }).optional(),
+    }),
+});
+
+export function footballScored(input: unknown, game: Game): Game['scored'] {
+    const drives = footballDrivesSchema.parse(input).drives;
+    const plays = [...(drives.previous ?? []), ...(drives.current ? [drives.current] : [])].flatMap(
+        (drive) => drive.plays ?? []
+    );
+    if (!plays.length) throw new Error('Football play history is unavailable.');
+    let home = 0;
+    let away = 0;
+    let scored: Game['scored'];
+    const seen = new Set<string>();
+    for (const play of plays) {
+        if (seen.has(play.id)) continue;
+        seen.add(play.id);
+        if (/kickoff/i.test(play.type.text)) scored = undefined;
+        if (play.homeScore < home || play.awayScore < away) scored = undefined;
+        if (play.scoringPlay) {
+            if (play.homeScore > home && play.awayScore === away) scored = 'home';
+            else if (play.awayScore > away && play.homeScore === home) scored = 'away';
+            else if (play.homeScore !== home || play.awayScore !== away) scored = undefined;
+        }
+        home = play.homeScore;
+        away = play.awayScore;
+    }
+    if (home !== game.homeScore || away !== game.awayScore)
+        throw new Error('Football play history has not caught up with the scoreboard.');
+    return scored;
+}
+
 const settledStatuses: Game['status'][] = ['final', 'postponed', 'canceled'];
 const cacheFileSchema = z.object({
     version: z.union([z.literal(1), z.literal(2)]),
@@ -430,6 +472,11 @@ export class SportsProvider {
     private persistTimer: ReturnType<typeof setTimeout> | undefined;
     private readonly seasons = new Map<string, { games: Game[] | undefined; nextFetchAt: number }>();
     private readonly seasonFetches = new Map<string, Promise<Game[]>>();
+    private readonly footballScores = new Map<
+        string,
+        { home: number | null; away: number | null; scored?: Game['scored'] }
+    >();
+    private readonly footballFetches = new Map<string, Promise<unknown>>();
 
     constructor(
         private readonly fetcher: typeof fetch = fetch,
@@ -468,6 +515,34 @@ export class SportsProvider {
         return operation;
     }
 
+    private async withFootballScore(game: Game, path: string): Promise<Game> {
+        if (game.sport !== 'Football' || game.status !== 'live') {
+            this.footballScores.delete(game.id);
+            return game;
+        }
+        const previous = this.footballScores.get(game.id);
+        if (previous && !previous.scored && previous.home === game.homeScore && previous.away === game.awayScore)
+            return game;
+        let pending = this.footballFetches.get(game.id);
+        if (!pending) {
+            pending = this.request(`${path}/summary?event=${encodeURIComponent(game.id)}`).finally(() =>
+                this.footballFetches.delete(game.id)
+            );
+            this.footballFetches.set(game.id, pending);
+        }
+        try {
+            const scored = footballScored(await pending, game);
+            this.footballScores.set(game.id, { home: game.homeScore, away: game.awayScore, scored });
+            return scored ? { ...game, scored } : game;
+        } catch (error) {
+            console.warn(
+                `Could not check the recent score for game ${game.id}:`,
+                error instanceof Error ? error.message : error
+            );
+            return game;
+        }
+    }
+
     async schedule(team: Team, full = false): Promise<Game[]> {
         const games = await this.fullSchedule(team);
         if (!full) return selectWindow(games, this.clock());
@@ -478,7 +553,7 @@ export class SportsProvider {
                 const details = eventSchema.parse(await this.request(`${path}/scoreboard/${game.id}`));
                 if (details.id !== game.id) throw new Error('Provider returned details for a different game.');
                 const live = normalizeEvent(details, team);
-                return { ...game, ...live, origin: 'scoreboard' as const };
+                return this.withFootballScore({ ...game, ...live, origin: 'scoreboard' as const }, path);
             })
         );
     }
@@ -573,7 +648,9 @@ export class SportsProvider {
         const body = await this.request(`${league.path}/scoreboard${params ? `?${params}` : ''}`);
         const meta = scoreboardSchema.parse(body);
         const entry = {
-            games: parseScoreboard(body, league),
+            games: await Promise.all(
+                parseScoreboard(body, league).map((game) => this.withFootballScore(game, league.path))
+            ),
             fetchedAt: this.clock(),
             usedAt: this.clock(),
             generation,

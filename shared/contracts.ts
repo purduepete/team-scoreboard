@@ -46,6 +46,8 @@ export interface Game {
     possession?: 'home' | 'away';
     // Live football only: the team with the ball is inside the opponent's 20.
     redZone?: boolean;
+    // Live football only: the team that scored before the next kickoff.
+    scored?: 'home' | 'away';
     // 'schedule' marks a team-schedule copy; league scoreboard copies (and older cached ones) leave it unset.
     origin?: 'scoreboard' | 'schedule';
 }

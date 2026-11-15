@@ -5,6 +5,7 @@ import type { Game } from '../shared/contracts.js';
 import { teams, expandFavorites, leagues } from '../server/catalog.js';
 import {
     isHot,
+    footballScored,
     nationalName,
     normalizeEvent,
     parseEvents,
@@ -127,6 +128,45 @@ describe('ESPN normalization', () => {
     });
     it('falls back to the team page when ESPN gives no web link', () => {
         expect(normalizeEvent({ ...event, links: [] }, team).sourceUrl).toBe(team.officialUrl);
+    });
+});
+
+describe('football scoring before kickoff', () => {
+    const play = (id: string, type: string, homeScore: number, awayScore: number, scoringPlay = false) => ({
+        id,
+        type: { text: type },
+        homeScore,
+        awayScore,
+        scoringPlay,
+    });
+    const kickoff = play('1', 'Kickoff', 0, 0);
+    const touchdown = play('2', 'Rushing Touchdown', 6, 0, true);
+    const extraPoint = play('3', 'Extra Point Good', 7, 0, true);
+    const game = { ...normalizeEvent(event, team), status: 'live' as const, homeScore: 7, awayScore: 0 };
+    const summary = (...plays: ReturnType<typeof play>[]) => ({ drives: { previous: [{ plays }] } });
+
+    it('identifies the scoring side after a touchdown and extra point', () => {
+        expect(footballScored(summary(kickoff, touchdown, extraPoint), game)).toBe('home');
+    });
+    it('clears the label when kickoff and a later play both occur between polls', () => {
+        const nextKickoff = play('4', 'Kickoff', 7, 0);
+        const rush = play('5', 'Rush', 7, 0);
+        expect(footballScored(summary(kickoff, touchdown, extraPoint, nextKickoff, rush), game)).toBeUndefined();
+    });
+    it('identifies a kickoff return touchdown for the receiving team', () => {
+        const returnTouchdown = play('4', 'Kickoff Return Touchdown', 7, 6, true);
+        expect(
+            footballScored(summary(kickoff, touchdown, extraPoint, returnTouchdown), { ...game, awayScore: 6 })
+        ).toBe('away');
+    });
+    it('rejects play history that has not caught up with the scoreboard', () => {
+        expect(() => footballScored(summary(kickoff, touchdown), game)).toThrow('not caught up');
+    });
+    it('clears a score that was reversed', () => {
+        const reversal = play('4', 'Replay Review', 0, 0);
+        expect(
+            footballScored(summary(kickoff, touchdown, extraPoint, reversal), { ...game, homeScore: 0 })
+        ).toBeUndefined();
     });
 });
 
@@ -522,6 +562,28 @@ describe('provider requests', () => {
         await espn.schedule(team);
         expect(urls[0]).toBe('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/11/schedule');
         expect(waits).toEqual([500]);
+    });
+    it('refreshes play history until the kickoff, then avoids fetching it on unchanged scores', async () => {
+        const urls: string[] = [];
+        const live = withStatus(status('STATUS_IN_PROGRESS', 'in', 'Q1 7:41'), ['0', '7']);
+        let kicked = false;
+        const espn = provider((url) => {
+            if (url.includes('/summary?')) {
+                const plays = [
+                    { id: '1', type: { text: 'Touchdown' }, homeScore: 7, awayScore: 0, scoringPlay: true },
+                    ...(kicked
+                        ? [{ id: '2', type: { text: 'Kickoff' }, homeScore: 7, awayScore: 0, scoringPlay: false }]
+                        : []),
+                ];
+                return new Response(JSON.stringify({ drives: { previous: [{ plays }] } }));
+            }
+            return new Response(JSON.stringify(url.includes('/scoreboard/') ? live : { events: [live] }));
+        }, urls);
+        expect((await espn.schedule(team, true))[0].scored).toBe('home');
+        kicked = true;
+        expect((await espn.schedule(team, true))[0].scored).toBeUndefined();
+        expect((await espn.schedule(team, true))[0].scored).toBeUndefined();
+        expect(urls.filter((url) => url.includes('/summary?'))).toHaveLength(2);
     });
     it('retries an empty default schedule once with the regular season', async () => {
         const urls: string[] = [];

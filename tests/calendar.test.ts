@@ -77,6 +77,11 @@ describe('reconcile', () => {
         const now = new Date('2026-10-25T18:00:00Z');
         for (const game of visibleGames([purdue, bigTen], 'live', 'all', [], now)) expect(game.redZone).toBe(true);
     });
+    it('clears a stale scoring label when the winning snapshot no longer has one', () => {
+        const scored: Game = { ...scoreboard, scored: 'home' };
+        expect(reconcile([scored, scoreboard]).get('401')?.scored).toBeUndefined();
+        expect(reconcile([schedule, scored]).get('401')?.scored).toBe('home');
+    });
     it('gives a Purdue schedule copy the Big Ten scoreboard score in its own section', () => {
         const purdue: Game = { ...base, league: 'NCAA', origin: 'schedule', homeScore: 0, awayScore: 0 };
         const bigTen: Game = { ...base, league: 'Big Ten', origin: 'scoreboard', homeScore: 14, awayScore: 7 };

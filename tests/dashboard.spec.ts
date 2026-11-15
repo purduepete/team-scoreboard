@@ -2399,6 +2399,33 @@ test('a changed score flashes once and the live situation shows', async ({ page 
     await expect(page.locator('.score-changed')).toHaveCount(0, { timeout: 5000 });
 });
 
+test('football scoring label appears in every format and clears after kickoff', async ({ page }) => {
+    extraGames = [
+        {
+            ...game,
+            id: 'scoring-football',
+            title: 'Fixture Bears at Packers',
+            home: 'Green Bay Packers',
+            away: 'Chicago Bears',
+            homeScore: 14,
+            awayScore: 10,
+            status: 'live',
+            statusLabel: 'Q2 2:00',
+            scored: 'away',
+        },
+    ];
+    await page.goto('/');
+    await expandSections(page);
+    const card = page.locator('.game', { hasText: 'Green Bay Packers' });
+    for (const format of ['Full', 'Compact', 'Tight']) {
+        await expect(card.locator('.scored-label')).toHaveText('Scored');
+        if (format !== 'Tight') await page.getByRole('button', { name: `Display format: ${format}` }).click();
+    }
+    extraGames = [{ ...extraGames[0], scored: undefined }];
+    await page.keyboard.press('r');
+    await expect(card.locator('.scored-label')).toHaveCount(0);
+});
+
 test('football shows possession and a red-zone position; NBA marks national games', async ({ page }) => {
     liveExtra = { national: 'ESPN' };
     extraGames = [

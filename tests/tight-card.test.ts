@@ -29,6 +29,24 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
+    it.each([true, false])('shows Scored for the scoring football team when tight is %s', (tight) => {
+        const fixture = { ...game, awayTeamId: 'colts', scored: 'away' as const };
+        const render = (overrides: Partial<Game> = {}) =>
+            renderToStaticMarkup(
+                createElement(GameCard, {
+                    game: { ...fixture, ...overrides },
+                    view: 'live',
+                    tight,
+                    favoriteTeamIds: ['colts'],
+                })
+            );
+        const html = render();
+        expect(html).toMatch(/scored-label">Scored<\/span><span class="favorite-result favorite-winning"/);
+        expect(render({ scored: undefined })).not.toContain('scored-label');
+        expect(render({ status: 'final' })).not.toContain('scored-label');
+        expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
+    });
+
     it('marks nationally televised NBA games', () => {
         const render = (overrides: Partial<Game>) =>
             renderToStaticMarkup(

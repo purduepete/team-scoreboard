@@ -274,27 +274,30 @@ export function GameCard({
         const id = side === 'home' ? game.homeTeamId : game.awayTeamId;
         const score = side === 'home' ? game.homeScore : game.awayScore;
         const opponentScore = side === 'home' ? game.awayScore : game.homeScore;
-        if (
-            !id ||
-            !favoriteTeamIds.includes(id) ||
-            (game.status !== 'live' && game.status !== 'final') ||
-            score === null ||
-            opponentScore === null ||
-            score === opponentScore
-        )
-            return <span className="score-value">{score ?? '—'}</span>;
-        const winning = score > opponentScore;
+        const showResult =
+            id &&
+            favoriteTeamIds.includes(id) &&
+            (game.status === 'live' || game.status === 'final') &&
+            score !== null &&
+            opponentScore !== null &&
+            score !== opponentScore;
+        const winning = showResult && score > opponentScore;
         const label = game.status === 'final' ? (winning ? 'won' : 'lost') : winning ? 'winning' : 'losing';
         return (
             <>
                 <span className="score-value">
-                    <span
-                        className={`favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}
-                        aria-hidden="true"
-                    />
-                    {score}
+                    {football && game.status === 'live' && game.scored === side && (
+                        <span className="scored-label">Scored</span>
+                    )}
+                    {showResult && (
+                        <span
+                            className={`favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}
+                            aria-hidden="true"
+                        />
+                    )}
+                    {score ?? '—'}
                 </span>
-                <span className="sr-only">{` ${team} ${label}`}</span>
+                {showResult && <span className="sr-only">{` ${team} ${label}`}</span>}
             </>
         );
     };
@@ -309,7 +312,7 @@ export function GameCard({
                 </span>
                 <strong
                     key={`${side}-${flashes[`${game.id}:${side}`] ?? 0}`}
-                    className={flashes[`${game.id}:${side}`] ? 'score-changed' : undefined}
+                    className={!football && flashes[`${game.id}:${side}`] ? 'score-changed' : undefined}
                 >
                     {scoreDisplay(team, side)}
                 </strong>
@@ -410,7 +413,7 @@ export function GameCard({
                         </span>
                         <strong
                             key={`away-${flashes[`${game.id}:away`] ?? 0}`}
-                            className={flashes[`${game.id}:away`] ? 'score-changed' : undefined}
+                            className={!football && flashes[`${game.id}:away`] ? 'score-changed' : undefined}
                         >
                             {scoreDisplay(game.away, 'away')}
                         </strong>
@@ -424,7 +427,7 @@ export function GameCard({
                         </span>
                         <strong
                             key={`home-${flashes[`${game.id}:home`] ?? 0}`}
-                            className={flashes[`${game.id}:home`] ? 'score-changed' : undefined}
+                            className={!football && flashes[`${game.id}:home`] ? 'score-changed' : undefined}
                         >
                             {scoreDisplay(game.home, 'home')}
                         </strong>
