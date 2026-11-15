@@ -26,6 +26,8 @@ export interface Game {
     title: string;
     home: string | null;
     away: string | null;
+    homeTeamId?: string;
+    awayTeamId?: string;
     homeScore: number | null;
     awayScore: number | null;
     startTime: string | null;

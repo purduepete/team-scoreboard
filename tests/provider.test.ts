@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Game } from '../shared/contracts.js';
@@ -66,6 +66,8 @@ describe('ESPN normalization', () => {
         expect(game).toMatchObject({
             home: 'Indianapolis Colts',
             away: 'Baltimore Ravens',
+            homeTeamId: '134927',
+            awayTeamId: '134922',
             homeScore: 0,
             awayScore: 41,
             startTime: '2026-09-13T17:00:00.000Z',
@@ -148,6 +150,8 @@ describe('window and filters', () => {
             makeGame('favorite-early', 'NBA', 17, true),
             makeGame('nba-early', 'NBA', 18),
             makeGame('nfl-early', 'NFL', 19),
+            makeGame('mlb', 'MLB', 18),
+            makeGame('big-ten', 'Big Ten', 18),
             makeGame('shared', 'Big Ten', 16),
             makeGame('shared', 'NCAA', 16),
             { ...makeGame('undated', 'NFL', 16), startTime: null },
@@ -159,6 +163,8 @@ describe('window and filters', () => {
             'nfl-early',
             'nfl-late',
             'undated',
+            'big-ten',
+            'mlb',
             'nba-early',
             'nba-late',
         ]);
@@ -329,8 +335,8 @@ describe('window and filters', () => {
         expect(shown.filter((game) => game.id === 'boiler').map((game) => game.league)).toEqual(['NCAA', 'Big Ten']);
         expect(visibleGames(upcoming, 'upcoming', 'league:Big Ten', [], now)).toHaveLength(1);
         const sections = groupGames(shown, 'upcoming', ['134927'], now);
-        expect(sections.map((section) => section.label)).toEqual(['Purdue', 'Big Ten', 'NFL', 'NBA', 'MLB']);
-        const nba = sections[3];
+        expect(sections.map((section) => section.label)).toEqual(['Purdue', 'NFL', 'Big Ten', 'MLB', 'NBA']);
+        const nba = sections.find((section) => section.key === 'NBA')!;
         expect(nba.count).toBe(4);
         expect(nba.days.map((group) => group.label.split(' · ')[0])).toEqual(['Tomorrow', 'Date to be announced']);
         expect(nba.days[0].games.map((game) => game.id)).toEqual(['fav', 'early', 'tomorrow']);
@@ -406,6 +412,26 @@ describe('window and filters', () => {
             'canceled',
             'postponed',
         ]);
+    });
+    it('puts live NFL red-zone games first within favorite and status groups', () => {
+        const at = (id: string, hour: number, extra: Partial<Game> = {}): Game => ({
+            ...make(id, 22, 'live'),
+            league: 'NFL',
+            teamIds: ['other'],
+            startTime: new Date(2026, 9, 22, hour).toISOString(),
+            ...extra,
+        });
+        const games = [
+            at('normal', 10),
+            at('red-zone', 12, { redZone: true }),
+            at('favorite', 11, { teamIds: ['favorite'] }),
+            at('old-red-zone', 9, { status: 'final', redZone: true }),
+            at('other-sport', 8, { league: 'NFL', sport: 'Basketball', redZone: true, status: 'upcoming' }),
+        ];
+        const expected = ['favorite', 'red-zone', 'normal', 'other-sport', 'old-red-zone'];
+        expect(compactGames(games, ['favorite']).map((game) => game.id)).toEqual(expected);
+        const section = groupGames(games, 'live', ['favorite'], new Date(2026, 9, 22))[0];
+        expect(section.days[0].games.map((game) => game.id)).toEqual(expected);
     });
     it('expands the umbrella without duplicates and excludes the umbrella feed', () => {
         const expanded = expandFavorites(['purdue-all', 'purdue-football']);
@@ -498,6 +524,17 @@ describe('league scoreboards', () => {
         expect(game).toMatchObject({ status: 'live', awayScore: 24, homeScore: 27, week: 7, league: 'NFL' });
         expect(game.teamIds).toContain('134938');
         expect(game.teamIds).toHaveLength(2);
+    });
+    it('identifies Purdue on the right side of a Big Ten game', () => {
+        const [football] = leagues.filter((source) => source.league === 'Big Ten');
+        const fixture = scoreboardEvent('2', 'in', ['14', '21']);
+        fixture.competitions[0].competitors = [
+            competitor('away', '2509', 'Purdue Boilermakers', '14'),
+            competitor('home', '130', 'Michigan Wolverines', '21'),
+        ];
+        const [game] = parseScoreboard({ events: [fixture] }, football);
+        expect(game.awayTeamId).toBe('purdue-football');
+        expect(game.homeTeamId).toBeUndefined();
     });
     it('skips one broken event without blanking the league', () => {
         const games = parseScoreboard({ events: [scoreboardEvent('1', 'post', ['1', '2']), { id: 'bad' }] }, nfl);
@@ -616,11 +653,16 @@ describe('league scoreboards', () => {
             await make().league(nba, 1);
             await vi.waitFor(() => expect(existsSync(file)).toBe(true), { timeout: 5000 });
             const saved = JSON.parse(readFileSync(file, 'utf8'));
+            expect(saved.version).toBe(2);
             expect(Object.keys(saved.pages)).toEqual([`${nba.id}?dates=20261021`]);
             urls.length = 0;
             const games = await make().league(nba, 1);
             expect(urls.map((url) => url.slice(-8))).not.toContain('20261021');
             expect(games.map((game) => game.id)).toContain('300');
+            writeFileSync(file, JSON.stringify({ ...saved, version: 1 }));
+            urls.length = 0;
+            await make().league(nba, 1);
+            expect(urls.map((url) => url.slice(-8))).toContain('20261021');
         } finally {
             rmSync(directory, { recursive: true, force: true });
         }

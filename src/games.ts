@@ -118,20 +118,23 @@ export function isFavorite(game: Game, favoriteIds: string[]): boolean {
 
 const sections = [
     { key: 'NCAA', label: 'Purdue' },
-    { key: 'Big Ten', label: 'Big Ten' },
     { key: 'NFL', label: 'NFL' },
-    { key: 'NBA', label: 'NBA' },
+    { key: 'Big Ten', label: 'Big Ten' },
     { key: 'MLB', label: 'MLB' },
+    { key: 'NBA', label: 'NBA' },
 ];
 
 const statusRank = (game: Game) =>
     game.status === 'live' ? 0 : game.status === 'upcoming' ? 1 : game.status === 'final' ? 2 : 3;
+
+const nflRedZone = (game: Game) => game.league === 'NFL' && game.status === 'live' && game.redZone === true;
 
 export function compareGames(a: Game, b: Game, favoriteIds: string[]): number {
     const time = (game: Game) => (game.startTime ? Date.parse(game.startTime) : Number.MAX_SAFE_INTEGER);
     return (
         Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds)) ||
         statusRank(a) - statusRank(b) ||
+        Number(nflRedZone(b)) - Number(nflRedZone(a)) ||
         time(a) - time(b) ||
         a.id.localeCompare(b.id)
     );

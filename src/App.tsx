@@ -898,6 +898,7 @@ export function App() {
                                                                             key={game.id}
                                                                             game={game}
                                                                             favorite={isFavorite(game, highlightIds)}
+                                                                            favoriteTeamIds={favoriteIds}
                                                                             view={effectiveView}
                                                                             flashes={flashes}
                                                                         />
@@ -971,6 +972,7 @@ export function App() {
                                                                           game={game}
                                                                           tight={formatSettings.current === 'tight'}
                                                                           favorite={isFavorite(game, highlightIds)}
+                                                                          favoriteTeamIds={favoriteIds}
                                                                           view={effectiveView}
                                                                           showDate={effectiveView !== 'live'}
                                                                           flashes={{

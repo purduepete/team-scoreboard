@@ -658,6 +658,7 @@ export function AddedTeams({
                             <GameCard
                                 key={card.key}
                                 game={card.game}
+                                favoriteTeamIds={favoriteIds}
                                 view="live"
                                 flashes={flashes}
                                 reorder={cardDragProps(card.key)}

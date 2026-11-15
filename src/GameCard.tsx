@@ -235,6 +235,7 @@ function tightStatus(game: Game, showDate: boolean) {
 export function GameCard({
     game,
     favorite = false,
+    favoriteTeamIds = [],
     className,
     view,
     flashes = {},
@@ -246,6 +247,7 @@ export function GameCard({
 }: {
     game: Game;
     favorite?: boolean;
+    favoriteTeamIds?: string[];
     className?: string;
     view: View;
     flashes?: Record<string, number>;
@@ -257,12 +259,36 @@ export function GameCard({
 }) {
     const football = game.sport === 'Football';
     const situation = useSituation(game);
+    const scoreDisplay = (team: string, side: 'home' | 'away') => {
+        const id = side === 'home' ? game.homeTeamId : game.awayTeamId;
+        const score = side === 'home' ? game.homeScore : game.awayScore;
+        const opponentScore = side === 'home' ? game.awayScore : game.homeScore;
+        if (
+            !id ||
+            !favoriteTeamIds.includes(id) ||
+            (game.status !== 'live' && game.status !== 'final') ||
+            score === null ||
+            opponentScore === null ||
+            score === opponentScore
+        )
+            return <span className="score-value">{score ?? '—'}</span>;
+        const winning = score > opponentScore;
+        const label = game.status === 'final' ? (winning ? 'won' : 'lost') : winning ? 'winning' : 'losing';
+        return (
+            <>
+                <span className={`score-value favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}>
+                    {score}
+                </span>
+                <span className="sr-only">{` ${team} ${label}`}</span>
+            </>
+        );
+    };
     if (tight) {
         const match = football ? situation.text?.match(/^(.*?)\s+at\s+(.+)$/i) : null;
         const detail = match ? match[1] : situation.text;
         const position = match?.[2];
         const status = tightStatus(game, showDate);
-        const line = (team: string, score: number | null, side: 'home' | 'away') => (
+        const line = (team: string, side: 'home' | 'away') => (
             <div className="tight-team">
                 <span className="tight-name">
                     {favorite && side === 'away' && <Star size={14} className="tight-star" aria-label="Favorite" />}
@@ -273,7 +299,7 @@ export function GameCard({
                     key={`${side}-${flashes[`${game.id}:${side}`] ?? 0}`}
                     className={flashes[`${game.id}:${side}`] ? 'score-changed' : undefined}
                 >
-                    {score ?? '—'}
+                    {scoreDisplay(team, side)}
                 </strong>
             </div>
         );
@@ -284,8 +310,8 @@ export function GameCard({
             >
                 {game.home && game.away ? (
                     <>
-                        {line(game.away, game.awayScore, 'away')}
-                        {line(game.home, game.homeScore, 'home')}
+                        {line(game.away, 'away')}
+                        {line(game.home, 'home')}
                     </>
                 ) : (
                     <div className="tight-team">
@@ -294,7 +320,16 @@ export function GameCard({
                 )}
                 <div className="tight-meta">
                     <SportIcon sport={game.sport} />
-                    {status && <span>· {status}</span>}
+                    {status && (
+                        <span>
+                            ·{' '}
+                            {game.status === 'final' && view === 'live' ? (
+                                <span className="final-label">{status}</span>
+                            ) : (
+                                status
+                            )}
+                        </span>
+                    )}
                     {game.status === 'live' && detail && (
                         <span>
                             · {detail}
@@ -376,7 +411,7 @@ export function GameCard({
                             key={`away-${flashes[`${game.id}:away`] ?? 0}`}
                             className={flashes[`${game.id}:away`] ? 'score-changed' : undefined}
                         >
-                            {game.awayScore ?? '—'}
+                            {scoreDisplay(game.away, 'away')}
                         </strong>
                     </div>
                     <div>
@@ -390,7 +425,7 @@ export function GameCard({
                             key={`home-${flashes[`${game.id}:home`] ?? 0}`}
                             className={flashes[`${game.id}:home`] ? 'score-changed' : undefined}
                         >
-                            {game.homeScore ?? '—'}
+                            {scoreDisplay(game.home, 'home')}
                         </strong>
                     </div>
                     {game.status === 'live' && (situation.text || game.redZone) && (

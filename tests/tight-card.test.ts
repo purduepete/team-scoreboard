@@ -82,4 +82,33 @@ describe('tight game cards', () => {
         );
         expect(html).toContain('Final · 11/15');
     });
+
+    it('uses the same Today final badge as the other formats', () => {
+        const final = { ...game, status: 'final' as const, statusLabel: 'Final' };
+        const today = renderToStaticMarkup(createElement(GameCard, { game: final, view: 'live', tight: true }));
+        const recent = renderToStaticMarkup(createElement(GameCard, { game: final, view: 'recent', tight: true }));
+        expect(today).toContain('<span class="final-label">Final</span>');
+        expect(recent).not.toContain('final-label');
+    });
+
+    it.each([true, false])('marks each favorite team outcome when tight is %s', (tight) => {
+        const fixture = { ...game, awayTeamId: 'colts', homeTeamId: 'seahawks' };
+        const render = (overrides: Partial<Game>, favoriteTeamIds = ['colts', 'seahawks']) =>
+            renderToStaticMarkup(
+                createElement(GameCard, { game: { ...fixture, ...overrides }, view: 'live', tight, favoriteTeamIds })
+            );
+        const live = render({});
+        expect(live).toContain('class="score-value favorite-result favorite-winning">17</span>');
+        expect(live).toContain('class="score-value favorite-result favorite-losing">14</span>');
+        expect(live).toContain('Colts winning');
+        expect(live).toContain('Seahawks losing');
+        const final = render({ status: 'final' });
+        expect(final).toContain('Colts won');
+        expect(final).toContain('Seahawks lost');
+        expect(render({}, ['seahawks'])).not.toContain('Colts winning');
+        expect(render({ awayScore: 14 })).not.toContain('favorite-result');
+        expect(render({ homeScore: null })).not.toContain('favorite-result');
+        expect(render({ status: 'upcoming' })).not.toContain('favorite-result');
+        expect(render({ homeTeamId: undefined, awayTeamId: undefined })).not.toContain('favorite-result');
+    });
 });

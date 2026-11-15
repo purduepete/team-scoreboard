@@ -248,6 +248,8 @@ function toGame(
         title: event.name,
         home: home?.team.displayName ?? null,
         away: away?.team.displayName ?? null,
+        ...(home && { homeTeamId: catalogTeamId(context.path, home.team.id) }),
+        ...(away && { awayTeamId: catalogTeamId(context.path, away.team.id) }),
         homeScore: status === 'upcoming' ? null : score(home?.score),
         awayScore: status === 'upcoming' ? null : score(away?.score),
         startTime: timeKnown ? instant.toISOString() : null,
@@ -404,7 +406,7 @@ export const liveRefreshMs = 30_000;
 export const maxDaysBack = 14;
 const settledStatuses: Game['status'][] = ['final', 'postponed', 'canceled'];
 const cacheFileSchema = z.object({
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     pages: z.record(
         z.string(),
         z.object({
@@ -591,6 +593,8 @@ export class SportsProvider {
         if (!this.cacheFile || !existsSync(this.cacheFile)) return;
         try {
             const file = cacheFileSchema.parse(JSON.parse(readFileSync(this.cacheFile, 'utf8')));
+            // Older cached games have no home/away catalog IDs.
+            if (file.version === 1) return;
             const now = this.clock();
             for (const [key, page] of Object.entries(file.pages)) {
                 if (now - page.fetchedAt >= 24 * 60 * 60_000) continue;
@@ -624,7 +628,7 @@ export class SportsProvider {
             }
             const target = this.cacheFile!;
             const temporary = `${target}.tmp`;
-            writeFile(temporary, JSON.stringify({ version: 1, pages }))
+            writeFile(temporary, JSON.stringify({ version: 2, pages }))
                 .then(() => rename(temporary, target))
                 .catch((error: unknown) =>
                     console.warn('Could not save the scoreboard cache:', error instanceof Error ? error.message : error)
