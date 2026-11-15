@@ -1071,7 +1071,7 @@ small {
 }
 .tight-game {
     padding: 8px 10px;
-    gap: 2px;
+    gap: 4px;
 }
 .tight-team {
     display: flex;
