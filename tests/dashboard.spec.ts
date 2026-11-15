@@ -2120,7 +2120,7 @@ test('Upcoming days ahead are saved and compact tabs show dates', async ({ page 
     await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
     await expect(page.locator('.compact-games .game').filter({ hasText: 'upcoming-1' }).locator('time')).toContainText(
-        'Oct 29'
+        '10/29/2026'
     );
     await page.keyboard.press('1');
     await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -2407,6 +2407,7 @@ test('football scoring label appears in every format and clears after kickoff', 
             title: 'Fixture Bears at Packers',
             home: 'Green Bay Packers',
             away: 'Chicago Bears',
+            awayTeamId: '134927',
             homeScore: 14,
             awayScore: 10,
             status: 'live',
@@ -2419,11 +2420,74 @@ test('football scoring label appears in every format and clears after kickoff', 
     const card = page.locator('.game', { hasText: 'Green Bay Packers' });
     for (const format of ['Full', 'Compact', 'Tight']) {
         await expect(card.locator('.scored-label')).toHaveText('Scored');
+        await expect(card.locator('.favorite-result')).toHaveCount(1);
+        const difference = await card
+            .locator('.score-lines > div, .tight-team')
+            .first()
+            .evaluate((row) => {
+                const name = row.querySelector('.tight-name-text') ?? row.querySelector(':scope > span');
+                const score = row.querySelector('.score-value')?.lastChild;
+                if (!name || !score) throw new Error('Missing team name or score.');
+                const center = (node: Node) => {
+                    const range = document.createRange();
+                    range.selectNodeContents(node);
+                    const bounds = range.getBoundingClientRect();
+                    return bounds.top + bounds.height / 2;
+                };
+                return Math.abs(center(name) - center(score));
+            });
+        expect(difference).toBeLessThan(1);
         if (format !== 'Tight') await page.getByRole('button', { name: `Display format: ${format}` }).click();
     }
     extraGames = [{ ...extraGames[0], scored: undefined }];
     await page.keyboard.press('r');
     await expect(card.locator('.scored-label')).toHaveCount(0);
+});
+
+test('team rows line up across live, final and scheduled cards', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+    extraGames = [
+        {
+            ...game,
+            id: 'alignment-live',
+            title: 'Fixture Bears at Packers',
+            away: 'Chicago Bears',
+            home: 'Green Bay Packers',
+            status: 'live',
+            statusLabel: 'Q2 2:00',
+            awayScore: 10,
+            homeScore: 14,
+        },
+        {
+            ...game,
+            id: 'alignment-final',
+            title: 'Fixture Ravens at Bengals',
+            away: 'Baltimore Ravens',
+            home: 'Cincinnati Bengals',
+            status: 'final',
+            statusLabel: 'Final',
+            awayScore: 17,
+            homeScore: 21,
+        },
+    ];
+    await page.goto('/');
+    await expandSections(page);
+    for (const format of ['Full', 'Compact', 'Tight']) {
+        const offsets = await Promise.all(
+            ['Chicago Bears', 'Baltimore Ravens', 'Seattle Seahawks'].map((team) =>
+                page
+                    .locator('.game', { hasText: team })
+                    .first()
+                    .evaluate((card) => {
+                        const row = card.querySelector('.score-lines > div, .tight-team');
+                        if (!row) throw new Error('Missing team row.');
+                        return row.getBoundingClientRect().top - card.getBoundingClientRect().top;
+                    })
+            )
+        );
+        expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThan(1);
+        if (format !== 'Tight') await page.getByRole('button', { name: `Display format: ${format}` }).click();
+    }
 });
 
 test('football shows possession and a red-zone position; NBA marks national games', async ({ page }) => {

@@ -1,4 +1,5 @@
 import type { Game, TeamCategory } from '../shared/contracts';
+import { pacificDate } from './pacific-time';
 
 export interface TeamPin {
     category: TeamCategory;
@@ -14,14 +15,10 @@ export const categories: { value: TeamCategory; label: string }[] = [
 
 export const pinKey = (pin: TeamPin) => `${pin.category}:${pin.id}`;
 
-export function localDate(date = new Date()): string {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
 export function todayGames(games: Game[], now = new Date()): Game[] {
-    const today = localDate(now);
+    const today = pacificDate(now);
     return games.filter((game) =>
-        game.startTime ? localDate(new Date(game.startTime)) === today : game.date === today
+        game.startTime ? pacificDate(new Date(game.startTime)) === today : game.date === today
     );
 }
 

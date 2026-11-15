@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { localDate, pinKey, pinsKey, readCardOrder, readPins, todayGames } from '../src/added-teams';
+import { pinKey, pinsKey, readCardOrder, readPins, todayGames } from '../src/added-teams';
+import { nextPacificMidnight, pacificDate } from '../src/pacific-time';
 import type { Game } from '../shared/contracts';
 
 describe('daily browser team pins', () => {
-    it('uses local calendar dates rather than UTC date prefixes', () => {
-        const date = new Date(2026, 9, 24, 23, 59);
-        expect(localDate(date)).toBe('2026-10-24');
-        expect(localDate(new Date(2026, 9, 25))).toBe('2026-10-25');
+    it('uses Pacific calendar dates rather than the browser or UTC date', () => {
+        const date = new Date('2026-10-25T06:59:00Z');
+        expect(pacificDate(date)).toBe('2026-10-24');
+        expect(pacificDate(new Date('2026-10-25T07:00:00Z'))).toBe('2026-10-25');
         const game = { startTime: date.toISOString(), date: '2026-10-25' } as Game;
         expect(todayGames([game], date)).toEqual([game]);
-        expect(todayGames([game], new Date(2026, 9, 25))).toEqual([]);
+        expect(todayGames([game], new Date('2026-10-25T07:00:00Z'))).toEqual([]);
+    });
+    it('finds Pacific midnight across daylight saving transitions', () => {
+        expect(nextPacificMidnight(new Date('2026-03-08T08:30:00Z'))).toBe(Date.parse('2026-03-09T07:00:00Z'));
+        expect(nextPacificMidnight(new Date('2026-11-01T07:30:00Z'))).toBe(Date.parse('2026-11-02T08:00:00Z'));
     });
     it('handles an unannounced time without treating live games yesterday as today', () => {
         const today = { startTime: null, date: '2026-10-24' } as Game;

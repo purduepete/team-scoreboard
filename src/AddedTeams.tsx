@@ -6,10 +6,11 @@ import type { Feed, Game, SearchTeam, TeamCategory } from '../shared/contracts';
 import { GameCard } from './GameCard';
 import { Tooltip } from './Tooltip';
 import { isAppleTouchDevice } from './device';
-import { categories, localDate, pinKey, pinLimit, pinsKey, readCardOrder, readPins, todayGames } from './added-teams';
+import { categories, pinKey, pinLimit, pinsKey, readCardOrder, readPins, todayGames } from './added-teams';
 import type { TeamPin } from './added-teams';
 import { reconcile, withLiveFields } from '../shared/reconcile';
 import { compareGames, matchesGameStatus } from './games';
+import { nextPacificMidnight, pacificDate } from './pacific-time';
 import type { GameStatusFilter } from './games';
 
 interface TeamResult {
@@ -43,7 +44,7 @@ async function get<T>(url: string, signal: AbortSignal): Promise<T> {
 }
 
 function initialPins() {
-    const date = localDate();
+    const date = pacificDate();
     try {
         const raw = localStorage.getItem(pinsKey);
         return { date, pins: readPins(raw, date), order: readCardOrder(raw, date), error: '' };
@@ -117,7 +118,7 @@ export function AddedTeams({
     close.current = onClose;
 
     const expire = useCallback(() => {
-        const date = localDate();
+        const date = pacificDate();
         if (current.current.date === date) return false;
         generation.current++;
         controller.current?.abort();
@@ -150,7 +151,7 @@ export function AddedTeams({
                     expire();
                     timer = arm();
                 },
-                new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime() + 50
+                nextPacificMidnight(now) - now.getTime() + 50
             );
         };
         let timer = arm();

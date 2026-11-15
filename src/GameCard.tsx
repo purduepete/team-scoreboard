@@ -5,6 +5,7 @@ import type { Game } from '../shared/contracts';
 import type { HTMLAttributes, ReactNode } from 'react';
 import type { View } from './games';
 import { footballSituation, formatStart, formatTime } from './games';
+import { formatDate, pacificDate } from './pacific-time';
 import { Tooltip } from './Tooltip';
 
 function Broadcast({ name }: { name: string }) {
@@ -195,13 +196,9 @@ function SportIcon({ sport }: { sport: string }) {
 function tightStatus(game: Game, showDate: boolean) {
     if (game.status === 'upcoming') {
         if (!game.startTime)
-            return game.date ? `${game.date.slice(5).replace('-', '/')} · Time unannounced` : 'Time unannounced';
-        return new Intl.DateTimeFormat(undefined, {
-            ...(showDate ? { month: '2-digit', day: '2-digit' } : {}),
-            hour: '2-digit',
-            minute: '2-digit',
-            hourCycle: 'h23',
-        }).format(new Date(game.startTime));
+            return game.date ? `${formatDate(game.date, false)} · Time unannounced` : 'Time unannounced';
+        const date = showDate ? `${formatDate(pacificDate(new Date(game.startTime)), false)} ` : '';
+        return `${date}${formatTime(game)}`;
     }
     let status = game.statusLabel;
     if (game.status === 'live') {
@@ -225,8 +222,8 @@ function tightStatus(game: Game, showDate: boolean) {
     }
     if (game.status === 'final' && showDate && (game.startTime || game.date)) {
         const date = game.startTime
-            ? new Intl.DateTimeFormat(undefined, { month: '2-digit', day: '2-digit' }).format(new Date(game.startTime))
-            : game.date?.slice(5).replace('-', '/');
+            ? formatDate(pacificDate(new Date(game.startTime)), false)
+            : game.date && formatDate(game.date, false);
         return `${status} · ${date}`;
     }
     return status;

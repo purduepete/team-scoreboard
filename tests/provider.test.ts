@@ -98,13 +98,15 @@ describe('ESPN normalization', () => {
     it('keeps an unannounced time separate from the date', () => {
         const game = normalizeEvent({ ...event, competitions: [{ ...event.competitions[0], timeValid: false }] }, team);
         expect(game.startTime).toBeNull();
-        expect(formatStart(game)).toBe('2026-09-13 · time unannounced');
+        expect(formatStart(game)).toBe('09/13/2026 · time unannounced');
+        expect(formatStart({ startTime: null, date: null })).toBe('Date and time unannounced');
     });
     it('shows start times on a 24-hour clock', () => {
-        const evening = { startTime: new Date(2026, 9, 24, 19, 30).toISOString(), date: null };
-        expect(formatTime(evening)).toMatch(/^19:30/);
-        expect(formatStart(evening)).toMatch(/19:30/);
-        expect(formatTime({ ...evening, startTime: new Date(2026, 9, 24, 0, 5).toISOString() })).toMatch(/^00:05/);
+        const evening = { startTime: '2026-10-25T02:30:00Z', date: null };
+        expect(formatTime(evening)).toBe('19:30');
+        expect(formatStart(evening)).toBe('10/24/2026 19:30');
+        expect(formatTime({ ...evening, startTime: '2026-10-24T07:05:00Z' })).toBe('00:05');
+        expect(formatTime({ ...evening, startTime: '2026-01-24T07:05:00Z' })).toBe('23:05');
     });
     it('rejects broken shapes and events for other teams', () => {
         expect(parseEvents({ events: [] }, team)).toEqual([]);
@@ -176,6 +178,16 @@ describe('window and filters', () => {
         id,
         status: gameStatus,
         startTime: new Date(Date.UTC(2026, 9, day, 17)).toISOString(),
+    });
+    it('uses Pacific dates for Today, Upcoming and day headings', () => {
+        const now = new Date('2026-01-02T07:15:00Z');
+        const today = { ...make('today', 1, 'upcoming'), startTime: '2026-01-02T07:30:00Z' };
+        const tomorrow = { ...make('tomorrow', 2, 'upcoming'), startTime: '2026-01-02T08:30:00Z' };
+        const games = [today, tomorrow];
+        expect(visibleGames(games, 'live', 'all', [], now).map((game) => game.id)).toEqual(['today']);
+        expect(visibleGames(games, 'upcoming', 'all', [], now).map((game) => game.id)).toEqual(['tomorrow']);
+        const [section] = groupGames(games, 'upcoming', [], now);
+        expect(section.days.map((day) => day.label)).toEqual(['Today · 01/01/2026', 'Tomorrow · 01/02/2026']);
     });
     it('sorts compact favorites across leagues and nonfavorites by league without duplicate events', () => {
         const makeGame = (id: string, league: string, day: number, favorite = false): Game => ({

@@ -29,6 +29,20 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
+    it('uses short numeric dates for scheduled games with or without a start time', () => {
+        const render = (overrides: Partial<Game>) =>
+            renderToStaticMarkup(
+                createElement(GameCard, {
+                    game: { ...game, status: 'upcoming', ...overrides },
+                    view: 'upcoming',
+                    showDate: true,
+                    tight: true,
+                })
+            );
+        expect(render({ startTime: '2026-11-16T02:30:00Z' })).toContain('11/15 18:30');
+        expect(render({ startTime: null })).toContain('11/15 · Time unannounced');
+    });
+
     it.each([true, false])('shows Scored for the scoring football team when tight is %s', (tight) => {
         const fixture = { ...game, awayTeamId: 'colts', scored: 'away' as const };
         const render = (overrides: Partial<Game> = {}) =>

@@ -1,27 +1,16 @@
 import type { Game } from '../shared/contracts';
 import { reconcile, withLiveFields } from '../shared/reconcile';
+import { formatDate, formatPacificTime, pacificDate } from './pacific-time';
 
 export function formatStart(game: Pick<Game, 'startTime' | 'date'>): string {
-    if (!game.startTime) return game.date ? `${game.date} · time unannounced` : 'Date and time unannounced';
-    return new Intl.DateTimeFormat(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-        timeZoneName: 'short',
-    }).format(new Date(game.startTime));
+    if (!game.startTime) return game.date ? `${formatDate(game.date)} · time unannounced` : 'Date and time unannounced';
+    const start = new Date(game.startTime);
+    return `${formatDate(pacificDate(start))} ${formatPacificTime(start)}`;
 }
 
 export function formatTime(game: Pick<Game, 'startTime' | 'date'>): string {
     if (!game.startTime) return 'Time unannounced';
-    return new Intl.DateTimeFormat(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-        timeZoneName: 'short',
-    }).format(new Date(game.startTime));
+    return formatPacificTime(new Date(game.startTime));
 }
 
 export type View = 'live' | 'upcoming' | 'recent';
@@ -45,16 +34,11 @@ export interface LeagueSection {
 }
 
 function localDay(game: Game): Date | null {
-    if (game.startTime) {
-        const start = new Date(game.startTime);
-        return new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    }
-    if (!game.date) return null;
-    const [year, month, day] = game.date.split('-').map(Number);
-    return new Date(year, month - 1, day);
+    const date = game.startTime ? pacificDate(new Date(game.startTime)) : game.date;
+    return date ? new Date(`${date}T00:00:00Z`) : null;
 }
 
-const startOfDay = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const startOfDay = (now: Date) => new Date(`${pacificDate(now)}T00:00:00Z`);
 const isToday = (game: Game, now: Date) => localDay(game)?.getTime() === startOfDay(now).getTime();
 
 // Filters are 'all', 'favorites', 'league:<NFL|NBA|MLB|Big Ten|NCAA>' or team ids, matched as a union.
@@ -63,10 +47,10 @@ export const resultDays = 14;
 export const recentDayOptions = [1, 3, 5] as const;
 export type RecentDays = (typeof recentDayOptions)[number];
 
-// Live shows every game on today's local date; Upcoming and Recent split the rest by status.
-// Recent keeps finals from the last windowDays local days (14 by default; the page passes the saved
+// Live shows every game on today's Pacific date; Upcoming and Recent split the rest by status.
+// Recent keeps finals from the last windowDays Pacific days (14 by default; the page passes the saved
 // 1, 3 or 5) plus past postponed or canceled games in that window; Upcoming keeps
-// the next windowDays local days (7 by default) and undated games.
+// the next windowDays Pacific days (7 by default) and undated games.
 export function visibleGames(
     games: Game[],
     view: View,
@@ -220,7 +204,7 @@ export function compactGames(games: Game[], favoriteIds: string[], newestDayFirs
 }
 
 function dayLabel(day: Date, today: Date): string {
-    const full = day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const full = formatDate(day.toISOString().slice(0, 10));
     const offset = Math.round((day.getTime() - today.getTime()) / 86_400_000);
     const relative = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : offset === -1 ? 'Yesterday' : '';
     return relative ? `${relative} · ${full}` : full;

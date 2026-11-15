@@ -1131,6 +1131,8 @@ small {
     color: var(--favorite-loss);
 }
 .tight-team strong {
+    display: flex;
+    align-items: center;
     flex: none;
     font-variant-numeric: tabular-nums;
 }
@@ -1177,7 +1179,11 @@ small {
 .game-meta {
     flex-wrap: nowrap;
     align-items: center;
+    min-height: calc(0.9rem + 8px);
     margin-bottom: 18px;
+}
+.game-meta .final-label {
+    line-height: 1.2;
 }
 .game-description {
     display: flex;
@@ -1201,12 +1207,15 @@ small {
 }
 .score-lines > div {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
     margin: 12px 0;
     font-size: 0.95rem;
 }
 .score-lines strong {
+    display: flex;
+    align-items: center;
     font-size: 1.5rem;
     font-weight: 600;
 }

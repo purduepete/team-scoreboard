@@ -32,6 +32,7 @@ import { Tooltip } from './Tooltip';
 import { ThemeMenu } from './ThemeMenu';
 import { LoadingSpinner } from './LoadingSpinner';
 import { useTheme } from './theme';
+import { formatDate, formatPacificTime, pacificDate } from './pacific-time';
 import {
     compactGames,
     groupGames,
@@ -485,7 +486,6 @@ export function App() {
         .filter((value): value is string => value !== null)
         .sort()
         .at(-1);
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const sectionControls = !compact && sectionKeys.length > 0 && (
         <div
             className="section-controls"
@@ -1037,7 +1037,6 @@ export function App() {
                                 <h2>Coverage</h2>
                                 <p className="muted">
                                     {data.notice} Purdue programs without an ESPN feed link to the official schedule.
-                                    Times are local to {timeZone}.
                                 </p>
                                 <div className="coverage">
                                     {feeds.map((feed) => (
@@ -1068,10 +1067,8 @@ export function App() {
                                                 {feed.updatedAt && (
                                                     <small>
                                                         Last successful fetch:{' '}
-                                                        {new Date(feed.updatedAt).toLocaleString(undefined, {
-                                                            hourCycle: 'h23',
-                                                            timeZoneName: 'short',
-                                                        })}
+                                                        {formatDate(pacificDate(new Date(feed.updatedAt)))}{' '}
+                                                        {formatPacificTime(new Date(feed.updatedAt))}
                                                     </small>
                                                 )}
                                                 <a href={feed.officialUrl} target="_blank" rel="noreferrer">
@@ -1091,13 +1088,7 @@ export function App() {
                         <div className="refresh-time">
                             <Clock3 size={13} aria-hidden="true" />
                             <span>Last refresh</span>
-                            <time dateTime={updated}>
-                                {new Date(updated).toLocaleTimeString(undefined, {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hourCycle: 'h23',
-                                })}
-                            </time>
+                            <time dateTime={updated}>{formatPacificTime(new Date(updated))}</time>
                         </div>
                     )}
                 </footer>
