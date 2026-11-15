@@ -1110,13 +1110,6 @@ small {
 .favorite-losing {
     border-color: var(--favorite-loss);
 }
-.tight-star {
-    flex: none;
-    margin-right: 4px;
-    vertical-align: middle;
-    color: var(--accent);
-    fill: var(--accent);
-}
 .tight-team strong {
     flex: none;
     font-variant-numeric: tabular-nums;

@@ -291,7 +291,6 @@ export function GameCard({
         const line = (team: string, side: 'home' | 'away') => (
             <div className="tight-team">
                 <span className="tight-name">
-                    {favorite && side === 'away' && <Star size={14} className="tight-star" aria-label="Favorite" />}
                     <span className="tight-name-text">{team}</span>
                     {game.possession === side && <Possession football={football} />}
                 </span>

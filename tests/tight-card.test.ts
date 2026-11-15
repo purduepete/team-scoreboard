@@ -26,6 +26,16 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
+    it('omits the favorite star in Tight while keeping it in other formats', () => {
+        const props = { game, view: 'live' as const, favorite: true, favoriteTeamIds: ['colts'] };
+        const fixture = { ...props, game: { ...game, awayTeamId: 'colts' } };
+        const tight = renderToStaticMarkup(createElement(GameCard, { ...fixture, tight: true }));
+        const standard = renderToStaticMarkup(createElement(GameCard, fixture));
+        expect(tight).not.toContain('aria-label="Favorite"');
+        expect(tight).toContain('favorite-winning');
+        expect(standard).toContain('aria-label="Favorite"');
+    });
+
     it('shows possession, period, down and red-zone position without network text', () => {
         const html = renderToStaticMarkup(createElement(GameCard, { game, view: 'live', tight: true }));
         expect(html).toContain('3Q 8:42');
