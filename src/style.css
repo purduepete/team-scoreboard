@@ -1097,6 +1097,8 @@ small {
 .tight-name .possession-ball,
 .tight-name .possession {
     flex: none;
+}
+.tight-name .possession {
     margin-left: 4px;
 }
 .score-value {
@@ -1631,6 +1633,9 @@ kbd {
     border-style: solid;
     border-width: 0 22px 22px 0;
     border-color: transparent var(--accent) transparent transparent;
+}
+.tight-game .national-badge {
+    border-width: 0 10px 10px 0;
 }
 @keyframes score-flash {
     from {

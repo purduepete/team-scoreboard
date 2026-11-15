@@ -2442,6 +2442,26 @@ test('football shows possession and a red-zone position; NBA marks national game
     await expect(page.locator('.game', { hasText: 'Charlotte Hornets' }).locator('.national-badge')).toHaveCount(0);
     await football.screenshot({ path: 'test-results/football-red-zone.png' });
     await national.screenshot({ path: 'test-results/nba-national.png' });
+
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+    const tightFootball = page.locator('.tight-game', { hasText: 'Green Bay Packers' });
+    expect(
+        await tightFootball
+            .locator('.possession-ball')
+            .evaluate((icon) => icon.parentElement?.firstElementChild === icon)
+    ).toBe(true);
+    const tightNational = page.locator('.tight-game', { hasText: 'Indiana Pacers' });
+    const marker = tightNational.getByRole('img', { name: 'National broadcast: ESPN' });
+    await expect(marker).toBeVisible();
+    const badgeBox = await marker.boundingBox();
+    const scoreBox = await tightNational.locator('.tight-team').first().locator('strong').boundingBox();
+    expect(badgeBox).not.toBeNull();
+    expect(scoreBox).not.toBeNull();
+    expect(badgeBox!.x).toBeGreaterThanOrEqual(scoreBox!.x + scoreBox!.width);
+    await expect(page.locator('.tight-game', { hasText: 'Charlotte Hornets' }).locator('.national-badge')).toHaveCount(
+        0
+    );
 });
 
 test('server failures are visible with retry, without fake records', async ({ page }) => {

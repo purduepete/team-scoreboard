@@ -1,8 +1,11 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GameCard } from '../src/GameCard';
 import type { Game } from '../shared/contracts';
+import type { ReactNode } from 'react';
+
+vi.mock('../src/Tooltip', () => ({ Tooltip: ({ children }: { children: ReactNode }) => children }));
 
 const game: Game = {
     id: '1',
@@ -26,6 +29,18 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
+    it('marks nationally televised NBA games', () => {
+        const render = (overrides: Partial<Game>) =>
+            renderToStaticMarkup(
+                createElement(GameCard, { game: { ...game, ...overrides }, view: 'live', tight: true })
+            );
+        expect(render({ league: 'NBA', sport: 'Basketball', national: 'ESPN' })).toContain(
+            'class="national-badge" role="img" tabindex="0" aria-label="National broadcast: ESPN"'
+        );
+        expect(render({ league: 'NBA', sport: 'Basketball' })).not.toContain('national-badge');
+        expect(render({ league: 'NFL', national: 'ESPN' })).not.toContain('national-badge');
+    });
+
     it('shows the outcome dot in Tight and retains the card star in other formats', () => {
         const props = { game, view: 'live' as const, favorite: true, favoriteTeamIds: ['colts'] };
         const fixture = { ...props, game: { ...game, awayTeamId: 'colts' } };
@@ -46,6 +61,26 @@ describe('tight game cards', () => {
         expect(html).not.toContain('LIVE');
         expect(html.match(/class="tight-team"/g)).toHaveLength(2);
         expect(html.match(/class="tight-meta"/g)).toHaveLength(1);
+    });
+
+    it.each(['away', 'home'] as const)('places football possession before the %s team name', (possession) => {
+        const html = renderToStaticMarkup(
+            createElement(GameCard, { game: { ...game, possession }, view: 'live', tight: true })
+        );
+        const rows = html.split('<div class="tight-team">').slice(1);
+        const withBall = rows[possession === 'away' ? 0 : 1];
+        const withoutBall = rows[possession === 'away' ? 1 : 0];
+        expect(withBall).toMatch(/class="possession-ball".*?<\/svg><span class="tight-name-text">/);
+        expect(withoutBall).not.toContain('Has possession');
+    });
+
+    it('keeps non-football possession after the team name', () => {
+        const html = renderToStaticMarkup(
+            createElement(GameCard, { game: { ...game, sport: 'Baseball' }, view: 'live', tight: true })
+        );
+        expect(html).toContain(
+            '<span class="tight-name-text">Colts</span><span class="possession" role="img" aria-label="Has possession">'
+        );
     });
 
     it('does not invent a position when the feed omits it', () => {

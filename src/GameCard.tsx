@@ -260,6 +260,16 @@ export function GameCard({
     const football = game.sport === 'Football';
     const situation = useSituation(game);
     const { detail, position } = football ? footballSituation(situation.text) : { detail: situation.text };
+    const nationalBadge = game.league === 'NBA' && game.national && (
+        <Tooltip content={`National broadcast: ${game.national}`}>
+            <span
+                className="national-badge"
+                role="img"
+                tabIndex={0}
+                aria-label={`National broadcast: ${game.national}`}
+            />
+        </Tooltip>
+    );
     const scoreDisplay = (team: string, side: 'home' | 'away') => {
         const id = side === 'home' ? game.homeTeamId : game.awayTeamId;
         const score = side === 'home' ? game.homeScore : game.awayScore;
@@ -293,8 +303,9 @@ export function GameCard({
         const line = (team: string, side: 'home' | 'away') => (
             <div className="tight-team">
                 <span className="tight-name">
+                    {football && game.possession === side && <Possession football={football} />}
                     <span className="tight-name-text">{team}</span>
-                    {game.possession === side && <Possession football={football} />}
+                    {!football && game.possession === side && <Possession football={football} />}
                 </span>
                 <strong
                     key={`${side}-${flashes[`${game.id}:${side}`] ?? 0}`}
@@ -309,6 +320,7 @@ export function GameCard({
                 className={`game tight-game${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`}
                 {...reorder}
             >
+                {nationalBadge}
                 {game.home && game.away ? (
                     <>
                         {line(game.away, 'away')}
@@ -362,16 +374,7 @@ export function GameCard({
     }
     return (
         <article className={`game${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`} {...reorder}>
-            {game.league === 'NBA' && game.national && (
-                <Tooltip content={`National broadcast: ${game.national}`}>
-                    <span
-                        className="national-badge"
-                        role="img"
-                        tabIndex={0}
-                        aria-label={`National broadcast: ${game.national}`}
-                    />
-                </Tooltip>
-            )}
+            {nationalBadge}
             <div className="game-meta">
                 <span className="game-description">
                     {favorite && (
