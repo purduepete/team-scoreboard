@@ -9,7 +9,8 @@ import { isAppleTouchDevice } from './device';
 import { categories, localDate, pinKey, pinLimit, pinsKey, readCardOrder, readPins, todayGames } from './added-teams';
 import type { TeamPin } from './added-teams';
 import { reconcile, withLiveFields } from '../shared/reconcile';
-import { compareGames } from './games';
+import { compareGames, matchesGameStatus } from './games';
+import type { GameStatusFilter } from './games';
 
 interface TeamResult {
     team: SearchTeam;
@@ -59,7 +60,7 @@ function initialPins() {
 
 export function AddedTeams({
     active,
-    activeOnly = false,
+    gameStatus = 'all',
     favoriteIds,
     dashboardFeeds,
     open,
@@ -72,7 +73,7 @@ export function AddedTeams({
     onInitialReady,
 }: {
     active: boolean;
-    activeOnly?: boolean;
+    gameStatus?: GameStatusFilter;
     favoriteIds: string[];
     dashboardFeeds: Feed[];
     open: boolean;
@@ -364,7 +365,7 @@ export function AddedTeams({
             game.teamIds.includes(entry.result!.team.id)
         )) {
             const currentGame = withLiveFields(game, best.get(game.id));
-            if (activeOnly && currentGame.status !== 'live') continue;
+            if (!matchesGameStatus(currentGame, gameStatus)) continue;
             const key = `${game.sport}:${game.id}`;
             const existing = games.get(key);
             if (existing) existing.names.add(entry.result.team.name);
@@ -381,7 +382,7 @@ export function AddedTeams({
             result?.team.name ?? `${categories.find((item) => item.value === pin.category)?.label} team ${pin.id}`;
         const hasGames = result && todayGames(result.feed.games).some((game) => game.teamIds.includes(result.team.id));
         if (
-            (hasGames || activeOnly) &&
+            (hasGames || gameStatus !== 'all') &&
             !entry?.error &&
             !result?.feed.error &&
             result &&
@@ -532,8 +533,8 @@ export function AddedTeams({
                 </button>
             </h2>
             <div id="section-custom" hidden={!expanded}>
-                {activeOnly && !gameCards.length && !statusCards.length && (
-                    <p role="status">No active games for Custom teams.</p>
+                {gameStatus !== 'all' && !gameCards.length && !statusCards.length && (
+                    <p role="status">No {gameStatus} games for Custom teams.</p>
                 )}
                 {saved.error && <p role="alert">{saved.error}</p>}
                 {open &&

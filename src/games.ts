@@ -25,6 +25,11 @@ export function formatTime(game: Pick<Game, 'startTime' | 'date'>): string {
 }
 
 export type View = 'live' | 'upcoming' | 'recent';
+export type GameStatusFilter = 'all' | 'live' | 'final';
+
+export function matchesGameStatus(game: Pick<Game, 'status'>, filter: GameStatusFilter): boolean {
+    return filter === 'all' || game.status === filter;
+}
 
 export interface DayGroup {
     key: string;

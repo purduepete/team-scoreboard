@@ -924,7 +924,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
 });
 
 for (const theme of ['light', 'midnight']) {
-    test(`active-only respects teams and restores the schedule view (${theme})`, async ({ page }) => {
+    test(`game status respects teams and restores the schedule view (${theme})`, async ({ page }) => {
         await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
         await page.setViewportSize({ width: 390, height: 844 });
         await page.addInitScript((theme) => localStorage.setItem('team-scoreboard-theme', theme), theme);
@@ -947,16 +947,17 @@ for (const theme of ['light', 'midnight']) {
         await show.click();
         await page.getByRole('option', { name: 'NFL', exact: true }).click();
         await page.keyboard.press('Escape');
-        const active = page.getByRole('button', { name: 'Active games only', exact: true });
-        await active.click();
-        await expect(active).toHaveAttribute('aria-pressed', 'true');
+        const status = page.getByRole('button', { name: /^Game status:/ });
+        await status.click();
+        await expect(status).toHaveAccessibleName('Game status: Live');
+        await expect(status).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
         await expect(page.getByRole('button', { name: 'Recent', exact: true })).toBeDisabled();
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveCSS('opacity', '0.45');
         await expect(page.getByRole('button', { name: 'Recent', exact: true })).toHaveCSS('opacity', '0.45');
         await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveCSS('opacity', '1');
-        await expect(page.getByRole('status').filter({ hasText: 'No active games' })).toBeVisible();
+        await expect(page.getByRole('status').filter({ hasText: 'No live games' })).toBeVisible();
         await expect(page.locator('.game')).toHaveCount(0);
         await show.click();
         await page.getByRole('option', { name: 'NBA', exact: true }).click();
@@ -966,8 +967,10 @@ for (const theme of ['light', 'midnight']) {
         await expect(page.locator('.game:visible')).toContainText('Indiana Pacers');
         await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
         await expect(page.locator('.compact-games .game')).toHaveCount(1);
-        await active.click();
+        await status.click();
+        await expect(status).toHaveAccessibleName('Game status: Final');
         await expect(page.locator('.compact-games .game')).toHaveCount(0);
+        await status.click();
         await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
         await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute(
@@ -975,9 +978,10 @@ for (const theme of ['light', 'midnight']) {
             'true'
         );
         await expect(show).toHaveText('2 selected');
-        await active.click();
+        await status.click();
         await page.reload();
-        await expect(active).toHaveAttribute('aria-pressed', 'true');
+        await expect(status).toHaveAccessibleName('Game status: Live');
+        await expect(status).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
@@ -1448,7 +1452,7 @@ test('added teams distinguish no game, pending and errors and expire at local mi
     ).toEqual([]);
 });
 
-test('active-only filters Custom games in grouped and compact mode', async ({ page }) => {
+test('game status filters Custom games in grouped and compact mode', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 25, 12) });
     addedGames = [
         {
@@ -1491,7 +1495,13 @@ test('active-only filters Custom games in grouped and compact mode', async ({ pa
     await expect(page.locator('.compact-games .game')).toHaveCount(2);
     await expect(page.locator('.compact-games')).not.toContainText('Scheduled Custom');
     await expect(page.locator('.compact-games')).not.toContainText('Finished Custom');
-    await page.getByRole('button', { name: 'Active games only', exact: true }).click();
+    const status = page.getByRole('button', { name: /^Game status:/ });
+    await expect(status).toHaveAccessibleName('Game status: Live');
+    await status.click();
+    await expect(status).toHaveAccessibleName('Game status: Final');
+    await expect(page.locator('.compact-games')).toContainText('Finished Custom');
+    await expect(page.locator('.compact-games')).not.toContainText('Active Custom');
+    await status.click();
     await expect(page.locator('.compact-games .game')).toHaveCount(6);
 });
 

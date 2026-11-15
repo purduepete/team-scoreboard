@@ -12,7 +12,7 @@ Within each league/day group, favorites come first, then games in progress, sche
 
 Card metadata stays on one row. Long league/sport/week labels truncate with an ellipsis, keeping the favorite star and status visible.
 
-The header's Active games only toggle keeps the selected teams/leagues and shows only games in progress, including eligible Custom games. It temporarily uses Today and disables the schedule tabs; Upcoming and Recent are dimmed and don't respond to hover. Turning it off restores the previous tab. It works in both grouped and compact mode, and this browser remembers the setting. The clock icon and Last refresh time are at the bottom right of the page, without an attribution paragraph; the manual Refresh button stays in the header. Scores start 12px below the header on phone, tablet and desktop.
+The header's game status control cycles through All, Live and Final while keeping the selected teams and leagues. Live and Final show matching games from Today, including eligible Custom games, and disable the schedule tabs; Upcoming and Recent are dimmed and don't respond to hover. Returning to All restores the previous tab. The control works in every format, and this browser remembers the setting. The clock icon and Last refresh time are at the bottom right of the page, without an attribution paragraph; the manual Refresh button stays in the header. Scores start 12px below the header on phone, tablet and desktop.
 
 The header's display format button cycles through Full, Compact and Tight. Settings > Display formats selects which formats are included in the cycle; at least one must remain selected. This browser remembers the selected formats and the current format. The previous Compact preference is retained when upgrading.
 

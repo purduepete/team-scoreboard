@@ -5,6 +5,7 @@ import {
     ArrowUpRight,
     CalendarDays,
     Check,
+    CircleCheck,
     ChevronRight,
     ChevronsDownUp,
     ChevronsUpDown,
@@ -12,6 +13,7 @@ import {
     Filter,
     Keyboard,
     LayoutGrid,
+    ListFilter,
     Radio,
     Plus,
     RefreshCw,
@@ -34,18 +36,21 @@ import {
     compactGames,
     groupGames,
     isFavorite,
+    matchesGameStatus,
     recentDayOptions,
     resultDays,
     visibleGames,
     type RecentDays,
 } from './games';
-import type { View } from './games';
+import type { GameStatusFilter, View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Today', upcoming: 'Upcoming', recent: 'Recent' };
 const viewOrder: View[] = ['live', 'upcoming', 'recent'];
 const formats = ['full', 'compact', 'tight'] as const;
 type Format = (typeof formats)[number];
 const formatLabels: Record<Format, string> = { full: 'Full', compact: 'Compact', tight: 'Tight' };
+const gameStatuses: GameStatusFilter[] = ['all', 'live', 'final'];
+const gameStatusLabels: Record<GameStatusFilter, string> = { all: 'All', live: 'Live', final: 'Final' };
 const isFormat = (value: string): value is Format => formats.some((format) => format === value);
 const filterKeys: Record<string, string> = {
     a: 'all',
@@ -104,22 +109,25 @@ export function App() {
     }, []);
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
-    const [activeOnly, setActiveOnly] = useState(() => {
+    const [gameStatus, setGameStatus] = useState<GameStatusFilter>(() => {
         try {
-            return localStorage.getItem('team-scoreboard-active-only') === 'true';
+            const saved = localStorage.getItem('team-scoreboard-game-status');
+            if (saved === 'all' || saved === 'live' || saved === 'final') return saved;
+            return saved === null && localStorage.getItem('team-scoreboard-active-only') === 'true' ? 'live' : 'all';
         } catch (error) {
-            console.warn('Active games preference could not be restored.', error);
-            return false;
+            console.warn('Game status preference could not be restored.', error);
+            return 'all';
         }
     });
     useEffect(() => {
         try {
-            localStorage.setItem('team-scoreboard-active-only', String(activeOnly));
+            localStorage.setItem('team-scoreboard-game-status', gameStatus);
         } catch (error) {
-            console.warn('Active games preference could not be saved.', error);
+            console.warn('Game status preference could not be saved.', error);
         }
-    }, [activeOnly]);
-    const effectiveView = activeOnly ? 'live' : view;
+    }, [gameStatus]);
+    const filteredStatus = gameStatus !== 'all';
+    const effectiveView = filteredStatus ? 'live' : view;
     const [formatSettings, setFormatSettings] = useState<{ selected: Format[]; current: Format }>(() => {
         try {
             const stored = JSON.parse(localStorage.getItem('team-scoreboard-formats') ?? 'null');
@@ -380,7 +388,7 @@ export function App() {
         favoriteIds,
         new Date(),
         effectiveView === 'upcoming' ? upcomingDays : recentDays
-    ).filter((game) => !activeOnly || game.status === 'live');
+    ).filter((game) => matchesGameStatus(game, gameStatus));
     // Selections limited to favorites, individual teams or Purdue skip favorite highlighting.
     const noHighlight = team.every(
         (filter) =>
@@ -446,7 +454,7 @@ export function App() {
         } else if (statusPage) {
             return;
         } else if (views[event.code]) {
-            if (!activeOnly) {
+            if (!filteredStatus) {
                 setView(views[event.code]);
                 setToolsOpen(false);
             }
@@ -540,15 +548,25 @@ export function App() {
                                 <RefreshCw size={18} aria-hidden="true" />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Active games only">
+                        <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]}`}>
                             <button
                                 type="button"
                                 className="icon-button"
-                                aria-label="Active games only"
-                                aria-pressed={activeOnly}
-                                onClick={() => setActiveOnly((value) => !value)}
+                                aria-label={`Game status: ${gameStatusLabels[gameStatus]}`}
+                                aria-pressed={filteredStatus}
+                                onClick={() =>
+                                    setGameStatus(
+                                        (value) => gameStatuses[(gameStatuses.indexOf(value) + 1) % gameStatuses.length]
+                                    )
+                                }
                             >
-                                <Radio size={18} aria-hidden="true" />
+                                {gameStatus === 'all' ? (
+                                    <ListFilter size={18} aria-hidden="true" />
+                                ) : gameStatus === 'live' ? (
+                                    <Radio size={18} aria-hidden="true" />
+                                ) : (
+                                    <CircleCheck size={18} aria-hidden="true" />
+                                )}
                             </button>
                         </Tooltip>
                         <Tooltip content={`Display format: ${formatLabels[formatSettings.current]}`}>
@@ -671,7 +689,7 @@ export function App() {
                                                 <button
                                                     type="button"
                                                     aria-pressed={effectiveView === item}
-                                                    disabled={activeOnly}
+                                                    disabled={filteredStatus}
                                                     aria-keyshortcuts={String(index + 1)}
                                                     className={effectiveView === item ? 'selected' : ''}
                                                     onClick={() => setView(item)}
@@ -910,11 +928,11 @@ export function App() {
                                                 </section>
                                             );
                                         })}
-                                    {!compact && activeOnly && !games.length && (!showCustom || !customCount) && (
-                                        <p role="status">No active games match the selected teams.</p>
+                                    {!compact && filteredStatus && !games.length && (!showCustom || !customCount) && (
+                                        <p role="status">No {gameStatus} games match the selected teams.</p>
                                     )}
                                     {!compact &&
-                                        !activeOnly &&
+                                        !filteredStatus &&
                                         !games.length &&
                                         (view === 'live' ? (
                                             <div className="empty-state">
@@ -987,12 +1005,12 @@ export function App() {
                                                           {!games.length &&
                                                               (!showCustom ||
                                                                   (!customGames.length &&
-                                                                      (activeOnly
+                                                                      (filteredStatus
                                                                           ? !Children.count(customStatus)
                                                                           : !customCount))) && (
                                                                   <p role="status">
-                                                                      {activeOnly
-                                                                          ? 'No active games match the selected teams.'
+                                                                      {filteredStatus
+                                                                          ? `No ${gameStatus} games match the selected teams.`
                                                                           : 'No games match the current selection.'}
                                                                   </p>
                                                               )}
@@ -1001,7 +1019,7 @@ export function App() {
                                                 : undefined
                                         }
                                         active={showCustom}
-                                        activeOnly={activeOnly}
+                                        gameStatus={gameStatus}
                                         dashboardFeeds={feeds}
                                         open={findingTeam}
                                         onClose={() => setFindingTeam(false)}

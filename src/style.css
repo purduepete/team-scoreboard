@@ -458,7 +458,6 @@ small {
 }
 .header-actions .icon-button[aria-pressed='true'] {
     color: var(--accent);
-    background: var(--raised);
 }
 .toolbar-actions[hidden] {
     display: none;

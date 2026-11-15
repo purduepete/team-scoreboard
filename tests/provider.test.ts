@@ -15,7 +15,7 @@ import {
 } from '../server/provider.js';
 import { FeedCache } from '../server/feeds.js';
 import type { FeedSource } from '../server/feeds.js';
-import { compactGames, formatStart, formatTime, groupGames, visibleGames } from '../src/games.js';
+import { compactGames, formatStart, formatTime, groupGames, matchesGameStatus, visibleGames } from '../src/games.js';
 
 const team = teams.find((item) => item.id === '134927')!;
 const [nfl, nba] = leagues;
@@ -352,6 +352,11 @@ describe('window and filters', () => {
         expect(live.map((game) => game.id).sort()).toEqual(['done', 'later', 'later-fav', 'now']);
         const [liveSection] = groupGames(live, 'live', ['134927'], now);
         expect(liveSection.days[0].games.map((game) => game.id)).toEqual(['later-fav', 'now', 'later', 'done']);
+        expect(live.filter((game) => matchesGameStatus(game, 'all')).map((game) => game.id)).toEqual(
+            live.map((game) => game.id)
+        );
+        expect(live.filter((game) => matchesGameStatus(game, 'live')).map((game) => game.id)).toEqual(['now']);
+        expect(live.filter((game) => matchesGameStatus(game, 'final')).map((game) => game.id)).toEqual(['done']);
 
         const results = groupGames(
             [at('old', 20, 19, ['nba-1'], 'final'), at('new', 21, 19, ['nba-1'], 'final')],
