@@ -413,7 +413,7 @@ describe('window and filters', () => {
             'postponed',
         ]);
     });
-    it('puts live NFL red-zone games first within favorite and status groups', () => {
+    it('puts live NFL red-zone games with a position before those without one', () => {
         const at = (id: string, hour: number, extra: Partial<Game> = {}): Game => ({
             ...make(id, 22, 'live'),
             league: 'NFL',
@@ -423,15 +423,68 @@ describe('window and filters', () => {
         });
         const games = [
             at('normal', 10),
-            at('red-zone', 12, { redZone: true }),
+            at('red-zone', 12, { redZone: true, situation: '2nd & 4 at GB 12' }),
+            at('red-zone-no-position', 9, { redZone: true, situation: '1st & Goal' }),
+            at('red-zone-empty-position', 8, { redZone: true, situation: '1st & Goal at   ' }),
             at('favorite', 11, { teamIds: ['favorite'] }),
             at('old-red-zone', 9, { status: 'final', redZone: true }),
             at('other-sport', 8, { league: 'NFL', sport: 'Basketball', redZone: true, status: 'upcoming' }),
         ];
-        const expected = ['favorite', 'red-zone', 'normal', 'other-sport', 'old-red-zone'];
+        const expected = [
+            'favorite',
+            'red-zone',
+            'red-zone-empty-position',
+            'red-zone-no-position',
+            'normal',
+            'other-sport',
+            'old-red-zone',
+        ];
         expect(compactGames(games, ['favorite']).map((game) => game.id)).toEqual(expected);
         const section = groupGames(games, 'live', ['favorite'], new Date(2026, 9, 22))[0];
         expect(section.days[0].games.map((game) => game.id)).toEqual(expected);
+    });
+    it('orders live games with the same start by time remaining after favorite and red-zone priority', () => {
+        const live = (id: string, statusLabel: string, extra: Partial<Game> = {}): Game => ({
+            ...make(id, 22, 'live'),
+            league: 'NFL',
+            sport: 'Football',
+            teamIds: ['other'],
+            statusLabel,
+            ...extra,
+        });
+        const games = [
+            live('a-early-period', 'Q3 1:00'),
+            live('b-long-clock', '10:00 - 4th'),
+            live('c-short-clock', 'Q4 2:30'),
+            live('d-overtime', 'OT 7:00'),
+            live('e-halftime', 'Halftime'),
+            live('f-unknown', 'In progress'),
+            live('favorite', 'Q1 14:00', { teamIds: ['favorite'] }),
+            live('red-zone', 'Q1 13:00', { redZone: true, situation: '1st & Goal at IND 5' }),
+        ];
+        const expected = [
+            'favorite',
+            'red-zone',
+            'c-short-clock',
+            'd-overtime',
+            'b-long-clock',
+            'a-early-period',
+            'e-halftime',
+            'f-unknown',
+        ];
+        expect(compactGames(games, ['favorite']).map((game) => game.id)).toEqual(expected);
+        const [section] = groupGames(games, 'live', ['favorite'], new Date(2026, 9, 22));
+        expect(section.days[0].games.map((game) => game.id)).toEqual(expected);
+        const earlier = live('earlier', 'Q1 14:00', { startTime: new Date(Date.UTC(2026, 9, 22, 16)).toISOString() });
+        expect(compactGames([games[3], earlier], []).map((game) => game.id)).toEqual(['earlier', 'd-overtime']);
+        const nba = live('nba', 'Q3 1:00', { league: 'NBA', sport: 'Basketball' });
+        const college = live('college', '2nd Half 12:00', { league: 'Big Ten', sport: "Men's Basketball" });
+        const lateFootball = live('football', 'Q4 14:00');
+        expect(compactGames([nba, lateFootball, college], ['other']).map((game) => game.id)).toEqual([
+            'college',
+            'nba',
+            'football',
+        ]);
     });
     it('expands the umbrella without duplicates and excludes the umbrella feed', () => {
         const expanded = expandFavorites(['purdue-all', 'purdue-football']);

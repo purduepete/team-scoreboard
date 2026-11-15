@@ -127,15 +127,53 @@ const sections = [
 const statusRank = (game: Game) =>
     game.status === 'live' ? 0 : game.status === 'upcoming' ? 1 : game.status === 'final' ? 2 : 3;
 
-const nflRedZone = (game: Game) => game.league === 'NFL' && game.status === 'live' && game.redZone === true;
+export function footballSituation(text?: string) {
+    const match = text?.match(/^(.*?)\s+at\s+(\S(?:.*\S)?)\s*$/i);
+    return { detail: match ? match[1] : text, position: match?.[2] };
+}
+
+const nflRedZoneRank = (game: Game) => {
+    if (game.league !== 'NFL' || game.status !== 'live' || !game.redZone) return 0;
+    return footballSituation(game.situation).position ? 2 : 1;
+};
+
+function gameTimeRemaining(game: Game): number | null {
+    if (game.status !== 'live') return null;
+    const football = game.sport === 'Football';
+    const basketball = /basketball/i.test(game.sport);
+    if (!football && !basketball) return null;
+    const halves = basketball && /men's basketball/i.test(game.sport) && game.league !== 'NBA';
+    const periods = halves ? 2 : 4;
+    const periodSeconds = football ? 15 * 60 : halves ? 20 * 60 : game.league === 'NBA' ? 12 * 60 : 10 * 60;
+    const label = game.statusLabel;
+    if (/^halftime$/i.test(label.trim())) return (periods / 2) * periodSeconds;
+    const periodMatch = label.match(/\b(?:[QH](\d+)|(\d+)[QH]|(\d+)(?:st|nd|rd|th)(?:\s+(?:quarter|qtr|half))?)\b/i);
+    const overtimeMatch = label.match(/\b(?:(\d+)\s*OT|OT\s*(\d*)|overtime)\b/i);
+    const period = periodMatch
+        ? Number(periodMatch[1] || periodMatch[2] || periodMatch[3])
+        : overtimeMatch
+          ? periods + Number(overtimeMatch[1] || overtimeMatch[2] || 1)
+          : 0;
+    const clock = label.match(/\b(\d{1,2}):([0-5]\d)(?:\.\d+)?\b/);
+    const seconds = clock ? Number(clock[1]) * 60 + Number(clock[2]) : /^end(?: of)?\b/i.test(label) ? 0 : null;
+    if (!period || seconds === null || (period <= periods && seconds > periodSeconds)) return null;
+    const duration = period > periods ? (football ? 15 : 5) * 60 : periodSeconds;
+    if (seconds > duration) return null;
+    return Math.max(0, periods - period) * periodSeconds + seconds;
+}
 
 export function compareGames(a: Game, b: Game, favoriteIds: string[]): number {
     const time = (game: Game) => (game.startTime ? Date.parse(game.startTime) : Number.MAX_SAFE_INTEGER);
+    const startA = time(a);
+    const startB = time(b);
+    const remainingA = gameTimeRemaining(a) ?? Number.MAX_SAFE_INTEGER;
+    const remainingB = gameTimeRemaining(b) ?? Number.MAX_SAFE_INTEGER;
     return (
         Number(isFavorite(b, favoriteIds)) - Number(isFavorite(a, favoriteIds)) ||
         statusRank(a) - statusRank(b) ||
-        Number(nflRedZone(b)) - Number(nflRedZone(a)) ||
-        time(a) - time(b) ||
+        nflRedZoneRank(b) - nflRedZoneRank(a) ||
+        startA - startB ||
+        (startA !== Number.MAX_SAFE_INTEGER ? remainingA - remainingB : 0) ||
         a.id.localeCompare(b.id)
     );
 }

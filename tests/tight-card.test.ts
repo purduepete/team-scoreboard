@@ -26,13 +26,13 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
-    it('omits the favorite star in Tight while keeping it in other formats', () => {
+    it('shows the outcome dot in Tight and retains the card star in other formats', () => {
         const props = { game, view: 'live' as const, favorite: true, favoriteTeamIds: ['colts'] };
         const fixture = { ...props, game: { ...game, awayTeamId: 'colts' } };
         const tight = renderToStaticMarkup(createElement(GameCard, { ...fixture, tight: true }));
         const standard = renderToStaticMarkup(createElement(GameCard, fixture));
+        expect(tight).toContain('<span class="favorite-result favorite-winning" aria-hidden="true"></span>');
         expect(tight).not.toContain('aria-label="Favorite"');
-        expect(tight).toContain('favorite-winning');
         expect(standard).toContain('aria-label="Favorite"');
     });
 
@@ -59,6 +59,20 @@ describe('tight game cards', () => {
         expect(html).toContain('1H 4:32');
         expect(html).toContain('field position unavailable');
         expect(html).not.toContain('SEA 12');
+    });
+
+    it.each([true, false])('highlights only the field position when tight is %s', (tight) => {
+        const render = (overrides: Partial<Game>) =>
+            renderToStaticMarkup(createElement(GameCard, { game: { ...game, ...overrides }, view: 'live', tight }));
+        const redZone = render({});
+        expect(redZone).toContain('class="field-position red-zone" aria-label="Red zone, SEA 12">SEA 12</span>');
+        expect(redZone).not.toContain('>Red zone</span>');
+        const missing = render({ situation: '1st & Goal' });
+        expect(missing).toContain('field position unavailable');
+        expect(missing).toContain('1st &amp; Goal');
+        const normal = render({ redZone: false });
+        expect(normal).not.toContain('class="red-zone"');
+        expect(normal).toContain('class="field-position">SEA 12</span>');
     });
 
     it('uses halves for college basketball and preserves baseball innings', () => {
@@ -108,8 +122,8 @@ describe('tight game cards', () => {
                 createElement(GameCard, { game: { ...fixture, ...overrides }, view: 'live', tight, favoriteTeamIds })
             );
         const live = render({});
-        expect(live).toContain('class="score-value favorite-result favorite-winning">17</span>');
-        expect(live).toContain('class="score-value favorite-result favorite-losing">14</span>');
+        expect(live).toContain('favorite-result favorite-winning');
+        expect(live).toContain('favorite-result favorite-losing');
         expect(live).toContain('Colts winning');
         expect(live).toContain('Seahawks losing');
         const final = render({ status: 'final' });

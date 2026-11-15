@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
 import type { HTMLAttributes, ReactNode } from 'react';
 import type { View } from './games';
-import { formatStart, formatTime } from './games';
+import { footballSituation, formatStart, formatTime } from './games';
 import { Tooltip } from './Tooltip';
 
 function Broadcast({ name }: { name: string }) {
@@ -259,6 +259,7 @@ export function GameCard({
 }) {
     const football = game.sport === 'Football';
     const situation = useSituation(game);
+    const { detail, position } = football ? footballSituation(situation.text) : { detail: situation.text };
     const scoreDisplay = (team: string, side: 'home' | 'away') => {
         const id = side === 'home' ? game.homeTeamId : game.awayTeamId;
         const score = side === 'home' ? game.homeScore : game.awayScore;
@@ -276,7 +277,11 @@ export function GameCard({
         const label = game.status === 'final' ? (winning ? 'won' : 'lost') : winning ? 'winning' : 'losing';
         return (
             <>
-                <span className={`score-value favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}>
+                <span className="score-value">
+                    <span
+                        className={`favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}
+                        aria-hidden="true"
+                    />
                     {score}
                 </span>
                 <span className="sr-only">{` ${team} ${label}`}</span>
@@ -284,9 +289,6 @@ export function GameCard({
         );
     };
     if (tight) {
-        const match = football ? situation.text?.match(/^(.*?)\s+at\s+(.+)$/i) : null;
-        const detail = match ? match[1] : situation.text;
-        const position = match?.[2];
         const status = tightStatus(game, showDate);
         const line = (team: string, side: 'home' | 'away') => (
             <div className="tight-team">
@@ -339,7 +341,7 @@ export function GameCard({
                         <span className="tight-position">
                             ·{' '}
                             <span
-                                className={game.redZone ? 'tight-red-zone' : undefined}
+                                className={`field-position${game.redZone ? ' red-zone' : ''}`}
                                 aria-label={game.redZone ? `Red zone, ${position}` : undefined}
                             >
                                 {position}
@@ -347,10 +349,7 @@ export function GameCard({
                         </span>
                     )}
                     {game.status === 'live' && game.redZone && !position && (
-                        <span
-                            className="tight-red-zone tight-position"
-                            aria-label="Red zone, field position unavailable"
-                        >
+                        <span className="red-zone tight-position" aria-label="Red zone, field position unavailable">
                             ●
                         </span>
                     )}
@@ -429,8 +428,26 @@ export function GameCard({
                     </div>
                     {game.status === 'live' && (situation.text || game.redZone) && (
                         <p className="situation">
-                            {game.redZone && <span className="red-zone">Red zone</span>}
-                            {situation.text}
+                            {detail}
+                            {position && (
+                                <>
+                                    {' at '}
+                                    <span
+                                        className={`field-position${game.redZone ? ' red-zone' : ''}`}
+                                        aria-label={game.redZone ? `Red zone, ${position}` : undefined}
+                                    >
+                                        {position}
+                                    </span>
+                                </>
+                            )}
+                            {game.redZone && !position && (
+                                <>
+                                    {detail && ' '}
+                                    <span className="red-zone" aria-label="Red zone, field position unavailable">
+                                        ●
+                                    </span>
+                                </>
+                            )}
                             {situation.retained && <span className="muted"> (last reported)</span>}
                         </p>
                     )}

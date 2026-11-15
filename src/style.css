@@ -1073,7 +1073,7 @@ small {
 }
 .tight-game {
     padding: 8px 10px;
-    gap: 6px;
+    gap: 8px;
 }
 .tight-team {
     display: flex;
@@ -1100,15 +1100,23 @@ small {
     margin-left: 4px;
 }
 .score-value {
-    display: inline-block;
-    border: 1px solid transparent;
-    padding: 0 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.favorite-result {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    transform: translateY(-0.05em);
 }
 .favorite-winning {
-    border-color: var(--favorite-win);
+    color: var(--favorite-win);
 }
 .favorite-losing {
-    border-color: var(--favorite-loss);
+    color: var(--favorite-loss);
 }
 .tight-team strong {
     flex: none;
@@ -1144,12 +1152,6 @@ small {
     flex: none;
     margin-left: auto;
     color: inherit;
-}
-.tight-red-zone {
-    background: #b91c1c;
-    color: #fff;
-    padding: 1px 3px;
-    font-weight: 700;
 }
 .game-meta,
 .game-footer {
@@ -1609,17 +1611,15 @@ kbd {
     color: var(--accent);
     vertical-align: -3px;
 }
+.field-position,
 .red-zone {
     display: inline-block;
-    margin-right: 8px;
-    padding: 2px 6px;
+    padding: 1px 3px;
+}
+.red-zone {
     background: var(--red-zone);
     color: var(--red-zone-text);
-    font-size: 0.65rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    vertical-align: 1px;
 }
 /* Folded top-right corner marking an NBA game on a national network. */
 .national-badge {

@@ -1758,7 +1758,8 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
     await expect(custom.locator('.score-lines')).toContainText('23');
     await expect(custom.locator('.record')).toHaveText([' (5-1)', ' (4-2)']);
     await expect(custom.getByRole('img', { name: 'Has possession' })).toBeVisible();
-    await expect(custom.locator('.red-zone')).toHaveText('Red zone');
+    await expect(custom.locator('.red-zone')).toHaveText('●');
+    await expect(custom.locator('.red-zone')).toHaveAttribute('aria-label', 'Red zone, field position unavailable');
     await expect(custom.locator('.situation')).toContainText('1st & Goal');
     await expect(custom.locator('.score-lines')).toContainText('3');
     await expect(custom.locator('.game')).toHaveCount(1);
@@ -2388,7 +2389,7 @@ test('a changed score flashes once and the live situation shows', async ({ page 
     await expect(page.locator('.score-changed')).toHaveCount(0, { timeout: 5000 });
 });
 
-test('football shows a ball for possession and a red zone pill; NBA marks national games', async ({ page }) => {
+test('football shows possession and a red-zone position; NBA marks national games', async ({ page }) => {
     liveExtra = { national: 'ESPN' };
     extraGames = [
         {
@@ -2421,7 +2422,7 @@ test('football shows a ball for possession and a red zone pill; NBA marks nation
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await expandSections(page);
     const football = page.locator('.game', { hasText: 'Green Bay Packers' });
-    await expect(football.locator('.red-zone')).toHaveText('Red zone');
+    await expect(football.locator('.red-zone')).toHaveText('GB 12');
     await expect(football.locator('.situation')).toContainText('2nd & 4 at GB 12');
     await expect(football.locator('svg.possession-ball')).toHaveCount(1);
     expect(
