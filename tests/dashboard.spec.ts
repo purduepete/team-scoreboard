@@ -98,6 +98,41 @@ const expandSections = async (page: import('@playwright/test').Page) => {
     while ((await collapsed.count()) > 0) await collapsed.first().click();
 };
 
+test('selected display formats persist and cycle while settings and team filters stay available', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Show', exact: true }).click();
+    const favoriteStyle = await page.getByRole('option', { name: 'Favorites', exact: true }).evaluate((element) => ({
+        size: getComputedStyle(element).fontSize,
+        weight: getComputedStyle(element).fontWeight,
+    }));
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Display formats' }).click();
+    const formatChoices = page.getByRole('listbox', { name: 'Display formats' }).getByRole('option');
+    const textColor = await page.locator('body').evaluate((element) => getComputedStyle(element).color);
+    for (const option of await formatChoices.all()) {
+        await expect(option).toHaveCSS('color', textColor);
+        await expect(option).toHaveCSS('font-size', favoriteStyle.size);
+        await expect(option).toHaveCSS('font-weight', favoriteStyle.weight);
+    }
+    await page.getByRole('option', { name: 'Compact', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Full' }).click();
+    await expect(page.getByRole('button', { name: 'Display format: Tight' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Display format: Tight' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Show', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Display formats' }).click();
+    await page.getByRole('option', { name: 'Full', exact: true }).click();
+    await page.getByRole('option', { name: 'Tight', exact: true }).click();
+    await expect(page.getByRole('option', { name: 'Tight', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Display format: Tight' })).toBeDisabled();
+});
+
 test.beforeEach(async ({ page }) => {
     let favorites = [...defaultFavorites];
     requestedDays = [];
@@ -421,7 +456,7 @@ test('long card metadata keeps favorites and status on one row', async ({ page }
     for (const width of [390, 768, 1024, 1280]) {
         await page.setViewportSize({ width, height: 900 });
         for (const compact of [false, true]) {
-            if (compact) await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+            if (compact) await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
             const card = page.locator('.game:visible').filter({ hasText: 'Indiana Pacers' }).first();
             await expect(card.locator('.game-description-text')).toHaveText("NBA · Women's Volleyball · Week 10");
             await expect(card.getByLabel('Favorite', { exact: true })).toBeVisible();
@@ -435,7 +470,10 @@ test('long card metadata keeps favorites and status on one row', async ({ page }
                 };
             });
             expect(layout).toEqual({ sameRow: true, separate: true, inside: true });
-            if (compact) await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+            if (compact) {
+                await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+                await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
+            }
         }
     }
 });
@@ -453,7 +491,7 @@ test('scores stay close to the header on tablet and desktop without attribution'
         for (const width of [768, 1024, 1280, 1440, 1920]) {
             await page.setViewportSize({ width, height: 900 });
             for (const compact of [false, true]) {
-                if (compact) await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+                if (compact) await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
                 const layout = await page
                     .locator('.scores-page > .panel')
                     .first()
@@ -466,7 +504,10 @@ test('scores stay close to the header on tablet and desktop without attribution'
                 expect(layout).toEqual({ gap: 12, overflow: false });
                 await expect(page.getByText('Coverage and game times may change.', { exact: false })).toHaveCount(0);
                 await expect(page.locator('footer .refresh-time')).toBeVisible();
-                if (compact) await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+                if (compact) {
+                    await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+                    await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
+                }
             }
         }
     }
@@ -483,7 +524,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
     await expect(page.locator('select, datalist')).toHaveCount(0);
     const theme = page.getByRole('button', { name: 'Appearance', exact: true });
     const pill = page.getByRole('radiogroup', { name: 'Theme' });
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const search = page.getByRole('button', { name: 'Find team', exact: true });
     await expect(search).toHaveCSS('border-top-width', '1px');
     await expect(search).toHaveCSS('border-top-style', 'solid');
@@ -576,7 +617,7 @@ test('themes, system tracking, keyboard dropdowns and mobile width', async ({ pa
         if (index >= 2) expect(colors.corner).toEqual(background);
     }
     await page.screenshot({ path: 'test-results/scoreboard-light-mobile.png', fullPage: true });
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('link', { name: 'Source status' }).click();
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Back to scores', exact: true })).toHaveCount(1);
@@ -607,16 +648,14 @@ for (const theme of ['light', 'midnight']) {
                     panel.getBoundingClientRect().top - document.querySelector('header')!.getBoundingClientRect().bottom
             );
         expect(gap).toBe(12);
-        const widths = await schedule.evaluate((element) => ({
-            pill: element.getBoundingClientRect().width,
-            row: element.parentElement!.getBoundingClientRect().width,
-        }));
-        expect(Math.abs(widths.pill - widths.row)).toBeLessThan(1);
-        const buttons = await schedule
-            .getByRole('button')
-            .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().width));
-        expect(Math.max(...buttons) - Math.min(...buttons)).toBeLessThan(1);
-        const tools = page.getByRole('button', { name: 'Tools', exact: true });
+        const tools = page.getByRole('button', { name: 'Settings', exact: true });
+        const filter = page.getByRole('button', { name: 'Show', exact: true });
+        const tabBox = await schedule.boundingBox();
+        const settingsBox = await tools.boundingBox();
+        const showBox = await filter.boundingBox();
+        expect(settingsBox!.y).toBe(tabBox!.y);
+        expect(showBox!.y).toBe(tabBox!.y);
+        expect(settingsBox!.x).toBeGreaterThanOrEqual(tabBox!.x + tabBox!.width);
         const finder = page.getByRole('button', { name: 'Find team', exact: true });
         await expect(finder).toBeHidden();
         await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeHidden();
@@ -637,34 +676,16 @@ for (const theme of ['light', 'midnight']) {
                     Array.from(range.querySelectorAll('button'), (button) => button.getBoundingClientRect())
                 );
                 return {
-                    tops: buttons.map((button) => button.top),
                     fits: buttons.every((button) => button.left >= bounds.left && button.right <= bounds.right),
-                    fills:
-                        Math.abs(buttons[0].left - bounds.left - 9) < 1 &&
-                        Math.abs(bounds.right - buttons[2].right - 9) < 1,
-                    rows:
-                        buttons[0].top === buttons[1].top &&
-                        buttons[1].top === buttons[2].top &&
-                        buttons[3].top === buttons[4].top &&
-                        buttons[4].top === buttons[5].top &&
-                        buttons[3].top > buttons[0].top,
                     viewportFits: bounds.left >= 0 && bounds.right <= innerWidth,
-                    columnRatio: buttons[1].width / buttons[0].width,
-                    matchingWidths:
-                        Math.abs(buttons[0].width - buttons[3].width) < 1 &&
-                        Math.abs(buttons[4].width - buttons[1].width) < 1 &&
-                        Math.abs(buttons[5].right - buttons[2].right) < 1,
                     numberOffsets: ranges[0].map((button, index) => button.left - ranges[1][index].left),
+                    numberWidths: ranges.flat().map((button) => button.width),
                 };
             });
-            expect(new Set(layout.tops).size).toBe(2);
-            expect(layout.rows).toBe(true);
             expect(layout.fits).toBe(true);
-            expect(layout.fills).toBe(true);
             expect(layout.viewportFits).toBe(true);
-            expect(layout.columnRatio).toBeCloseTo(2.5, 1);
-            expect(layout.matchingWidths).toBe(true);
             expect(layout.numberOffsets.map((offset) => Math.round(offset))).toEqual([0, 0, 0]);
+            expect(Math.min(...layout.numberWidths)).toBeGreaterThan(20);
         }
         const recentDays = page.getByRole('group', { name: 'Recent days back' });
         await expect(recentDays.getByRole('button')).toHaveText(['1', '3', '5']);
@@ -712,6 +733,63 @@ for (const theme of ['light', 'midnight']) {
     });
 }
 
+test('full format keeps phone tabs equal and the settings menu inside the screen', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    for (const width of [320, 375, 390, 430]) {
+        await page.setViewportSize({ width, height: 844 });
+        const tabs = page.getByRole('group', { name: 'Schedule view' });
+        await tabs.getByRole('button', { name: 'Today', exact: true }).click();
+        const toolbar = page.locator('.toolbar');
+        const row = await tabs.boundingBox();
+        const toolbarBox = await toolbar.boundingBox();
+        expect(toolbarBox!.height).toBeLessThan(row!.height + 20);
+        await page.getByRole('button', { name: 'Expand all', exact: true }).click();
+        await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
+        for (const label of ['Today', 'Upcoming', 'Recent']) {
+            await tabs.getByRole('button', { name: label, exact: true }).click();
+            const layout = await tabs.evaluate((element) => {
+                const bounds = element.getBoundingClientRect();
+                const buttons = Array.from(element.querySelectorAll('button'), (button) =>
+                    button.getBoundingClientRect()
+                );
+                const active = element.querySelector('button[aria-pressed="true"]')!.getBoundingClientRect();
+                const fill = getComputedStyle(element, '::before');
+                const fillLeft =
+                    bounds.left +
+                    parseFloat(getComputedStyle(element).borderLeftWidth) +
+                    parseFloat(fill.left) +
+                    new DOMMatrixReadOnly(fill.transform).m41;
+                return {
+                    widths: buttons.map((button) => button.width),
+                    fillOffset: Math.abs(fillLeft - active.left),
+                    fillWidth: Math.abs(parseFloat(fill.width) - active.width),
+                };
+            });
+            expect(Math.max(...layout.widths) - Math.min(...layout.widths)).toBeLessThan(1);
+            expect(layout.fillOffset).toBeLessThan(1);
+            expect(layout.fillWidth).toBeLessThan(1);
+        }
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
+        const menu = page.locator('#score-tools-actions');
+        const layout = await menu.evaluate((element) => {
+            const bounds = element.getBoundingClientRect();
+            const controls = Array.from(element.querySelectorAll('button, a')).filter(
+                (control) => control.getBoundingClientRect().width > 0
+            );
+            return {
+                fits: bounds.left >= 0 && bounds.right <= innerWidth,
+                reachable: controls.every((control) => {
+                    const box = control.getBoundingClientRect();
+                    return control.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+                }),
+            };
+        });
+        expect(layout).toEqual({ fits: true, reachable: true });
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    }
+});
+
 test('refresh uses a centered circular loader and respects reduced motion', async ({ page }) => {
     await page.goto('/');
     const refresh = page.getByRole('button', { name: 'Refresh', exact: true });
@@ -752,7 +830,7 @@ test('refresh uses a centered circular loader and respects reduced motion', asyn
         }
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await expect(loader).toHaveCSS('animation-name', 'none');
-        await expect(page.getByRole('button', { name: 'Compact mode', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Display format: Full', exact: true })).toBeVisible();
     } finally {
         finishRefresh();
     }
@@ -816,7 +894,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await nba.click();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(page.getByText('Fixture upstream failure')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('link', { name: 'Source status' }).click();
     await expect(page).toHaveURL(/#status$/);
     await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
@@ -829,13 +907,13 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await page.getByRole('button', { name: 'Today', exact: true }).click();
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     await expect(page.locator('.game')).toHaveCount(1);
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('Arizona Cardinals');
     await page.getByRole('button', { name: 'Add Arizona Cardinals' }).click();
     await expect(page.getByRole('button', { name: 'Remove Arizona Cardinals' })).toBeVisible();
     await page.reload();
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('Arizona Cardinals');
     await page.getByRole('button', { name: 'Remove Arizona Cardinals' }).click();
@@ -886,11 +964,12 @@ for (const theme of ['light', 'midnight']) {
         await expect(show).toHaveText('2 selected');
         await expect(page.locator('.game:visible')).toHaveCount(1);
         await expect(page.locator('.game:visible')).toContainText('Indiana Pacers');
-        await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+        await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
         await expect(page.locator('.compact-games .game')).toHaveCount(1);
         await active.click();
         await expect(page.locator('.compact-games .game')).toHaveCount(0);
-        await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+        await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+        await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute(
             'aria-pressed',
             'true'
@@ -960,7 +1039,7 @@ for (const theme of ['light', 'midnight']) {
         await page.getByRole('option', { name: 'NBA', exact: true }).click();
         await page.keyboard.press('Escape');
         await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
-        const compact = page.getByRole('button', { name: 'Compact mode', exact: true });
+        const compact = page.getByRole('button', { name: 'Display format: Full', exact: true });
         await compact.click();
         const cards = page.locator('.compact-games .game');
         await expect(cards).toHaveCount(8);
@@ -1006,31 +1085,32 @@ for (const theme of ['light', 'midnight']) {
             await expect(cards.nth(index)).toContainText(home);
         }
         await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
-        await expect(page.locator('.toolbar-actions')).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
         await expect(page.locator('.section-title, .group-heading')).toHaveCount(0);
         await expect(page.getByRole('link', { name: 'Source status' })).toBeHidden();
-        await page.keyboard.press('a');
+        await expect(show).toBeVisible();
         await page.keyboard.press('3');
         await expect(page.getByRole('button', { name: 'Recent', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await page.keyboard.press('1');
         await expect(cards).toHaveCount(8);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+        await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+        await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
         await expect(show).toHaveText('2 selected');
         await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
-        await page.getByRole('button', { name: 'Tools', exact: true }).click();
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
         await page.getByRole('link', { name: 'Source status' }).click();
         await expect(page.getByRole('heading', { name: 'Source status', exact: true })).toBeVisible();
         await page.getByRole('link', { name: 'Back to scores' }).click();
         await compact.click();
         await page.reload();
-        await expect(page.getByRole('button', { name: 'Exit compact mode', exact: true })).toHaveAttribute(
+        await expect(page.getByRole('button', { name: 'Display format: Compact', exact: true })).toHaveAttribute(
             'aria-pressed',
             'true'
         );
         await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
-        await expect(page.locator('.toolbar-actions')).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
     });
 
     test(`Show supports multiple teams and leagues with exclusive All teams (${theme})`, async ({ page }) => {
@@ -1119,7 +1199,7 @@ test('compact dividers follow occupied grid columns on resize', async ({ page })
     await page.goto('/');
     await expect(page.locator('.league-section')).toHaveCount(5);
     await expect(page.locator('.compact-group-start')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     const cards = page.locator('.compact-games .game');
     const groupStarts = page.locator('.compact-games .compact-group-start');
     await expect(cards).toHaveCount(6);
@@ -1188,12 +1268,13 @@ test('compact dividers follow occupied grid columns on resize', async ({ page })
     await page.reload();
     await expect(cards).toHaveCount(3);
     await checkColumns(1500, 3, [1, 2]);
-    await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
     await expect(page.locator('.compact-group-start')).toHaveCount(0);
     await page.getByRole('button', { name: 'Show', exact: true }).click();
     await page.getByRole('option', { name: 'Favorites', exact: true }).click();
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     await expect(page.locator('.compact-games .game')).toHaveCount(1);
     await expect(page.locator('.compact-group-start')).toHaveCount(0);
 });
@@ -1250,7 +1331,7 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     await expect(page.getByRole('button', { name: 'Results', exact: true })).toHaveCount(0);
     const tabRow = await page.locator('.tabs').boundingBox();
     const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
-    const tools = await page.getByRole('button', { name: 'Tools', exact: true }).boundingBox();
+    const tools = await page.getByRole('button', { name: 'Settings', exact: true }).boundingBox();
     expect(show!.x - (tools!.x + tools!.width)).toBe(8);
     expect(Math.abs((show?.y ?? 0) - (tabRow?.y ?? 99))).toBeLessThan(4);
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
@@ -1271,7 +1352,7 @@ for (const device of [
             Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
         }, device);
         await page.goto('/');
-        await page.getByRole('button', { name: 'Tools', exact: true }).click();
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
         const trigger = page.getByRole('button', { name: 'Find team', exact: true });
         await trigger.click();
         const close = page.getByRole('button', { name: 'Close team search', exact: true });
@@ -1294,7 +1375,7 @@ for (const device of [
 
 test('team finder works while empty Custom is hidden, with dismissal and focus return', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const trigger = page.getByRole('button', { name: 'Find team', exact: true });
     await expect(trigger).toHaveText('');
     const favorites = await page.getByRole('button', { name: 'Edit favorites', exact: true }).boundingBox();
@@ -1406,7 +1487,7 @@ test('active-only filters Custom games in grouped and compact mode', async ({ pa
     await page.getByRole('button', { name: 'Expand all', exact: true }).click();
     await expect(page.locator('.added-teams .game')).toHaveCount(1);
     await expect(page.locator('.added-teams .game')).toContainText('Active Custom');
-    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     await expect(page.locator('.compact-games .game')).toHaveCount(2);
     await expect(page.locator('.compact-games')).not.toContainText('Scheduled Custom');
     await expect(page.locator('.compact-games')).not.toContainText('Finished Custom');
@@ -1441,9 +1522,10 @@ test('compact mode merges Custom games once and keeps Custom failures visible', 
     await page.clock.runFor(20_000);
     await expect(grid.getByRole('alert')).toHaveText('Fixture custom feed failed.');
     await expect(grid.locator('.score-lines')).toHaveCount(4);
-    await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
     await page.keyboard.press('f');
-    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     await expect(grid).not.toContainText(searchedTeam.name);
     await expect(grid.getByRole('alert')).toHaveCount(0);
     await expect(grid.locator('.game')).toHaveCount(2);
@@ -1690,7 +1772,7 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
 test('team search errors are visible and a removed pending team cannot reappear', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 25, 9) });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Find team', exact: true }).click();
     searchFailure = true;
     await page.getByLabel('Search teams', { exact: true }).fill('Alabama');
@@ -1763,7 +1845,7 @@ for (const theme of ['midnight', 'light']) {
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto('/');
-        await page.getByRole('button', { name: 'Tools', exact: true }).click();
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
         await page.getByRole('button', { name: 'Find team', exact: true }).click();
         await expect(page.getByLabel('Search teams', { exact: true })).toBeFocused();
         const sports = page.getByRole('group', { name: 'Sport', exact: true });
@@ -1794,6 +1876,10 @@ for (const theme of ['midnight', 'light']) {
         ).toBeVisible();
         await page.keyboard.press('f');
         await expect(added).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveAttribute(
+            'aria-expanded',
+            'false'
+        );
         await page.keyboard.press('a');
         await expect(added).toBeVisible();
         await added.locator('.section-title button').click();
@@ -1848,7 +1934,7 @@ for (const theme of ['midnight', 'light']) {
         );
     });
 
-    test(`section action pill sits right of Show at desktop and mobile widths (${theme})`, async ({ page }) => {
+    test(`section actions stay beside Show on desktop and phones (${theme})`, async ({ page }) => {
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         await page.goto('/');
         const pill = page.getByRole('group', { name: 'Section controls', exact: true });
@@ -1870,17 +1956,11 @@ for (const theme of ['midnight', 'light']) {
         await expect(collapse).toHaveAttribute('aria-pressed', 'true');
         await expect.poll(() => pill.evaluate(sliderColor)).toBe(highlight);
         await expect(page.locator('.toolbar').getByRole('group', { name: 'Section controls' })).toBeVisible();
-        for (const width of [1280, 390]) {
-            await page.setViewportSize({ width, height: 844 });
-            const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
-            const controls = await pill.boundingBox();
-            expect(show).not.toBeNull();
-            expect(controls).not.toBeNull();
-            expect(controls!.x).toBeGreaterThanOrEqual(show!.x + show!.width);
-            expect(Math.abs(controls!.y - show!.y)).toBeLessThan(2);
-            expect(Math.abs(controls!.height - show!.height)).toBeLessThan(2);
-            expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-        }
+        await page.setViewportSize({ width: 1280, height: 844 });
+        const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
+        const controls = await pill.boundingBox();
+        expect(controls!.x).toBeGreaterThanOrEqual(show!.x + show!.width);
+        expect(Math.abs(controls!.y - show!.y)).toBeLessThan(2);
         await expect(collapse).toBeDisabled();
         await expand.focus();
         await page.keyboard.press('Enter');
@@ -1889,6 +1969,13 @@ for (const theme of ['midnight', 'light']) {
         await expect(expand).toHaveAttribute('aria-pressed', 'true');
         await collapse.click();
         await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
+        await page.setViewportSize({ width: 390, height: 844 });
+        const mobileExpand = page.getByRole('button', { name: 'Expand all', exact: true });
+        await expect(mobileExpand).toBeVisible();
+        await mobileExpand.click();
+        await expect(page.getByRole('button', { name: 'Collapse all', exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
         await page.screenshot({ path: `test-results/section-pill-${theme}-mobile.png`, fullPage: true });
     });
 
@@ -1986,7 +2073,7 @@ test('Recent days back filters finals and is saved', async ({ page }) => {
     await expandSections(page);
     const finals = page.locator('.game').filter({ hasText: /final-\d/ });
     const group = page.getByRole('group', { name: 'Recent days back' });
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(group.getByRole('button', { name: '1 day', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(finals).toHaveCount(1);
     await group.getByRole('button', { name: '3 days', exact: true }).click();
@@ -1994,7 +2081,7 @@ test('Recent days back filters finals and is saved', async ({ page }) => {
     await group.getByRole('button', { name: '5 days', exact: true }).click();
     await expect(finals).toHaveCount(3);
     await page.reload();
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(group.getByRole('button', { name: '5 days', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -2011,16 +2098,16 @@ test('Upcoming days ahead are saved and compact tabs show dates', async ({ page 
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expandSections(page);
     const group = page.getByRole('group', { name: 'Upcoming days ahead' });
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(group.getByRole('button', { name: '1 day' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.game').filter({ hasText: /upcoming-\d/ })).toHaveCount(1);
     await group.getByRole('button', { name: '3 days' }).click();
     await expect(page.locator('.game').filter({ hasText: /upcoming-\d/ })).toHaveCount(2);
     await group.getByRole('button', { name: '5 days' }).click();
     await expect(page.locator('.game').filter({ hasText: /upcoming-\d/ })).toHaveCount(3);
-    await page.getByRole('button', { name: 'Compact mode', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Schedule view' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Tools', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
     await expect(page.locator('.compact-games .game').filter({ hasText: 'upcoming-1' }).locator('time')).toContainText(
         'Oct 29'
     );
@@ -2029,8 +2116,9 @@ test('Upcoming days ahead are saved and compact tabs show dates', async ({ page 
     await page.keyboard.press('2');
     await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.reload();
-    await page.getByRole('button', { name: 'Exit compact mode', exact: true }).click();
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
+    await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(group.getByRole('button', { name: '5 days' })).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -2069,7 +2157,7 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await page.keyboard.press('r');
     await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
 
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('x2');
     await expect(page.getByLabel('Find a team or sport')).toHaveValue('x2');
@@ -2130,14 +2218,14 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
 
 test('calendar menu appears only when the feed is configured', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit favorites' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Calendar' })).toHaveCount(0);
 
     calendarUrl = `https://team-scoreboard.jimlertech.com/calendar/${'t'.repeat(43)}.ics`;
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.reload();
-    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const trigger = page.getByRole('button', { name: 'Calendar' });
     await expect(page.getByRole('link', { name: 'Subscribe' })).toHaveCount(0);
     await trigger.click();

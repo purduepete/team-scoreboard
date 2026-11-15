@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 
@@ -10,13 +10,14 @@ interface Option {
 
 type SelectionProps =
     | { multiple?: false; value: string; onChange: (value: string) => void }
-    | { multiple: true; value: string[]; onChange: (value: string[]) => void; allValue: string };
+    | { multiple: true; value: string[]; onChange: (value: string[]) => void; allValue?: string };
 
 // Adapted from Web Portfolio's SelectField: body portal and trigger-held keyboard focus.
 export function SelectField(
     props: {
         label: string;
         options: Option[];
+        icon?: ReactNode;
     } & SelectionProps
 ) {
     const { label, value, options } = props;
@@ -93,7 +94,8 @@ export function SelectField(
                         : props.value.includes(option.value)
                           ? props.value.filter((value) => value !== option.value)
                           : [...props.value.filter((value) => value !== props.allValue), option.value];
-                props.onChange(next.length ? next : [props.allValue]);
+                if (next.length) props.onChange(next);
+                else if (props.allValue) props.onChange([props.allValue]);
             } else {
                 props.onChange(option.value);
             }
@@ -103,6 +105,7 @@ export function SelectField(
     };
     const keydown = (event: KeyboardEvent<HTMLButtonElement>) => {
         if (event.key === 'Tab' || event.key === 'Escape') {
+            if (open && event.key === 'Escape') event.stopPropagation();
             setOpen(false);
             if (event.key === 'Escape') event.preventDefault();
             return;
@@ -136,7 +139,12 @@ export function SelectField(
                 onClick={() => (open ? setOpen(false) : show())}
                 onKeyDown={keydown}
             >
-                <span>{summary}</span>
+                {props.icon && (
+                    <span className="select-mobile-icon" aria-hidden="true">
+                        {props.icon}
+                    </span>
+                )}
+                <span className="select-summary">{summary}</span>
                 <ChevronDown size={16} aria-hidden="true" />
             </button>
             {open &&

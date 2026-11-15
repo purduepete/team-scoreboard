@@ -1,0 +1,85 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { GameCard } from '../src/GameCard';
+import type { Game } from '../shared/contracts';
+
+const game: Game = {
+    id: '1',
+    teamIds: [],
+    sport: 'Football',
+    league: 'NFL',
+    title: 'Colts at Seahawks',
+    away: 'Colts',
+    home: 'Seahawks',
+    awayScore: 17,
+    homeScore: 14,
+    startTime: '2026-11-15T20:00:00Z',
+    date: '2026-11-15',
+    status: 'live',
+    statusLabel: 'Q3 08:42',
+    sourceUrl: 'https://example.com',
+    broadcast: 'ESPN',
+    possession: 'away',
+    situation: '2nd & 6 at SEA 12',
+    redZone: true,
+};
+
+describe('tight game cards', () => {
+    it('shows possession, period, down and red-zone position without network text', () => {
+        const html = renderToStaticMarkup(createElement(GameCard, { game, view: 'live', tight: true }));
+        expect(html).toContain('3Q 8:42');
+        expect(html).toContain('2nd &amp; 6');
+        expect(html).toContain('Red zone, SEA 12');
+        expect(html).toContain('Has possession');
+        expect(html).not.toContain('ESPN');
+        expect(html).not.toContain('LIVE');
+        expect(html.match(/class="tight-team"/g)).toHaveLength(2);
+        expect(html.match(/class="tight-meta"/g)).toHaveLength(1);
+    });
+
+    it('does not invent a position when the feed omits it', () => {
+        const html = renderToStaticMarkup(
+            createElement(GameCard, {
+                game: { ...game, statusLabel: '1st Half 04:32', situation: '1st & Goal' },
+                view: 'live',
+                tight: true,
+            })
+        );
+        expect(html).toContain('1H 4:32');
+        expect(html).toContain('field position unavailable');
+        expect(html).not.toContain('SEA 12');
+    });
+
+    it('uses halves for college basketball and preserves baseball innings', () => {
+        const basketball = renderToStaticMarkup(
+            createElement(GameCard, {
+                game: { ...game, sport: "Men's Basketball", league: 'Big Ten', statusLabel: '1st 08:32' },
+                view: 'live',
+                tight: true,
+            })
+        );
+        const baseball = renderToStaticMarkup(
+            createElement(GameCard, {
+                game: { ...game, sport: 'Baseball', league: 'MLB', statusLabel: '1st' },
+                view: 'live',
+                tight: true,
+            })
+        );
+        expect(basketball).toContain('1H 8:32');
+        expect(baseball).toContain('1st');
+        expect(baseball).not.toContain('1Q');
+    });
+
+    it('shows the date of a final without a known start time', () => {
+        const html = renderToStaticMarkup(
+            createElement(GameCard, {
+                game: { ...game, status: 'final', statusLabel: 'Final', startTime: null },
+                view: 'recent',
+                showDate: true,
+                tight: true,
+            })
+        );
+        expect(html).toContain('Final · 11/15');
+    });
+});

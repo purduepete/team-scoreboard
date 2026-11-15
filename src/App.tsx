@@ -9,6 +9,7 @@ import {
     ChevronsDownUp,
     ChevronsUpDown,
     Clock3,
+    Filter,
     Keyboard,
     LayoutGrid,
     Radio,
@@ -42,6 +43,10 @@ import type { View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Today', upcoming: 'Upcoming', recent: 'Recent' };
 const viewOrder: View[] = ['live', 'upcoming', 'recent'];
+const formats = ['full', 'compact', 'tight'] as const;
+type Format = (typeof formats)[number];
+const formatLabels: Record<Format, string> = { full: 'Full', compact: 'Compact', tight: 'Tight' };
+const isFormat = (value: string): value is Format => formats.some((format) => format === value);
 const filterKeys: Record<string, string> = {
     a: 'all',
     p: 'league:NCAA',
@@ -115,21 +120,29 @@ export function App() {
         }
     }, [activeOnly]);
     const effectiveView = activeOnly ? 'live' : view;
-    const [compact, setCompact] = useState(() => {
+    const [formatSettings, setFormatSettings] = useState<{ selected: Format[]; current: Format }>(() => {
         try {
-            return localStorage.getItem('team-scoreboard-compact') === 'true';
+            const stored = JSON.parse(localStorage.getItem('team-scoreboard-formats') ?? 'null');
+            const selected = Array.isArray(stored) ? formats.filter((format) => stored.includes(format)) : [...formats];
+            const choices = selected.length ? selected : [...formats];
+            const saved = localStorage.getItem('team-scoreboard-format');
+            const legacy = localStorage.getItem('team-scoreboard-compact') === 'true' ? 'compact' : 'full';
+            const current = saved && isFormat(saved) ? saved : legacy;
+            return { selected: choices, current: choices.includes(current) ? current : choices[0] };
         } catch (error) {
-            console.warn('Compact mode could not be restored.', error);
-            return false;
+            console.warn('Display formats could not be restored.', error);
+            return { selected: [...formats], current: 'full' };
         }
     });
     useEffect(() => {
         try {
-            localStorage.setItem('team-scoreboard-compact', String(compact));
+            localStorage.setItem('team-scoreboard-formats', JSON.stringify(formatSettings.selected));
+            localStorage.setItem('team-scoreboard-format', formatSettings.current);
         } catch (error) {
-            console.warn('Compact mode could not be saved.', error);
+            console.warn('Display formats could not be saved.', error);
         }
-    }, [compact]);
+    }, [formatSettings]);
+    const compact = formatSettings.current !== 'full';
     const [recentDays, setRecentDays] = useState<RecentDays>(() => {
         try {
             const saved = Number(localStorage.getItem('team-scoreboard-recent-days'));
@@ -185,7 +198,10 @@ export function App() {
         if (!toolsOpen) return;
         const dismiss = (event: PointerEvent) => {
             const target = event.target as Element;
-            if (!tools.current?.contains(target) && !target.closest('[role="menu"], [role="dialog"]')) {
+            if (
+                !tools.current?.contains(target) &&
+                !target.closest('[role="listbox"], [role="menu"], [role="dialog"]')
+            ) {
                 setToolsOpen(false);
             }
         };
@@ -430,12 +446,14 @@ export function App() {
         } else if (statusPage) {
             return;
         } else if (views[event.code]) {
-            if (!activeOnly) setView(views[event.code]);
-        } else if (compact) {
-            return;
+            if (!activeOnly) {
+                setView(views[event.code]);
+                setToolsOpen(false);
+            }
         } else if (filterKeys[key]) {
             setTeam([filterKeys[key]]);
-        } else if (key === 'x') {
+            setToolsOpen(false);
+        } else if (key === 'x' && !compact) {
             setAllSections(!allOpen);
         } else {
             return;
@@ -460,6 +478,39 @@ export function App() {
         .sort()
         .at(-1);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const sectionControls = !compact && sectionKeys.length > 0 && (
+        <div
+            className="section-controls"
+            role="group"
+            aria-label="Section controls"
+            data-active={allOpen ? '0' : allClosed ? '1' : 'none'}
+        >
+            <Tooltip content="Expand all (X)">
+                <button
+                    type="button"
+                    disabled={allOpen}
+                    aria-pressed={allOpen}
+                    aria-keyshortcuts="X"
+                    aria-label="Expand all"
+                    onClick={() => setAllSections(true)}
+                >
+                    <ChevronsUpDown size={16} aria-hidden="true" />
+                </button>
+            </Tooltip>
+            <Tooltip content="Collapse all (X)">
+                <button
+                    type="button"
+                    disabled={allClosed}
+                    aria-pressed={allClosed}
+                    aria-keyshortcuts="X"
+                    aria-label="Collapse all"
+                    onClick={() => setAllSections(false)}
+                >
+                    <ChevronsDownUp size={16} aria-hidden="true" />
+                </button>
+            </Tooltip>
+        </div>
+    );
     return (
         <div data-first-load={firstLoad}>
             {firstLoad === 'loading' && (
@@ -500,14 +551,21 @@ export function App() {
                                 <Radio size={18} aria-hidden="true" />
                             </button>
                         </Tooltip>
-                        <Tooltip content={compact ? 'Exit compact mode' : 'Compact mode'}>
+                        <Tooltip content={`Display format: ${formatLabels[formatSettings.current]}`}>
                             <button
                                 type="button"
                                 className="icon-button"
-                                aria-label={compact ? 'Exit compact mode' : 'Compact mode'}
+                                aria-label={`Display format: ${formatLabels[formatSettings.current]}`}
                                 aria-pressed={compact}
+                                disabled={formatSettings.selected.length === 1}
                                 onClick={() => {
-                                    setCompact((value) => !value);
+                                    setFormatSettings((value) => ({
+                                        ...value,
+                                        current:
+                                            value.selected[
+                                                (value.selected.indexOf(value.current) + 1) % value.selected.length
+                                            ],
+                                    }));
                                     setEditing(false);
                                     setFindingTeam(false);
                                     setToolsOpen(false);
@@ -543,7 +601,7 @@ export function App() {
                 )}
                 {data && (
                     <>
-                        {!statusPage && !compact && editing && (
+                        {!statusPage && editing && (
                             <section className="panel" aria-label="Edit favorite teams">
                                 <div className="section-heading">
                                     <div>
@@ -601,7 +659,7 @@ export function App() {
                         )}
                         {!statusPage && (
                             <section className="panel">
-                                <div className="toolbar">
+                                <div className="toolbar" data-sections={Boolean(sectionControls)}>
                                     <div
                                         className="tabs"
                                         role="group"
@@ -623,7 +681,7 @@ export function App() {
                                             </Tooltip>
                                         ))}
                                     </div>
-                                    <div className="toolbar-actions" hidden={compact}>
+                                    <div className="toolbar-actions">
                                         <div
                                             className="score-tools"
                                             ref={tools}
@@ -641,12 +699,13 @@ export function App() {
                                             <button
                                                 type="button"
                                                 className="tools-trigger"
+                                                aria-label="Settings"
                                                 aria-expanded={toolsOpen}
                                                 aria-controls="score-tools-actions"
                                                 onClick={() => setToolsOpen((value) => !value)}
                                             >
                                                 <SlidersHorizontal size={16} aria-hidden="true" />
-                                                Tools
+                                                <span>Settings</span>
                                             </button>
                                             <div
                                                 id="score-tools-actions"
@@ -724,59 +783,69 @@ export function App() {
                                                         </button>
                                                     ))}
                                                 </div>
+                                                <div className="format-select">
+                                                    <SelectField
+                                                        label="Display formats"
+                                                        multiple
+                                                        value={formatSettings.selected}
+                                                        onChange={(values) => {
+                                                            const selected = formats.filter((format) =>
+                                                                values.includes(format)
+                                                            );
+                                                            setFormatSettings((current) => ({
+                                                                selected,
+                                                                current: selected.includes(current.current)
+                                                                    ? current.current
+                                                                    : selected[0],
+                                                            }));
+                                                        }}
+                                                        options={formats.map((format) => ({
+                                                            value: format,
+                                                            label: formatLabels[format],
+                                                        }))}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <SelectField
-                                            label="Show"
-                                            multiple
-                                            allValue="all"
-                                            value={team}
-                                            onChange={setTeam}
-                                            options={[
-                                                { value: 'all', label: 'All teams' },
-                                                { value: 'favorites', label: 'Favorites' },
-                                                { value: 'league:NFL', label: 'NFL' },
-                                                { value: 'league:NBA', label: 'NBA' },
-                                                { value: 'league:MLB', label: 'MLB' },
-                                                { value: 'league:NCAA', label: 'Purdue' },
-                                                { value: 'league:Big Ten', label: 'Big Ten' },
-                                                ...favoriteTeams
-                                                    .filter((item) => !item.umbrella)
-                                                    .map((item) => ({ value: item.id, label: item.name })),
-                                            ]}
-                                        />
-                                        {sectionKeys.length > 0 && (
-                                            <div
-                                                className="section-controls"
-                                                role="group"
-                                                aria-label="Section controls"
-                                                data-active={allOpen ? '0' : allClosed ? '1' : 'none'}
-                                            >
-                                                <Tooltip content="Expand all (X)">
-                                                    <button
-                                                        type="button"
-                                                        disabled={allOpen}
-                                                        aria-pressed={allOpen}
-                                                        aria-keyshortcuts="X"
-                                                        aria-label="Expand all"
-                                                        onClick={() => setAllSections(true)}
-                                                    >
-                                                        <ChevronsUpDown size={16} aria-hidden="true" />
-                                                    </button>
-                                                </Tooltip>
-                                                <Tooltip content="Collapse all (X)">
-                                                    <button
-                                                        type="button"
-                                                        disabled={allClosed}
-                                                        aria-pressed={allClosed}
-                                                        aria-keyshortcuts="X"
-                                                        aria-label="Collapse all"
-                                                        onClick={() => setAllSections(false)}
-                                                    >
+                                        <div className={`team-filter${team.includes('all') ? '' : ' filtered'}`}>
+                                            <SelectField
+                                                label="Show"
+                                                icon={<Filter size={16} />}
+                                                multiple
+                                                allValue="all"
+                                                value={team}
+                                                onChange={setTeam}
+                                                options={[
+                                                    { value: 'all', label: 'All teams' },
+                                                    { value: 'favorites', label: 'Favorites' },
+                                                    { value: 'league:NFL', label: 'NFL' },
+                                                    { value: 'league:NBA', label: 'NBA' },
+                                                    { value: 'league:MLB', label: 'MLB' },
+                                                    { value: 'league:NCAA', label: 'Purdue' },
+                                                    { value: 'league:Big Ten', label: 'Big Ten' },
+                                                    ...favoriteTeams
+                                                        .filter((item) => !item.umbrella)
+                                                        .map((item) => ({ value: item.id, label: item.name })),
+                                                ]}
+                                            />
+                                        </div>
+                                        {sectionControls}
+                                        {sectionControls && (
+                                            <Tooltip content={allOpen ? 'Collapse all (X)' : 'Expand all (X)'}>
+                                                <button
+                                                    type="button"
+                                                    className="mobile-section-toggle"
+                                                    aria-label={allOpen ? 'Collapse all' : 'Expand all'}
+                                                    aria-keyshortcuts="X"
+                                                    onClick={() => setAllSections(!allOpen)}
+                                                >
+                                                    {allOpen ? (
                                                         <ChevronsDownUp size={16} aria-hidden="true" />
-                                                    </button>
-                                                </Tooltip>
-                                            </div>
+                                                    ) : (
+                                                        <ChevronsUpDown size={16} aria-hidden="true" />
+                                                    )}
+                                                </button>
+                                            </Tooltip>
                                         )}
                                     </div>
                                 </div>
@@ -863,7 +932,7 @@ export function App() {
                                                 </h2>
                                                 <p>
                                                     Some feeds may still be refreshing, and off-season sports have no
-                                                    games. Check source status from Tools.
+                                                    games. Check source status from Settings.
                                                 </p>
                                             </div>
                                         ))}
@@ -900,6 +969,7 @@ export function App() {
                                                                                   : undefined
                                                                           }
                                                                           game={game}
+                                                                          tight={formatSettings.current === 'tight'}
                                                                           favorite={isFavorite(game, highlightIds)}
                                                                           view={effectiveView}
                                                                           showDate={effectiveView !== 'live'}
