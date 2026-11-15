@@ -2444,6 +2444,57 @@ test('football scoring label appears in every format and clears after kickoff', 
     await expect(card.locator('.scored-label')).toHaveCount(0);
 });
 
+test('a scored label keeps the 49ers and their record on one row at iPad widths', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+    extraGames = [
+        {
+            ...game,
+            id: 'long-team-scored',
+            title: '49ers at Seahawks',
+            away: 'San Francisco 49ers',
+            awayTeamId: '134927',
+            awayRecord: '9-10-1',
+            home: 'Seattle Seahawks',
+            awayScore: 17,
+            homeScore: 14,
+            status: 'live',
+            statusLabel: 'Q3 08:42',
+            possession: 'away',
+            scored: 'away',
+        },
+    ];
+    await page.goto('/');
+    await expandSections(page);
+    const card = page.locator('.game', { hasText: 'San Francisco 49ers' });
+    for (const format of ['Full', 'Compact']) {
+        const name = card.locator('.score-lines > div').first().locator(':scope > span');
+        await expect(name).toContainText('San Francisco 49ers (9-10-1)');
+        const layout = await name.evaluate((element) => {
+            const range = document.createRange();
+            range.selectNodeContents(element.querySelector('.record')!);
+            return {
+                clipped: element.scrollWidth > element.clientWidth,
+                lineTops: [...range.getClientRects()].map((rect) => rect.top),
+            };
+        });
+        expect(layout.clipped).toBe(false);
+        expect(Math.max(...layout.lineTops) - Math.min(...layout.lineTops)).toBeLessThan(1);
+        await page.setViewportSize({ width: 390, height: 844 });
+        const mobile = await name.evaluate((element) => {
+            const score = element.parentElement?.querySelector('strong');
+            if (!score) throw new Error('Missing score.');
+            return {
+                height: element.getBoundingClientRect().height,
+                overlap: element.getBoundingClientRect().right > score.getBoundingClientRect().left,
+            };
+        });
+        expect(mobile.height).toBeLessThan(24);
+        expect(mobile.overlap).toBe(false);
+        await page.setViewportSize({ width: 768, height: 1024 });
+        await page.getByRole('button', { name: `Display format: ${format}` }).click();
+    }
+});
+
 test('team rows line up across live, final and scheduled cards', async ({ page }) => {
     await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
     extraGames = [

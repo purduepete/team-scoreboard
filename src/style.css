@@ -1112,9 +1112,9 @@ small {
 .scored-label {
     color: var(--scored-text);
     background: var(--scored-bg);
-    font-size: 0.67rem;
+    font-size: 0.625rem;
     font-weight: 700;
-    padding: 2px 4px;
+    padding: 2px;
 }
 .favorite-result {
     flex: none;
@@ -1212,6 +1212,19 @@ small {
     gap: 12px;
     margin: 12px 0;
     font-size: 0.95rem;
+}
+.game:has(.scored-label) .score-lines > div {
+    gap: 6px;
+    font-size: 0.9125rem;
+}
+.score-lines > div:has(.scored-label) > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.score-lines > div:has(.scored-label) > strong {
+    flex: none;
 }
 .score-lines strong {
     display: flex;
