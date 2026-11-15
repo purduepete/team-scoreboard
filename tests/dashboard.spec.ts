@@ -1768,7 +1768,7 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
     await expect(custom.locator('.score-lines')).toContainText('23');
     await expect(custom.locator('.record')).toHaveText([' (5-1)', ' (4-2)']);
     await expect(custom.getByRole('img', { name: 'Has possession' })).toBeVisible();
-    await expect(custom.locator('.red-zone')).toHaveText('●');
+    await expect(custom.locator('.red-zone')).toHaveText('RZ');
     await expect(custom.locator('.red-zone')).toHaveAttribute('aria-label', 'Red zone, field position unavailable');
     await expect(custom.locator('.situation')).toContainText('1st & Goal');
     await expect(custom.locator('.score-lines')).toContainText('3');

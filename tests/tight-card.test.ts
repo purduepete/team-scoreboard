@@ -135,14 +135,14 @@ describe('tight game cards', () => {
         expect(redZone).toContain('class="field-position red-zone" aria-label="Red zone, SEA 12">SEA 12</span>');
         expect(redZone).not.toContain('>Red zone</span>');
         const missing = render({ situation: '1st & Goal' });
-        expect(missing).toContain('field position unavailable');
+        expect(missing).toContain('aria-label="Red zone, field position unavailable">RZ</span>');
         expect(missing).toContain('1st &amp; Goal');
         const normal = render({ redZone: false });
         expect(normal).not.toContain('class="red-zone"');
         expect(normal).toContain('class="field-position">SEA 12</span>');
     });
 
-    it.each([true, false])('hides the red-zone dot while Scored is visible when tight is %s', (tight) => {
+    it.each([true, false])('hides the red-zone label while Scored is visible when tight is %s', (tight) => {
         const render = (overrides: Partial<Game>) =>
             renderToStaticMarkup(
                 createElement(GameCard, {

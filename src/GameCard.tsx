@@ -363,7 +363,7 @@ export function GameCard({
                     )}
                     {game.status === 'live' && showRedZoneMarker && (
                         <span className="red-zone tight-position" aria-label="Red zone, field position unavailable">
-                            ●
+                            RZ
                         </span>
                     )}
                     <a href={game.sourceUrl} target="_blank" rel="noreferrer" aria-label={`Source for ${game.title}`}>
@@ -448,7 +448,7 @@ export function GameCard({
                                 <>
                                     {detail && ' '}
                                     <span className="red-zone" aria-label="Red zone, field position unavailable">
-                                        ●
+                                        RZ
                                     </span>
                                 </>
                             )}
