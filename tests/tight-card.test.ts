@@ -142,6 +142,25 @@ describe('tight game cards', () => {
         expect(normal).toContain('class="field-position">SEA 12</span>');
     });
 
+    it.each([true, false])('hides the red-zone dot while Scored is visible when tight is %s', (tight) => {
+        const render = (overrides: Partial<Game>) =>
+            renderToStaticMarkup(
+                createElement(GameCard, {
+                    game: { ...game, situation: undefined, ...overrides },
+                    view: 'live',
+                    tight,
+                })
+            );
+        const scored = render({ scored: 'away' });
+        expect(scored).toContain('scored-label');
+        expect(scored).not.toContain('field position unavailable');
+        expect(scored).not.toContain('class="situation"');
+        expect(render({ scored: 'away', situation: '1st & Goal' })).toContain('1st &amp; Goal');
+        expect(render({ scored: 'away', situation: '1st & Goal' })).not.toContain('field position unavailable');
+        expect(render({ scored: 'away', situation: '2nd & 6 at SEA 12' })).toContain('Red zone, SEA 12');
+        expect(render({})).toContain('field position unavailable');
+    });
+
     it('uses halves for college basketball and preserves baseball innings', () => {
         const basketball = renderToStaticMarkup(
             createElement(GameCard, {

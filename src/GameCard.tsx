@@ -257,6 +257,7 @@ export function GameCard({
     const football = game.sport === 'Football';
     const situation = useSituation(game);
     const { detail, position } = football ? footballSituation(situation.text) : { detail: situation.text };
+    const showRedZoneMarker = game.redZone && !position && !(football && game.status === 'live' && game.scored);
     const nationalBadge = game.league === 'NBA' && game.national && (
         <Tooltip content={`National broadcast: ${game.national}`}>
             <span
@@ -360,7 +361,7 @@ export function GameCard({
                             </span>
                         </span>
                     )}
-                    {game.status === 'live' && game.redZone && !position && (
+                    {game.status === 'live' && showRedZoneMarker && (
                         <span className="red-zone tight-position" aria-label="Red zone, field position unavailable">
                             ●
                         </span>
@@ -429,7 +430,7 @@ export function GameCard({
                             {scoreDisplay(game.home, 'home')}
                         </strong>
                     </div>
-                    {game.status === 'live' && (situation.text || game.redZone) && (
+                    {game.status === 'live' && (situation.text || position || showRedZoneMarker) && (
                         <p className="situation">
                             {detail}
                             {position && (
@@ -443,7 +444,7 @@ export function GameCard({
                                     </span>
                                 </>
                             )}
-                            {game.redZone && !position && (
+                            {showRedZoneMarker && (
                                 <>
                                     {detail && ' '}
                                     <span className="red-zone" aria-label="Red zone, field position unavailable">
