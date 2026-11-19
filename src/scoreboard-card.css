@@ -40,19 +40,30 @@
 .scoreboard-card:not(.tight-game) .score-lines > div {
     min-height: 44px;
     margin-block: 8px;
+    gap: 6px;
 }
-.scoreboard-card .score-lines > div:has(.scored-label) > span {
+.scoreboard-card .score-lines > div > .compact-team-label {
     display: flex;
     align-items: center;
-}
-.scoreboard-card .score-lines > div:has(.scored-label) .compact-team-name {
+    flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
 }
-.scoreboard-card .score-lines > div:has(.scored-label) .record {
+.scoreboard-card .score-lines .compact-team-name {
+    min-width: 0;
+}
+.scoreboard-card .score-lines .compact-team-name-wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.scoreboard-card .score-lines .record {
     flex: none;
     margin-inline-start: 4px;
+}
+.scoreboard-card .score-lines > div > strong {
+    flex: none;
 }
 .scoreboard-card .score-lines .game-team-logo {
     width: 32px;
@@ -105,9 +116,6 @@
     height: 17px;
     margin-inline-end: 4px;
     font-size: 0.55rem;
-}
-.scoreboard-card:hover {
-    border-color: var(--scoreboard-accent);
 }
 .scoreboard-card .game-footer:has(> .when:only-child:empty) {
     display: none;

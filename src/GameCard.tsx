@@ -1,5 +1,5 @@
 import { Activity, ArrowUpRight, CircleDot, Info, Star, Tv } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
 import type { CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from 'react';
@@ -209,6 +209,42 @@ function tightStatus(game: Game, showDate: boolean) {
     return status;
 }
 
+function CompactTeamName({ name }: { name: string }) {
+    const ref = useRef<HTMLSpanElement>(null);
+
+    useLayoutEffect(() => {
+        const label = ref.current;
+        const row = label?.closest('.compact-team-label');
+        if (!label || !row) return;
+
+        const fit = () => {
+            label.classList.remove('compact-team-name-wrap');
+            for (const size of [1, 0.9375, 0.875, 0.8125, 0.75]) {
+                label.style.fontSize = `${size}rem`;
+                if (label.scrollWidth <= label.clientWidth) return;
+            }
+            label.classList.add('compact-team-name-wrap');
+        };
+        fit();
+
+        const observer = new ResizeObserver(fit);
+        observer.observe(row);
+        observer.observe(label);
+        const fonts = label.ownerDocument.fonts;
+        fonts.addEventListener('loadingdone', fit);
+        return () => {
+            observer.disconnect();
+            fonts.removeEventListener('loadingdone', fit);
+        };
+    }, [name]);
+
+    return (
+        <span className="compact-team-name" ref={ref}>
+            {name}
+        </span>
+    );
+}
+
 export function GameCard({
     game,
     favorite = false,
@@ -222,6 +258,8 @@ export function GameCard({
     showDate = false,
     tight = false,
     scoreboardTheme,
+    detailsOpen = false,
+    onToggleDetails,
 }: {
     game: Game;
     favorite?: boolean;
@@ -235,9 +273,10 @@ export function GameCard({
     showDate?: boolean;
     tight?: boolean;
     scoreboardTheme?: ResolvedTheme;
+    detailsOpen?: boolean;
+    onToggleDetails?: () => void;
 }) {
     const detailsId = useId();
-    const [detailsOpen, setDetailsOpen] = useState(false);
     const cardClass = `${scoreboardTheme ? ' scoreboard-card' : ''}${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`;
     const cardStyle: (CSSProperties & Partial<Record<`--game-${'away' | 'home'}-color`, string>>) | undefined =
         scoreboardTheme
@@ -249,7 +288,6 @@ export function GameCard({
             : reorder?.style;
     const logo = (name: string, side: 'away' | 'home') =>
         scoreboardTheme && <TeamLogo name={name} src={game[`${side}Logo`]} theme={scoreboardTheme} />;
-    const toggleDetails = () => setDetailsOpen((open) => !open);
     const onCardClick = (event: MouseEvent<HTMLElement>) => {
         reorder?.onClick?.(event);
         const { target, currentTarget } = event;
@@ -259,7 +297,7 @@ export function GameCard({
             currentTarget.contains(target) &&
             !target.closest('a, button, [tabindex], .game-details-panel')
         ) {
-            toggleDetails();
+            onToggleDetails?.();
         }
     };
     const detailsControl = scoreboardTheme && (
@@ -269,7 +307,7 @@ export function GameCard({
             aria-label={`Details for ${game.title}`}
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
-            onClick={toggleDetails}
+            onClick={onToggleDetails}
         />
     );
     const detailsPanel = scoreboardTheme && (
@@ -280,10 +318,16 @@ export function GameCard({
     const football = game.sport === 'Football';
     const teamName = (name: string, side: 'away' | 'home', className = '') => {
         const hasPossession = game.status === 'live' && game.possession === side;
-        if (!hasPossession) return <span className={className || undefined}>{name}</span>;
+        const label =
+            className === 'compact-team-name' ? (
+                <CompactTeamName name={name} />
+            ) : (
+                <span className={className || undefined}>{name}</span>
+            );
+        if (!hasPossession) return label;
         return (
             <span className="team-has-possession">
-                <span className={className || undefined}>{name}</span>
+                {label}
                 <span className="possession-dot" aria-hidden="true" />
                 <span className="sr-only"> Has possession</span>
             </span>
@@ -453,7 +497,7 @@ export function GameCard({
             {game.home && game.away ? (
                 <div className="score-lines">
                     <div>
-                        <span>
+                        <span className={scoreboardTheme ? 'compact-team-label' : undefined}>
                             {logo(game.away, 'away')}
                             {teamName(game.away, 'away', scoreboardTheme ? 'compact-team-name' : undefined)}
                             {game.awayRecord && <span className="record"> ({game.awayRecord})</span>}
@@ -466,7 +510,7 @@ export function GameCard({
                         </strong>
                     </div>
                     <div>
-                        <span>
+                        <span className={scoreboardTheme ? 'compact-team-label' : undefined}>
                             {logo(game.home, 'home')}
                             {teamName(game.home, 'home', scoreboardTheme ? 'compact-team-name' : undefined)}
                             {game.homeRecord && <span className="record"> ({game.homeRecord})</span>}

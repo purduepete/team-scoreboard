@@ -114,6 +114,7 @@ export function App() {
     }, []);
     const [saving, setSaving] = useState(false);
     const [view, setView] = useState<View>('live');
+    const [openGameId, setOpenGameId] = useState<string | null>(null);
     const [gameStatus, setGameStatus] = useState<GameStatusFilter>(() => {
         try {
             const saved = localStorage.getItem('team-scoreboard-game-status');
@@ -994,6 +995,12 @@ export function App() {
                                                                           game={game}
                                                                           tight={formatSettings.current === 'tight'}
                                                                           scoreboardTheme={resolvedTheme}
+                                                                          detailsOpen={openGameId === game.id}
+                                                                          onToggleDetails={() =>
+                                                                              setOpenGameId((openId) =>
+                                                                                  openId === game.id ? null : game.id
+                                                                              )
+                                                                          }
                                                                           favorite={isFavorite(game, highlightIds)}
                                                                           favoriteTeamIds={favoriteIds}
                                                                           view={effectiveView}
