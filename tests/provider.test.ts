@@ -604,6 +604,9 @@ describe('window and filters', () => {
             'nba',
             'football',
         ]);
+        const womenEarly = live('women-early', '3rd 8:05', { league: 'NCAA', sport: "Women's Basketball" });
+        const womenLate = live('women-late', '4th 9:00', { league: 'NCAA', sport: "Women's Basketball" });
+        expect(compactGames([womenEarly, womenLate], []).map((game) => game.id)).toEqual(['women-late', 'women-early']);
     });
     it('expands the umbrella without duplicates and excludes the umbrella feed', () => {
         const expanded = expandFavorites(['purdue-all', 'purdue-football']);

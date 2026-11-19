@@ -305,7 +305,37 @@ describe('tight game cards', () => {
         expect(render({})).toContain('field position unavailable');
     });
 
-    it('uses halves for college basketball and preserves baseball innings', () => {
+    it.each([
+        ["Women's Basketball", ['Q1', 'Q2', 'Q3', 'Q4', 'OT', 'OT2']],
+        ["Men's Basketball", ['H1', 'H2', 'OT', 'OT2']],
+    ] as const)('labels regulation and overtime periods for %s', (sport, labels) => {
+        const html = renderToStaticMarkup(
+            createElement(GameDetails, {
+                theme: 'midnight',
+                game: {
+                    ...game,
+                    league: 'NCAA',
+                    sport,
+                    lineScore: labels.map((_, index) => ({ period: index + 1, away: 8, home: 18 })),
+                },
+            })
+        );
+        expect(html).toContain(labels.map((label) => `<th scope="col">${label}</th>`).join(''));
+    });
+
+    it.each([1, 2, 3, 4])('uses quarter %s for women’s basketball in Tight', (quarter) => {
+        const ordinal = ['1st', '2nd', '3rd', '4th'][quarter - 1];
+        const html = renderToStaticMarkup(
+            createElement(GameCard, {
+                game: { ...game, sport: "Women's Basketball", league: 'NCAA', statusLabel: `${ordinal} 08:32` },
+                view: 'live',
+                tight: true,
+            })
+        );
+        expect(html).toContain(`${quarter}Q 8:32`);
+    });
+
+    it('uses halves for men’s college basketball and preserves baseball innings', () => {
         const basketball = renderToStaticMarkup(
             createElement(GameCard, {
                 game: { ...game, sport: "Men's Basketball", league: 'Big Ten', statusLabel: '1st 08:32' },

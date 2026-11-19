@@ -191,7 +191,7 @@ function tightStatus(game: Game, showDate: boolean) {
             (_, number: string, period: string) => `${number}${/^h/i.test(period) ? 'H' : 'Q'}`
         );
         if (/football|basketball/i.test(game.sport)) {
-            const half = /men's basketball/i.test(game.sport) && game.league !== 'NBA';
+            const half = /^men's basketball$/i.test(game.sport) && game.league !== 'NBA';
             status = status.replace(
                 /^(\d)(?:st|nd|rd|th)(?=\s|$)/i,
                 (_, number: string) => `${number}${half ? 'H' : 'Q'}`

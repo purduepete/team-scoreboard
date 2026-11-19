@@ -33,7 +33,7 @@ export function TeamLogo({ name, src, theme }: { name: string; src?: string; the
 export function GameDetails({ game, theme }: { game: Game; theme: ResolvedTheme }) {
     const innings = /baseball|softball/i.test(game.sport);
     const sets = /volleyball/i.test(game.sport);
-    const halves = game.league !== 'NBA' && /men's basketball/i.test(game.sport);
+    const halves = game.league !== 'NBA' && /^men's basketball$/i.test(game.sport);
     const regulation = halves ? 2 : 4;
     const timed = /basketball|football/i.test(game.sport);
     const unit = innings ? 'inning' : sets ? 'set' : 'period';

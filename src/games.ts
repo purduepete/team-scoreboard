@@ -131,7 +131,7 @@ function gameTimeRemaining(game: Game): number | null {
     const football = game.sport === 'Football';
     const basketball = /basketball/i.test(game.sport);
     if (!football && !basketball) return null;
-    const halves = basketball && /men's basketball/i.test(game.sport) && game.league !== 'NBA';
+    const halves = basketball && /^men's basketball$/i.test(game.sport) && game.league !== 'NBA';
     const periods = halves ? 2 : 4;
     const periodSeconds = football ? 15 * 60 : halves ? 20 * 60 : game.league === 'NBA' ? 12 * 60 : 10 * 60;
     const label = game.statusLabel;
