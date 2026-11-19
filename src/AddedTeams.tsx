@@ -510,9 +510,113 @@ export function AddedTeams({
             </article>
         );
     };
+    const teamFinder =
+        open &&
+        active &&
+        createPortal(
+            <div className="help-backdrop" onClick={onClose}>
+                <div
+                    ref={dialog}
+                    id="team-finder"
+                    className="team-finder help-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="team-finder-title"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <div className="help-heading">
+                        <h2 id="team-finder-title">Find team</h2>
+                        <button
+                            ref={closeButton}
+                            type="button"
+                            className="icon-button"
+                            aria-label="Close team search"
+                            onClick={onClose}
+                        >
+                            <X size={16} aria-hidden="true" />
+                        </button>
+                    </div>
+                    {saved.error && <p role="alert">{saved.error}</p>}
+                    <div className="section-controls" role="group" aria-label="Sport">
+                        {categories.map(({ value, label }) => (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-label={label}
+                                aria-pressed={category === value}
+                                onClick={() => setCategory(value)}
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    {value === 'college-football' ? (
+                                        <>
+                                            <path d="M5 19A14 14 0 0 1 19 5a14 14 0 0 1-14 14Z" />
+                                            <path d="m9.5 14.5 5-5M9.5 12.5l2 2M11 11l2 2M12.5 9.5l2 2" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <circle cx="12" cy="12" r="9" />
+                                            <path d="M3 12h18M12 3v18M5.6 5.6a9 9 0 0 1 0 12.8M18.4 5.6a9 9 0 0 0 0 12.8" />
+                                        </>
+                                    )}
+                                </svg>
+                            </button>
+                        ))}
+                    </div>
+                    <label htmlFor="added-team-query">Search teams</label>
+                    <input
+                        id="added-team-query"
+                        ref={searchInput}
+                        value={query}
+                        maxLength={80}
+                        placeholder="Type at least 2 characters"
+                        onChange={(event) => setQuery(event.target.value)}
+                    />
+                    {searching && <p role="status">Searching teams…</p>}
+                    {searchError && <p role="alert">{searchError}</p>}
+                    {search?.error && <p role="alert">{search.error}</p>}
+                    {search?.stale && <p role="status">Showing the last saved team directory.</p>}
+                    {search && !searching && !search.teams.length && <p role="status">No teams found.</p>}
+                    <ul className="team-search-results">
+                        {search?.teams.map((team) => {
+                            const id = team.providerId!.split('/').at(-1)!;
+                            const added = saved.pins.some((pin) => pin.category === team.category && pin.id === id);
+                            return (
+                                <li key={`${team.category}:${id}`}>
+                                    <span>
+                                        {team.name}
+                                        <small>{categories.find((item) => item.value === team.category)?.label}</small>
+                                    </span>
+                                    <button
+                                        type="button"
+                                        aria-label={`Add ${team.name}`}
+                                        disabled={added}
+                                        onClick={() => add(team)}
+                                    >
+                                        <Plus size={16} aria-hidden="true" />
+                                        {added ? 'Added' : 'Add'}
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            </div>,
+            document.body
+        );
     if (renderCompact) {
         return (
             <>
+                {teamFinder}
                 {active && saved.error && <p role="alert">{saved.error}</p>}
                 {renderCompact(
                     gameCards.map((card) => card.game),
@@ -538,112 +642,7 @@ export function AddedTeams({
                     <p role="status">No {gameStatus} games for Custom teams.</p>
                 )}
                 {saved.error && <p role="alert">{saved.error}</p>}
-                {open &&
-                    active &&
-                    createPortal(
-                        <div className="help-backdrop" onClick={onClose}>
-                            <div
-                                ref={dialog}
-                                id="team-finder"
-                                className="team-finder help-dialog"
-                                role="dialog"
-                                aria-modal="true"
-                                aria-labelledby="team-finder-title"
-                                onClick={(event) => event.stopPropagation()}
-                            >
-                                <div className="help-heading">
-                                    <h2 id="team-finder-title">Find team</h2>
-                                    <button
-                                        ref={closeButton}
-                                        type="button"
-                                        className="icon-button"
-                                        aria-label="Close team search"
-                                        onClick={onClose}
-                                    >
-                                        <X size={16} aria-hidden="true" />
-                                    </button>
-                                </div>
-                                {saved.error && <p role="alert">{saved.error}</p>}
-                                <div className="section-controls" role="group" aria-label="Sport">
-                                    {categories.map(({ value, label }) => (
-                                        <button
-                                            key={value}
-                                            type="button"
-                                            aria-label={label}
-                                            aria-pressed={category === value}
-                                            onClick={() => setCategory(value)}
-                                        >
-                                            <svg
-                                                width="18"
-                                                height="18"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                aria-hidden="true"
-                                            >
-                                                {value === 'college-football' ? (
-                                                    <>
-                                                        <path d="M5 19A14 14 0 0 1 19 5a14 14 0 0 1-14 14Z" />
-                                                        <path d="m9.5 14.5 5-5M9.5 12.5l2 2M11 11l2 2M12.5 9.5l2 2" />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <circle cx="12" cy="12" r="9" />
-                                                        <path d="M3 12h18M12 3v18M5.6 5.6a9 9 0 0 1 0 12.8M18.4 5.6a9 9 0 0 0 0 12.8" />
-                                                    </>
-                                                )}
-                                            </svg>
-                                        </button>
-                                    ))}
-                                </div>
-                                <label htmlFor="added-team-query">Search teams</label>
-                                <input
-                                    id="added-team-query"
-                                    ref={searchInput}
-                                    value={query}
-                                    maxLength={80}
-                                    placeholder="Type at least 2 characters"
-                                    onChange={(event) => setQuery(event.target.value)}
-                                />
-                                {searching && <p role="status">Searching teams…</p>}
-                                {searchError && <p role="alert">{searchError}</p>}
-                                {search?.error && <p role="alert">{search.error}</p>}
-                                {search?.stale && <p role="status">Showing the last saved team directory.</p>}
-                                {search && !searching && !search.teams.length && <p role="status">No teams found.</p>}
-                                <ul className="team-search-results">
-                                    {search?.teams.map((team) => {
-                                        const id = team.providerId!.split('/').at(-1)!;
-                                        const added = saved.pins.some(
-                                            (pin) => pin.category === team.category && pin.id === id
-                                        );
-                                        return (
-                                            <li key={`${team.category}:${id}`}>
-                                                <span>
-                                                    {team.name}
-                                                    <small>
-                                                        {categories.find((item) => item.value === team.category)?.label}
-                                                    </small>
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    aria-label={`Add ${team.name}`}
-                                                    disabled={added}
-                                                    onClick={() => add(team)}
-                                                >
-                                                    <Plus size={16} aria-hidden="true" />
-                                                    {added ? 'Added' : 'Add'}
-                                                </button>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            </div>
-                        </div>,
-                        document.body
-                    )}
+                {teamFinder}
                 <div className="games custom-games">
                     {orderedCards.map((card, index) => {
                         if (card.kind === 'status') {

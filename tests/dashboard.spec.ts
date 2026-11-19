@@ -1780,6 +1780,31 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
     await expect(custom).not.toContainText('Showing previously fetched scores.');
 });
 
+for (const format of ['full', 'compact', 'tight']) {
+    test(`team search opens and adds a team in ${format} format`, async ({ page }) => {
+        await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+        await page.addInitScript((value) => {
+            localStorage.setItem('team-scoreboard-formats', JSON.stringify(['full', 'compact', 'tight']));
+            localStorage.setItem('team-scoreboard-format', value);
+        }, format);
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
+        const trigger = page.getByRole('button', { name: 'Find team', exact: true });
+        await trigger.click();
+        const dialog = page.getByRole('dialog', { name: 'Find team', exact: true });
+        await expect(dialog).toBeVisible();
+        await dialog.getByLabel('Search teams', { exact: true }).fill('Alabama');
+        await page.clock.runFor(350);
+        await dialog.getByRole('button', { name: 'Add Alabama Crimson Tide', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByRole('article', { name: 'Alabama Crimson Tide', exact: true })).toBeVisible();
+        await trigger.click();
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+    });
+}
+
 test('team search errors are visible and a removed pending team cannot reappear', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 25, 9) });
     await page.goto('/');
