@@ -687,6 +687,64 @@ describe('provider requests', () => {
         report = match(2, 'STATUS_END_PERIOD', [12, 25]);
         expect((await espn.schedule(volleyball))[0].situation).toBeUndefined();
     });
+    it('loads live Purdue basketball scores and reads schedule logo arrays', async () => {
+        const purdue = teams.find((item) => item.id === 'purdue-womens-basketball')!;
+        const awayLogo = 'https://a.espncdn.com/i/teamlogos/ncaa/500/2509.png';
+        const homeLogo = 'https://a.espncdn.com/i/teamlogos/ncaa/500/52.png';
+        const schedule = {
+            ...event,
+            competitions: [
+                {
+                    status: status('STATUS_IN_PROGRESS', 'in', '2:20 - 1st'),
+                    competitors: [
+                        {
+                            homeAway: 'away',
+                            team: {
+                                id: '2509',
+                                displayName: 'Purdue',
+                                logos: [{ href: 'https://example.com/invalid.png' }, { href: awayLogo }],
+                            },
+                        },
+                        {
+                            homeAway: 'home',
+                            team: { id: '52', displayName: 'Florida State', logos: [{ href: homeLogo }] },
+                        },
+                    ],
+                },
+            ],
+        };
+        expect(normalizeEvent(schedule, purdue)).toMatchObject({
+            awayLogo,
+            homeLogo,
+            awayScore: null,
+            homeScore: null,
+        });
+        const live = {
+            ...schedule,
+            competitions: [
+                {
+                    ...schedule.competitions[0],
+                    competitors: schedule.competitions[0].competitors.map((entry, index) => ({
+                        ...entry,
+                        score: index === 0 ? '6' : '13',
+                    })),
+                },
+            ],
+        };
+        const urls: string[] = [];
+        const espn = provider(
+            (url) => new Response(JSON.stringify(url.includes('/scoreboard/') ? live : { events: [schedule] })),
+            urls
+        );
+        expect((await espn.schedule(purdue))[0]).toMatchObject({
+            origin: 'scoreboard',
+            awayScore: 6,
+            homeScore: 13,
+            awayLogo,
+            homeLogo,
+        });
+        expect(urls[1]).toContain(`/womens-college-basketball/scoreboard/${event.id}`);
+    });
     it('refreshes play history until the kickoff, then avoids fetching it on unchanged scores', async () => {
         const urls: string[] = [];
         const live = withStatus(status('STATUS_IN_PROGRESS', 'in', 'Q1 7:41'), ['0', '7']);

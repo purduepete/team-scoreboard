@@ -1,5 +1,5 @@
 import { Activity, ArrowUpRight, CircleDot, Info, Star, Tv } from 'lucide-react';
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
 import type { CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from 'react';
@@ -209,42 +209,6 @@ function tightStatus(game: Game, showDate: boolean) {
     return status;
 }
 
-function CompactTeamName({ name }: { name: string }) {
-    const ref = useRef<HTMLSpanElement>(null);
-
-    useLayoutEffect(() => {
-        const label = ref.current;
-        const row = label?.closest('.compact-team-label');
-        if (!label || !row) return;
-
-        const fit = () => {
-            label.classList.remove('compact-team-name-wrap');
-            for (const size of [1, 0.9375, 0.875, 0.8125, 0.75]) {
-                label.style.fontSize = `${size}rem`;
-                if (label.scrollWidth <= label.clientWidth) return;
-            }
-            label.classList.add('compact-team-name-wrap');
-        };
-        fit();
-
-        const observer = new ResizeObserver(fit);
-        observer.observe(row);
-        observer.observe(label);
-        const fonts = label.ownerDocument.fonts;
-        fonts.addEventListener('loadingdone', fit);
-        return () => {
-            observer.disconnect();
-            fonts.removeEventListener('loadingdone', fit);
-        };
-    }, [name]);
-
-    return (
-        <span className="compact-team-name" ref={ref}>
-            {name}
-        </span>
-    );
-}
-
 export function GameCard({
     game,
     favorite = false,
@@ -316,14 +280,21 @@ export function GameCard({
         </div>
     );
     const football = game.sport === 'Football';
+    const compact = !!scoreboardTheme && !tight;
+    const scoredLabel = (side: 'home' | 'away') =>
+        football && game.status === 'live' && game.scored === side && <span className="scored-label">Scored</span>;
     const teamName = (name: string, side: 'away' | 'home', className = '') => {
         const hasPossession = game.status === 'live' && game.possession === side;
-        const label =
-            className === 'compact-team-name' ? (
-                <CompactTeamName name={name} />
-            ) : (
-                <span className={className || undefined}>{name}</span>
+        const label = <span className={className || undefined}>{name}</span>;
+        if (compact) {
+            return (
+                <span className="compact-team-name-group">
+                    {hasPossession && <span className="possession-dot" aria-hidden="true" />}
+                    {label}
+                    {hasPossession && <span className="sr-only"> Has possession</span>}
+                </span>
             );
+        }
         if (!hasPossession) return label;
         return (
             <span className="team-has-possession">
@@ -362,9 +333,7 @@ export function GameCard({
         return (
             <>
                 <span className="score-value">
-                    {football && game.status === 'live' && game.scored === side && (
-                        <span className="scored-label">Scored</span>
-                    )}
+                    {!compact && scoredLabel(side)}
                     {showResult && (
                         <span
                             className={`favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}
@@ -500,7 +469,6 @@ export function GameCard({
                         <span className={scoreboardTheme ? 'compact-team-label' : undefined}>
                             {logo(game.away, 'away')}
                             {teamName(game.away, 'away', scoreboardTheme ? 'compact-team-name' : undefined)}
-                            {game.awayRecord && <span className="record"> ({game.awayRecord})</span>}
                         </span>
                         <strong
                             key={`away-${flashes[`${game.id}:away`] ?? 0}`}
@@ -508,12 +476,12 @@ export function GameCard({
                         >
                             {scoreDisplay(game.away, 'away')}
                         </strong>
+                        {compact && scoredLabel('away')}
                     </div>
                     <div>
                         <span className={scoreboardTheme ? 'compact-team-label' : undefined}>
                             {logo(game.home, 'home')}
                             {teamName(game.home, 'home', scoreboardTheme ? 'compact-team-name' : undefined)}
-                            {game.homeRecord && <span className="record"> ({game.homeRecord})</span>}
                         </span>
                         <strong
                             key={`home-${flashes[`${game.id}:home`] ?? 0}`}
@@ -521,6 +489,7 @@ export function GameCard({
                         >
                             {scoreDisplay(game.home, 'home')}
                         </strong>
+                        {compact && scoredLabel('home')}
                     </div>
                     {game.status === 'live' && (situation.text || position || showRedZoneMarker) && (
                         <p className="situation">

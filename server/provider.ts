@@ -43,6 +43,7 @@ const scoreSchema = z
     .union([z.string(), z.number(), z.object({ value: z.number().optional(), displayValue: z.string().optional() })])
     .nullable()
     .optional();
+const teamLogoSchema = z.string().regex(/^https:\/\/a\.espncdn\.com\/i\/teamlogos\/[\w/-]+\.png$/);
 const statusSchema = z.object({
     period: z.number().int().positive().optional().catch(undefined),
     type: z.object({
@@ -133,9 +134,9 @@ const eventSchema = z.object({
                                 .transform((value) => `#${value.replace(/^#/, '').toLowerCase()}`)
                                 .optional()
                                 .catch(undefined),
-                            logo: z
-                                .string()
-                                .regex(/^https:\/\/a\.espncdn\.com\/i\/teamlogos\/[\w/-]+\.png$/)
+                            logo: teamLogoSchema.optional().catch(undefined),
+                            logos: z
+                                .array(z.object({ href: teamLogoSchema }).nullable().catch(null))
                                 .optional()
                                 .catch(undefined),
                         }),
@@ -344,8 +345,10 @@ function toGame(
     if (national) game.national = national;
     if (homeRecord) game.homeRecord = homeRecord;
     if (awayRecord) game.awayRecord = awayRecord;
-    if (home?.team.logo) game.homeLogo = home.team.logo;
-    if (away?.team.logo) game.awayLogo = away.team.logo;
+    const homeLogo = home?.team.logo ?? home?.team.logos?.find((logo) => logo)?.href;
+    const awayLogo = away?.team.logo ?? away?.team.logos?.find((logo) => logo)?.href;
+    if (homeLogo) game.homeLogo = homeLogo;
+    if (awayLogo) game.awayLogo = awayLogo;
     if (home?.team.color) game.homeColor = home.team.color;
     if (away?.team.color) game.awayColor = away.team.color;
     if (home?.team.abbreviation) game.homeAbbreviation = home.team.abbreviation;
@@ -629,7 +632,6 @@ export class SportsProvider {
         const { path } = parseProviderId(team.providerId ?? '');
         const volleyball = path.startsWith('volleyball/');
         const selected = full ? games : selectWindow(games, this.clock());
-        if (!full && !volleyball) return selected;
         return Promise.all(
             selected.map(async (game) => {
                 if (game.status !== 'live') return game;

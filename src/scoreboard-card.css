@@ -38,9 +38,11 @@
     font-weight: 600;
 }
 .scoreboard-card:not(.tight-game) .score-lines > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
     min-height: 44px;
     margin-block: 8px;
-    gap: 6px;
+    gap: 2px 6px;
 }
 .scoreboard-card .score-lines > div > .compact-team-label {
     display: flex;
@@ -52,25 +54,30 @@
     white-space: nowrap;
 }
 .scoreboard-card .score-lines .compact-team-name {
+    grid-column: 2;
+    grid-row: 1;
     min-width: 0;
-}
-.scoreboard-card .score-lines .compact-team-name-wrap {
     white-space: normal;
     overflow-wrap: anywhere;
 }
-.scoreboard-card .score-lines .record {
-    flex: none;
-    margin-inline-start: 4px;
+.scoreboard-card .compact-team-name-group {
+    display: grid;
+    grid-template-columns: 6px minmax(0, 1fr);
+    column-gap: 4px;
+    min-width: 0;
+}
+.scoreboard-card .compact-team-name-group .possession-dot {
+    grid-column: 1;
+    grid-row: 1;
+    margin-top: 7px;
+}
+.scoreboard-card .score-lines > div > .scored-label {
+    grid-column: 1;
+    justify-self: start;
+    margin-inline-start: calc(32px + 8px + 6px + 4px);
 }
 .scoreboard-card .score-lines > div > strong {
     flex: none;
-}
-@media (max-width: 600px) {
-    .scoreboard-card .score-lines .score-value:has(.scored-label) {
-        flex-direction: column-reverse;
-        align-items: flex-end;
-        gap: 0;
-    }
 }
 .scoreboard-card .score-lines .game-team-logo {
     width: 32px;

@@ -30,6 +30,18 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
+    it.each([false, true])('keeps records only in expanded details (tight: %s)', (tight) => {
+        const fixture = { ...game, awayRecord: '9-10-1', homeRecord: '8-2' };
+        const html = renderToStaticMarkup(
+            createElement(GameCard, { game: fixture, view: 'live', tight, scoreboardTheme: 'midnight' })
+        );
+        expect(html).not.toContain('9-10-1');
+        expect(html).not.toContain('8-2');
+        const details = renderToStaticMarkup(createElement(GameDetails, { game: fixture, theme: 'midnight' }));
+        expect(details).toContain('9-10-1');
+        expect(details).toContain('8-2');
+    });
+
     it.each([false, true])('adds logos and a closed details control to enhanced cards (tight: %s)', (tight) => {
         const fixture = {
             ...game,
@@ -146,6 +158,39 @@ describe('tight game cards', () => {
         expect(render({ status: 'final' })).not.toContain('scored-label');
         expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
     });
+
+    it.each(['away', 'home'] as const)(
+        'places Compact Scored beneath the %s team and possession before its name',
+        (side) => {
+            const fixture = { ...game, scored: side, possession: side };
+            const render = (overrides: Partial<Game> = {}) =>
+                renderToStaticMarkup(
+                    createElement(GameCard, {
+                        game: { ...fixture, ...overrides },
+                        view: 'live',
+                        scoreboardTheme: 'midnight',
+                    })
+                );
+            const html = render();
+            const name = side === 'away' ? game.away : game.home;
+            const score = side === 'away' ? game.awayScore : game.homeScore;
+            expect(html).toContain(
+                `<span class="compact-team-name-group"><span class="possession-dot" aria-hidden="true"></span><span class="compact-team-name">${name}</span>`
+            );
+            expect(html).toContain(
+                `<strong><span class="score-value">${score}</span></strong><span class="scored-label">Scored</span>`
+            );
+            expect(html.match(/scored-label/g)).toHaveLength(1);
+            expect(render({ scored: undefined })).not.toContain('scored-label');
+            expect(render({ status: 'final' })).not.toContain('possession-dot');
+            expect(render({ status: 'final' })).not.toContain('scored-label');
+            expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
+            const tight = renderToStaticMarkup(
+                createElement(GameCard, { game: fixture, view: 'live', tight: true, scoreboardTheme: 'midnight' })
+            );
+            expect(tight).toContain('<span class="score-value"><span class="scored-label">Scored</span>');
+        }
+    );
 
     it('marks nationally televised NBA games', () => {
         const render = (overrides: Partial<Game>) =>

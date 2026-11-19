@@ -887,7 +887,7 @@ test('favorite edits survive reload, live scores and source errors are visible',
     await expect(nba).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByText('Q3 4:12')).toBeVisible();
     const liveCard = page.locator('.game', { hasText: 'Indiana Pacers' });
-    await expect(liveCard.locator('.record')).toHaveText([' (1-1)', ' (2-0)']);
+    await expect(liveCard.locator('.record')).toHaveCount(0);
     await expect(liveCard.locator('.broadcast')).toHaveText('ESPN');
     await nba.click();
     await expect(page.getByText('Q3 4:12')).toBeHidden();
@@ -1766,7 +1766,7 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
     await page.clock.runFor(20_000);
     await expect(custom.locator('.custom-status-card')).toHaveCount(0);
     await expect(custom.locator('.score-lines')).toContainText('23');
-    await expect(custom.locator('.record')).toHaveText([' (5-1)', ' (4-2)']);
+    await expect(custom.locator('.record')).toHaveCount(0);
     await expect(custom.locator('.team-has-possession')).toBeVisible();
     await expect(custom.locator('.red-zone')).toHaveText('RZ');
     await expect(custom.locator('.red-zone')).toHaveAttribute('aria-label', 'Red zone, field position unavailable');
@@ -2442,7 +2442,7 @@ test('football scoring label appears in every format and clears after kickoff', 
     await expect(card.locator('.scored-label')).toHaveCount(0);
 });
 
-test('a scored label leaves long team names and records readable at iPad widths', async ({ page }) => {
+test('Compact keeps Scored below the name and possession before it at narrow widths', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
     extraGames = [
         {
@@ -2463,39 +2463,51 @@ test('a scored label leaves long team names and records readable at iPad widths'
     ];
     await page.goto('/');
     await expandSections(page);
+    await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     const card = page.locator('.game', { hasText: 'San Francisco 49ers' });
-    for (const format of ['Full', 'Compact']) {
-        const name = card.locator('.score-lines > div').first().locator(':scope > span');
-        await expect(name).toContainText('San Francisco 49ers');
-        await expect(name.locator('.record')).toHaveText('(9-10-1)');
-        const layout = await name.evaluate((element) => {
-            const range = document.createRange();
-            range.selectNodeContents(element.querySelector('.record')!);
-            return {
-                clipped: element.scrollWidth > element.clientWidth,
-                lineTops: [...range.getClientRects()].map((rect) => rect.top),
-            };
-        });
-        expect(layout.clipped, `${format}: ${JSON.stringify(layout)}`).toBe(false);
-        expect(Math.max(...layout.lineTops) - Math.min(...layout.lineTops)).toBeLessThan(1);
-        await page.setViewportSize({ width: 390, height: 844 });
+    for (const width of [768, 375, 320]) {
+        await page.setViewportSize({ width, height: 1024 });
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        const name = card.locator('.compact-team-label').first();
+        await expect(name).toContainText('San Francisco 49ers');
+        await expect(name.locator('.record')).toHaveCount(0);
         await expect
             .poll(() =>
                 name.evaluate((element) => {
                     const score = element.parentElement?.querySelector('strong');
                     if (!score) throw new Error('Missing score.');
                     const team = element.querySelector<HTMLElement>('.compact-team-name');
+                    const dot = element.querySelector('.possession-dot');
+                    const badge = element.parentElement?.querySelector(':scope > .scored-label');
+                    if (!team || !dot || !badge) throw new Error('Missing team name, possession or Scored.');
+                    const nameBounds = team.getBoundingClientRect();
+                    const dotBounds = dot.getBoundingClientRect();
+                    const badgeBounds = badge.getBoundingClientRect();
+                    const firstLine = document.createRange();
+                    firstLine.selectNodeContents(team);
+                    const lineBounds = firstLine.getClientRects()[0];
                     return {
-                        fits: element.getBoundingClientRect().height <= (team ? 32 : 24),
+                        fontSize: getComputedStyle(team).fontSize,
                         overlap: element.getBoundingClientRect().right > score.getBoundingClientRect().left,
-                        nameClipped: team ? team.scrollWidth > team.clientWidth : false,
+                        nameClipped: team.scrollWidth > team.clientWidth,
+                        badgeBelowName: badgeBounds.top >= nameBounds.bottom,
+                        badgeAtNameEdge: Math.abs(badgeBounds.left - nameBounds.left) < 1,
+                        dotBeforeName: dotBounds.right < nameBounds.left,
+                        dotAtFirstLine:
+                            Math.abs(dotBounds.top + dotBounds.height / 2 - (lineBounds.top + lineBounds.height / 2)) <
+                            2,
                     };
                 })
             )
-            .toEqual({ fits: true, overlap: false, nameClipped: false });
-        await page.setViewportSize({ width: 768, height: 1024 });
-        await page.getByRole('button', { name: `Display format: ${format}` }).click();
+            .toEqual({
+                fontSize: '16px',
+                overlap: false,
+                nameClipped: false,
+                badgeBelowName: true,
+                badgeAtNameEdge: true,
+                dotBeforeName: true,
+                dotAtFirstLine: true,
+            });
     }
 });
 
