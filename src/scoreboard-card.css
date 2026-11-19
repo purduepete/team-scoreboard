@@ -65,6 +65,13 @@
 .scoreboard-card .score-lines > div > strong {
     flex: none;
 }
+@media (max-width: 600px) {
+    .scoreboard-card .score-lines .score-value:has(.scored-label) {
+        flex-direction: column-reverse;
+        align-items: flex-end;
+        gap: 0;
+    }
+}
 .scoreboard-card .score-lines .game-team-logo {
     width: 32px;
     height: 32px;

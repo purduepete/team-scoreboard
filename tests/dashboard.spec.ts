@@ -2479,16 +2479,21 @@ test('a scored label leaves long team names and records readable at iPad widths'
         expect(layout.clipped, `${format}: ${JSON.stringify(layout)}`).toBe(false);
         expect(Math.max(...layout.lineTops) - Math.min(...layout.lineTops)).toBeLessThan(1);
         await page.setViewportSize({ width: 390, height: 844 });
-        const mobile = await name.evaluate((element) => {
-            const score = element.parentElement?.querySelector('strong');
-            if (!score) throw new Error('Missing score.');
-            return {
-                height: element.getBoundingClientRect().height,
-                overlap: element.getBoundingClientRect().right > score.getBoundingClientRect().left,
-            };
-        });
-        expect(mobile.height).toBeLessThanOrEqual(format === 'Compact' ? 32 : 24);
-        expect(mobile.overlap).toBe(false);
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        await expect
+            .poll(() =>
+                name.evaluate((element) => {
+                    const score = element.parentElement?.querySelector('strong');
+                    if (!score) throw new Error('Missing score.');
+                    const team = element.querySelector<HTMLElement>('.compact-team-name');
+                    return {
+                        fits: element.getBoundingClientRect().height <= (team ? 32 : 24),
+                        overlap: element.getBoundingClientRect().right > score.getBoundingClientRect().left,
+                        nameClipped: team ? team.scrollWidth > team.clientWidth : false,
+                    };
+                })
+            )
+            .toEqual({ fits: true, overlap: false, nameClipped: false });
         await page.setViewportSize({ width: 768, height: 1024 });
         await page.getByRole('button', { name: `Display format: ${format}` }).click();
     }
