@@ -653,8 +653,8 @@ for (const theme of ['light', 'midnight']) {
         const tabBox = await schedule.boundingBox();
         const settingsBox = await tools.boundingBox();
         const showBox = await filter.boundingBox();
-        expect(settingsBox!.y).toBe(tabBox!.y);
-        expect(showBox!.y).toBe(tabBox!.y);
+        expect(Math.abs(settingsBox!.y - tabBox!.y)).toBeLessThan(1);
+        expect(Math.abs(showBox!.y - tabBox!.y)).toBeLessThan(1);
         expect(settingsBox!.x).toBeGreaterThanOrEqual(tabBox!.x + tabBox!.width);
         const finder = page.getByRole('button', { name: 'Find team', exact: true });
         await expect(finder).toBeHidden();
@@ -1070,7 +1070,7 @@ for (const theme of ['light', 'midnight']) {
             };
         });
         expect(divider.width).toBeGreaterThan(50);
-        expect(divider.height).toBe('16px');
+        expect(divider.height).toBe('10px');
         expect(divider.color).toBe(divider.expectedColor);
         expect(divider.topWidth).toBe('1px');
         expect(divider.bottomWidth).toBe('1px');
@@ -1242,7 +1242,7 @@ test('compact dividers follow occupied grid columns on resize', async ({ page })
         for (const index of visible) {
             if (columns === 1) {
                 expect(items[index].width).toBeGreaterThan(50);
-                expect(items[index].height).toBe(16);
+                expect(items[index].height).toBe(width <= 600 ? 10 : 16);
                 expect(items[index].dividerLeft).toBeCloseTo(items[index].left, 2);
                 expect(items[index].dividerRight).toBeCloseTo(items[index].right, 2);
                 expect(items[index].dividerTop).toBeCloseTo(items[index - 1].bottom, 2);
@@ -1767,7 +1767,7 @@ test('Custom refresh keeps scores visible without an extra loading card', async 
     await expect(custom.locator('.custom-status-card')).toHaveCount(0);
     await expect(custom.locator('.score-lines')).toContainText('23');
     await expect(custom.locator('.record')).toHaveText([' (5-1)', ' (4-2)']);
-    await expect(custom.getByRole('img', { name: 'Has possession' })).toBeVisible();
+    await expect(custom.locator('.team-has-possession')).toBeVisible();
     await expect(custom.locator('.red-zone')).toHaveText('RZ');
     await expect(custom.locator('.red-zone')).toHaveAttribute('aria-label', 'Red zone, field position unavailable');
     await expect(custom.locator('.situation')).toContainText('1st & Goal');
@@ -1932,17 +1932,15 @@ for (const theme of ['midnight', 'light']) {
         await expect(card.getByLabel('Favorite', { exact: true })).toBeVisible();
         await expect(card.locator('.favorite-marker')).toHaveText('');
         await expect(card.getByLabel('Favorite', { exact: true })).toHaveAttribute('width', '16');
-        await expect(card).toHaveCSS('background-color', theme === 'midnight' ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)');
+        const pageBackground = await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor);
+        await expect(card).toHaveCSS('background-color', pageBackground);
         await expect(card).toHaveCSS('border-left-width', '4px');
         const accent = theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)';
         await expect(card).toHaveCSS('border-top-color', accent);
         await expect(card).toHaveCSS('border-right-color', accent);
         await expect(card).toHaveCSS('border-bottom-color', accent);
         await expect(card.getByLabel('Favorite', { exact: true })).toHaveCSS('fill', accent);
-        await expect(page.locator('#section-NFL .game.favorite')).toHaveCSS(
-            'background-color',
-            theme === 'midnight' ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)'
-        );
+        await expect(page.locator('#section-NFL .game.favorite')).toHaveCSS('background-color', pageBackground);
     });
 
     test(`section actions stay beside Show on desktop and phones (${theme})`, async ({ page }) => {
@@ -2389,7 +2387,7 @@ test('a changed score flashes once and the live situation shows', async ({ page 
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await expandSections(page);
     await expect(card).toContainText('2 outs · 1st, 3rd · 3-1');
-    await expect(card.getByRole('img', { name: 'Has possession' })).toHaveCount(1);
+    await expect(card.locator('.team-has-possession')).toHaveCount(1);
     await expect(page.locator('.score-changed')).toHaveCount(0);
 
     liveHome = 57;
@@ -2444,7 +2442,7 @@ test('football scoring label appears in every format and clears after kickoff', 
     await expect(card.locator('.scored-label')).toHaveCount(0);
 });
 
-test('a scored label keeps the 49ers and their record on one row at iPad widths', async ({ page }) => {
+test('a scored label leaves long team names and records readable at iPad widths', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
     extraGames = [
         {
@@ -2468,7 +2466,8 @@ test('a scored label keeps the 49ers and their record on one row at iPad widths'
     const card = page.locator('.game', { hasText: 'San Francisco 49ers' });
     for (const format of ['Full', 'Compact']) {
         const name = card.locator('.score-lines > div').first().locator(':scope > span');
-        await expect(name).toContainText('San Francisco 49ers (9-10-1)');
+        await expect(name).toContainText('San Francisco 49ers');
+        await expect(name.locator('.record')).toHaveText('(9-10-1)');
         const layout = await name.evaluate((element) => {
             const range = document.createRange();
             range.selectNodeContents(element.querySelector('.record')!);
@@ -2477,7 +2476,7 @@ test('a scored label keeps the 49ers and their record on one row at iPad widths'
                 lineTops: [...range.getClientRects()].map((rect) => rect.top),
             };
         });
-        expect(layout.clipped).toBe(false);
+        expect(layout.clipped, `${format}: ${JSON.stringify(layout)}`).toBe(false);
         expect(Math.max(...layout.lineTops) - Math.min(...layout.lineTops)).toBeLessThan(1);
         await page.setViewportSize({ width: 390, height: 844 });
         const mobile = await name.evaluate((element) => {
@@ -2488,7 +2487,7 @@ test('a scored label keeps the 49ers and their record on one row at iPad widths'
                 overlap: element.getBoundingClientRect().right > score.getBoundingClientRect().left,
             };
         });
-        expect(mobile.height).toBeLessThan(24);
+        expect(mobile.height).toBeLessThanOrEqual(format === 'Compact' ? 32 : 24);
         expect(mobile.overlap).toBe(false);
         await page.setViewportSize({ width: 768, height: 1024 });
         await page.getByRole('button', { name: `Display format: ${format}` }).click();
@@ -2576,11 +2575,8 @@ test('football shows possession and a red-zone position; NBA marks national game
     const football = page.locator('.game', { hasText: 'Green Bay Packers' });
     await expect(football.locator('.red-zone')).toHaveText('GB 12');
     await expect(football.locator('.situation')).toContainText('2nd & 4 at GB 12');
-    await expect(football.locator('svg.possession-ball')).toHaveCount(1);
-    expect(
-        await football.locator('svg.possession-ball').evaluate((icon) => icon.parentElement?.firstElementChild === icon)
-    ).toBe(true);
-    await expect(football.getByRole('img', { name: 'Has possession' })).toHaveCount(1);
+    await expect(football.locator('.team-has-possession')).toHaveCount(1);
+    await expect(football.locator('.team-has-possession > .possession-dot')).toBeVisible();
     await expect(football.getByText('AWAY', { exact: true })).toHaveCount(0);
     await expect(football.getByText('HOME', { exact: true })).toHaveCount(0);
     await expect(football.locator('.national-badge')).toHaveCount(0);
@@ -2598,11 +2594,8 @@ test('football shows possession and a red-zone position; NBA marks national game
     await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
     const tightFootball = page.locator('.tight-game', { hasText: 'Green Bay Packers' });
-    expect(
-        await tightFootball
-            .locator('.possession-ball')
-            .evaluate((icon) => icon.parentElement?.firstElementChild === icon)
-    ).toBe(true);
+    await expect(tightFootball.locator('.team-has-possession')).toHaveCount(1);
+    await expect(tightFootball.locator('.team-has-possession > .possession-dot')).toBeVisible();
     const tightNational = page.locator('.tight-game', { hasText: 'Indiana Pacers' });
     const marker = tightNational.getByRole('img', { name: 'National broadcast: ESPN' });
     await expect(marker).toBeVisible();

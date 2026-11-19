@@ -9,6 +9,7 @@ const liveFields = [
     'statusLabel',
     'homeScore',
     'awayScore',
+    'lineScore',
     'situation',
     'possession',
     'redZone',

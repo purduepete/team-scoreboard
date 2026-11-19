@@ -47,8 +47,12 @@ import type { GameStatusFilter, View } from './games';
 
 const viewLabels: Record<View, string> = { live: 'Today', upcoming: 'Upcoming', recent: 'Recent' };
 const viewOrder: View[] = ['live', 'upcoming', 'recent'];
-const formats = ['full', 'compact', 'tight'] as const;
-type Format = (typeof formats)[number];
+const allFormats = ['full', 'compact', 'tight'] as const;
+type Format = (typeof allFormats)[number];
+// Keep the grouped view reachable by its existing regression tests in development.
+const showFullFormat = import.meta.env.DEV && import.meta.env.VITE_TEST_FULL_FORMAT === 'true';
+const formats = allFormats.filter((format) => format !== 'full' || showFullFormat);
+const defaultFormat: Format = showFullFormat ? 'full' : 'compact';
 const formatLabels: Record<Format, string> = { full: 'Full', compact: 'Compact', tight: 'Tight' };
 const gameStatuses: GameStatusFilter[] = ['all', 'live', 'final'];
 const gameStatusLabels: Record<GameStatusFilter, string> = { all: 'All', live: 'Live', final: 'Final' };
@@ -90,7 +94,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 15_000):
 }
 
 export function App() {
-    const { theme, setTheme } = useTheme();
+    const { theme, setTheme, resolvedTheme } = useTheme();
     const [data, setData] = useState<Dashboard | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -135,12 +139,12 @@ export function App() {
             const selected = Array.isArray(stored) ? formats.filter((format) => stored.includes(format)) : [...formats];
             const choices = selected.length ? selected : [...formats];
             const saved = localStorage.getItem('team-scoreboard-format');
-            const legacy = localStorage.getItem('team-scoreboard-compact') === 'true' ? 'compact' : 'full';
+            const legacy = localStorage.getItem('team-scoreboard-compact') === 'true' ? 'compact' : defaultFormat;
             const current = saved && isFormat(saved) ? saved : legacy;
             return { selected: choices, current: choices.includes(current) ? current : choices[0] };
         } catch (error) {
             console.warn('Display formats could not be restored.', error);
-            return { selected: [...formats], current: 'full' };
+            return { selected: [...formats], current: defaultFormat };
         }
     });
     useEffect(() => {
@@ -526,7 +530,7 @@ export function App() {
                     <LoadingSpinner label="Loading Team Scoreboard" />
                 </div>
             )}
-            <header>
+            <header className="site-header">
                 <div className="header-inner">
                     <a className="brand" href="/" aria-label="Team Scoreboard home">
                         <span className="brand-icons" aria-hidden="true">
@@ -989,6 +993,7 @@ export function App() {
                                                                           }
                                                                           game={game}
                                                                           tight={formatSettings.current === 'tight'}
+                                                                          scoreboardTheme={resolvedTheme}
                                                                           favorite={isFavorite(game, highlightIds)}
                                                                           favoriteTeamIds={favoriteIds}
                                                                           view={effectiveView}

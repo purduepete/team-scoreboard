@@ -1,0 +1,343 @@
+.game.scoreboard-card {
+    --scoreboard-surface: var(--panel);
+    --scoreboard-raised: var(--raised);
+    --scoreboard-rule: var(--border);
+    --scoreboard-accent: #9d380e;
+    --scoreboard-action-fill: #ff8648;
+    --scoreboard-action-text: #0f172a;
+    --scoreboard-hero-tint: 22%;
+    background: var(--scoreboard-surface);
+    border-color: var(--scoreboard-rule);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.theme-midnight .scoreboard-card {
+    --scoreboard-surface: #1a1e2a;
+    --scoreboard-raised: #242d42;
+    --scoreboard-rule: #363e50;
+    --scoreboard-accent: var(--scoreboard-action-fill);
+    --scoreboard-hero-tint: 30%;
+}
+.scoreboard-card.tight-game {
+    padding: 12px 14px;
+}
+.scoreboard-card:not(.tight-game) {
+    padding-block: 22px;
+}
+.scoreboard-card:not(.tight-game) .game-meta {
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 0.75rem;
+}
+.scoreboard-card:not(.tight-game) .game-meta > :last-child {
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+.scoreboard-card:not(.tight-game) .game-meta > :last-child:not(.final-label) {
+    background: var(--scoreboard-raised);
+    font-weight: 600;
+}
+.scoreboard-card:not(.tight-game) .score-lines > div {
+    min-height: 44px;
+    margin-block: 8px;
+}
+.scoreboard-card .score-lines > div:has(.scored-label) > span {
+    display: flex;
+    align-items: center;
+}
+.scoreboard-card .score-lines > div:has(.scored-label) .compact-team-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.scoreboard-card .score-lines > div:has(.scored-label) .record {
+    flex: none;
+    margin-inline-start: 4px;
+}
+.scoreboard-card .score-lines .game-team-logo {
+    width: 32px;
+    height: 32px;
+    margin-inline-end: 8px;
+}
+.scoreboard-card :is(.compact-team-name, .tight-name),
+.game-details-team strong {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+.scoreboard-card .tight-name {
+    font-size: 0.875rem;
+}
+.scoreboard-card :is(.compact-team-name, .tight-name-text),
+.game-details-team strong {
+    text-transform: uppercase;
+}
+.game-details-team strong {
+    font-size: 1.0625rem;
+}
+.scoreboard-card .score-lines strong,
+.scoreboard-card .tight-team strong {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.scoreboard-card .live-label {
+    color: var(--scoreboard-accent);
+}
+.game-team-logo {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    margin-inline-end: 6px;
+    vertical-align: middle;
+    color: var(--muted);
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+.game-team-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.tight-game .game-team-logo {
+    width: 17px;
+    height: 17px;
+    margin-inline-end: 4px;
+    font-size: 0.55rem;
+}
+.scoreboard-card:hover {
+    border-color: var(--scoreboard-accent);
+}
+.scoreboard-card .game-footer:has(> .when:only-child:empty) {
+    display: none;
+}
+.scoreboard-card:has(> .game-details-control:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.game-details-panel {
+    min-width: 0;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--scoreboard-rule);
+    font-size: 0.8rem;
+    cursor: auto;
+}
+.game-details-hero {
+    container-type: inline-size;
+    --scoreboard-hero-away: color-mix(
+        in srgb,
+        var(--game-away-color, var(--scoreboard-raised)) var(--scoreboard-hero-tint),
+        var(--scoreboard-surface)
+    );
+    --scoreboard-hero-home: color-mix(
+        in srgb,
+        var(--game-home-color, var(--scoreboard-raised)) var(--scoreboard-hero-tint),
+        var(--scoreboard-surface)
+    );
+    margin-bottom: 16px;
+    padding: 14px 12px;
+    border-radius: 6px;
+    background: linear-gradient(
+        110deg,
+        var(--scoreboard-hero-away) 46%,
+        color-mix(in srgb, var(--scoreboard-hero-away), var(--scoreboard-hero-home)) 46% 56%,
+        var(--scoreboard-hero-home) 56%
+    );
+}
+.game-details-kicker {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.game-details-status {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--scoreboard-raised);
+    letter-spacing: 0.04em;
+}
+.game-details-status[data-status='live'] {
+    background: var(--scoreboard-action-fill);
+    color: var(--scoreboard-action-text);
+}
+.game-details-matchup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    margin-top: 12px;
+    text-align: center;
+}
+.game-details-team {
+    grid-row: 1;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+.game-details-team strong {
+    max-width: 100%;
+}
+.game-details-away {
+    grid-column: 1;
+}
+.game-details-home {
+    grid-column: 3;
+}
+.game-details-team .game-team-logo {
+    width: 52px;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    margin: 0;
+    padding: 8px;
+    border-radius: 50%;
+    background: var(--scoreboard-surface);
+    font-size: 0.85rem;
+}
+.game-details-score {
+    grid-area: 1 / 2;
+    align-self: center;
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.game-details-score span {
+    color: var(--muted);
+}
+@container (max-width: 340px) {
+    .game-details-matchup {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .game-details-home {
+        grid-column: 2;
+    }
+    .game-details-score {
+        grid-area: 2 / 1 / 3 / -1;
+    }
+}
+.game-details-title {
+    margin-top: 12px;
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+.game-details-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--scoreboard-rule);
+}
+.game-details-espn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    min-height: 38px;
+    padding: 6px 16px;
+    border-radius: 6px;
+    background: var(--scoreboard-action-fill);
+    color: var(--scoreboard-action-text);
+    font: 800 0.875rem / 1.2 var(--font-sans);
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+.game-details-espn svg {
+    flex-shrink: 0;
+}
+.game-details-espn:hover {
+    text-decoration: underline;
+}
+.game-details-panel h4,
+.game-details-panel p {
+    margin: 0 0 6px;
+}
+.game-details-panel h4 {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.game-table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--scoreboard-rule);
+    border-radius: 6px;
+    background: var(--scoreboard-raised);
+}
+.game-table-scroll:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.game-details-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.game-details-panel .inning-scores {
+    width: max-content;
+    min-width: 100%;
+}
+.game-details-panel th,
+.game-details-panel td {
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--scoreboard-rule);
+}
+.game-details-panel tbody tr:last-child > * {
+    border-bottom: 0;
+}
+.inning-scores th:not(:first-child),
+.inning-scores td {
+    min-width: 16px;
+}
+.game-details-panel th:first-child {
+    text-align: left;
+    max-width: 90px;
+    overflow-wrap: anywhere;
+}
+.game-details-panel th:last-child,
+.game-details-panel td:last-child {
+    background: var(--scoreboard-raised);
+    font-weight: 700;
+}
+.game-details-panel dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 8px;
+    margin: 8px 0 0;
+}
+.game-details-panel dl > div {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    padding: 8px 0;
+}
+.game-details-panel dl > div + div {
+    border-top: 1px dashed var(--scoreboard-rule);
+}
+.game-details-panel dt {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: var(--muted);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.game-details-panel dt svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+.game-details-panel dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}

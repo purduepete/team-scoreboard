@@ -3,6 +3,8 @@
         'Roboto Flex', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial,
         'Noto Sans', sans-serif;
     --page: #ffffff;
+    --site-header: #ffffff;
+    --page-texture: none;
     --panel: #f8fafc;
     --raised: #e2e8f0;
     --text: #0f172a;
@@ -24,12 +26,14 @@
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 .theme-midnight {
-    --page: #020617;
-    --panel: #0f172a;
-    --raised: #1e293b;
-    --text: #f8fafc;
-    --muted: #94a3b8;
-    --border: #334155;
+    --page: #0d121c;
+    --site-header: #242f47;
+    --page-texture: radial-gradient(rgb(236 239 244 / 3.5%) 1px, transparent 1px);
+    --panel: #171d2a;
+    --raised: #242d42;
+    --text: #eceff4;
+    --muted: #a7b3c6;
+    --border: #363e50;
     --accent: #6b8cae;
     --accent-text: #0f172a;
     --error: #fca5a5;
@@ -49,7 +53,8 @@ body {
     margin: 0;
     font-family: var(--font-sans);
     font-weight: 400;
-    background: var(--page);
+    min-height: 100vh;
+    background: var(--page) var(--page-texture) 0 0 / 16px 16px;
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.3s;
@@ -89,12 +94,12 @@ a {
     color: var(--accent);
     text-underline-offset: 3px;
 }
-header {
+.site-header {
     position: sticky;
     top: 0;
     z-index: 10;
     width: 100%;
-    background: var(--page);
+    background: var(--site-header);
     border-bottom: 1px solid var(--border);
     padding: calc(14px + var(--safe-area-top)) max(16px, var(--safe-area-right)) 14px max(16px, var(--safe-area-left));
 }
@@ -111,7 +116,9 @@ header {
     align-items: center;
     gap: 10px;
     height: var(--header-control-height);
-    font-weight: 650;
+    font: 800 1.3rem / 1 var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.035em;
     text-decoration: none;
     color: var(--text);
 }
@@ -130,14 +137,14 @@ html.light .brand-icon-dark,
 html.dark .brand-icon-light {
     display: none;
 }
-header .control-label {
+.site-header .control-label {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
 }
-header .select-trigger {
+.site-header .select-trigger {
     height: var(--header-control-height);
     min-width: 110px;
 }
@@ -154,7 +161,7 @@ main {
     margin-top: 0;
 }
 @media (min-width: 1024px) {
-    header {
+    .site-header {
         padding-left: max(20px, var(--safe-area-left));
         padding-right: max(20px, var(--safe-area-right));
     }
@@ -178,13 +185,13 @@ main {
 }
 h1 {
     font-size: clamp(1.65rem, 4vw, 2.4rem);
-    font-weight: 600;
+    font-weight: 800;
     margin: 8px 0 12px;
-    letter-spacing: -0.035em;
+    letter-spacing: 0.015em;
 }
 h2 {
     font-size: 1.15rem;
-    font-weight: 600;
+    font-weight: 700;
     margin: 0 0 8px;
 }
 h3 {
@@ -357,6 +364,11 @@ small {
     margin-bottom: 20px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--border);
+}
+.toolbar :is(.tabs button, .tools-trigger, .select-trigger) {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 .toolbar .control-label {
     position: absolute;
@@ -800,16 +812,18 @@ small {
     margin-top: 12px;
 }
 .compact-games {
+    --compact-row-gap: 16px;
     container-type: inline-size;
+    row-gap: var(--compact-row-gap);
 }
 .compact-games .compact-group-start::before {
     content: '';
     position: absolute;
     box-sizing: border-box;
-    top: -17px;
+    top: calc(-1px - var(--compact-row-gap));
     left: -1px;
     right: -1px;
-    height: 16px;
+    height: var(--compact-row-gap);
     border-top: 1px solid var(--accent);
     border-bottom: 1px solid var(--accent);
     background: color-mix(in srgb, var(--accent) 25%, var(--panel));
@@ -1096,13 +1110,6 @@ small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-.tight-name .possession-ball,
-.tight-name .possession {
-    flex: none;
-}
-.tight-name .possession {
-    margin-left: 4px;
 }
 .score-value {
     display: inline-flex;
@@ -1422,6 +1429,9 @@ footer .refresh-time {
     background: transparent;
 }
 @media (max-width: 600px) {
+    .compact-games {
+        --compact-row-gap: 10px;
+    }
     main {
         padding-top: 24px;
     }
@@ -1632,18 +1642,19 @@ kbd {
     color: var(--muted);
     font-size: 0.8rem;
 }
-.possession {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin-left: 6px;
-    background: var(--accent);
-    vertical-align: middle;
+.team-has-possession {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
 }
-.possession-ball {
-    margin-right: 6px;
-    color: var(--accent);
-    vertical-align: -3px;
+.possession-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
 }
 .field-position,
 .red-zone {

@@ -31,7 +31,7 @@ const csp = [
     `script-src 'self' ${hashes.join(' ')}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data:",
+    "img-src 'self' data: https://a.espncdn.com",
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

@@ -62,6 +62,68 @@ const withStatus = (value: ReturnType<typeof status>, scores?: [unknown, unknown
 });
 
 describe('ESPN normalization', () => {
+    it('keeps individual baseball innings, extra innings, and unplayed halves separate', () => {
+        const mlb = leagues.find((league) => league.league === 'MLB')!;
+        const [game] = parseScoreboard(
+            {
+                events: [
+                    {
+                        ...event,
+                        competitions: [
+                            {
+                                ...event.competitions[0],
+                                venue: { fullName: 'Dodger Stadium' },
+                                competitors: [
+                                    {
+                                        homeAway: 'home',
+                                        team: {
+                                            id: '19',
+                                            abbreviation: 'LAD',
+                                            color: '005A9C',
+                                            logo: 'https://a.espncdn.com/i/teamlogos/mlb/500/lad.png',
+                                        },
+                                        score: '3',
+                                        linescores: [{ value: 0 }, { period: 10, value: 3 }],
+                                    },
+                                    {
+                                        homeAway: 'away',
+                                        team: {
+                                            id: '26',
+                                            abbreviation: 'SF',
+                                            color: 'invalid',
+                                            logo: 'https://example.com/logo.png',
+                                        },
+                                        score: '2',
+                                        linescores: [
+                                            { value: 0 },
+                                            { period: 3, displayValue: '2' },
+                                            { period: 10, displayValue: 'X', value: 0 },
+                                        ],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            mlb
+        );
+        expect(game).toMatchObject({
+            awayAbbreviation: 'SF',
+            homeColor: '#005a9c',
+            homeLogo: 'https://a.espncdn.com/i/teamlogos/mlb/500/lad.png',
+            venue: 'Dodger Stadium',
+        });
+        expect(game.awayLogo).toBeUndefined();
+        expect(game.awayColor).toBeUndefined();
+        expect(game.lineScore?.map(({ period }) => period)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        expect(game.lineScore?.slice(0, 3)).toEqual([
+            { period: 1, away: 0, home: 0 },
+            { period: 2, away: null, home: null },
+            { period: 3, away: 2, home: null },
+        ]);
+        expect(game.lineScore?.at(-1)).toEqual({ period: 10, away: 'X', home: 3 });
+    });
     it('reads a final with home/away by role, zero scores, UTC instant and the ESPN summary link', () => {
         const game = normalizeEvent(event, team);
         expect(game).toMatchObject({
@@ -574,6 +636,56 @@ describe('provider requests', () => {
         await espn.schedule(team);
         expect(urls[0]).toBe('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/11/schedule');
         expect(waits).toEqual([500]);
+    });
+    it('uses the volleyball match scoreboard for sets won and points during play', async () => {
+        const volleyball = teams.find((item) => item.id === 'purdue-volleyball')!;
+        const match = (set: number, statusName: string, scores?: [number, number]) => ({
+            ...event,
+            name: 'Purdue at Indiana',
+            competitions: [
+                {
+                    status: {
+                        period: set,
+                        type: { ...status(statusName, 'in', '2nd').type, detail: '2nd Set' },
+                    },
+                    competitors: ['2509', '84'].map((id, index) => ({
+                        homeAway: index === 0 ? 'away' : 'home',
+                        team: { id },
+                        ...(scores && {
+                            score: index === 0 ? '1' : '0',
+                            linescores: [
+                                { period: 1, value: index === 0 ? 25 : 20 },
+                                { period: 2, value: scores[index] },
+                            ],
+                        }),
+                    })),
+                },
+            ],
+        });
+        const schedule = match(2, 'STATUS_IN_PROGRESS');
+        expect(normalizeEvent(schedule, volleyball)).toMatchObject({ awayScore: null, homeScore: null });
+        let report = match(2, 'STATUS_IN_PROGRESS', [12, 0]);
+        const urls: string[] = [];
+        const espn = provider(
+            (url) => new Response(JSON.stringify(url.includes('/scoreboard/') ? report : { events: [schedule] })),
+            urls
+        );
+        expect((await espn.schedule(volleyball))[0]).toMatchObject({
+            origin: 'scoreboard',
+            statusLabel: '2nd Set',
+            awayScore: 1,
+            homeScore: 0,
+            situation: 'Set points: 12–0',
+            lineScore: [
+                { period: 1, away: 25, home: 20 },
+                { period: 2, away: 12, home: 0 },
+            ],
+        });
+        expect(urls[1]).toMatch(new RegExp(`/womens-college-volleyball/scoreboard/${event.id}$`));
+        report = match(3, 'STATUS_IN_PROGRESS', [12, 13]);
+        expect((await espn.schedule(volleyball))[0].situation).toBeUndefined();
+        report = match(2, 'STATUS_END_PERIOD', [12, 25]);
+        expect((await espn.schedule(volleyball))[0].situation).toBeUndefined();
     });
     it('refreshes play history until the kickoff, then avoids fetching it on unchanged scores', async () => {
         const urls: string[] = [];

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Game, SearchTeam, Team, TeamCategory } from '../shared/contracts.js';
+import { withLiveFields } from '../shared/reconcile.js';
 import { catalogTeamId } from './catalog.js';
 import type { LeagueSource } from './catalog.js';
 
@@ -43,9 +44,11 @@ const scoreSchema = z
     .nullable()
     .optional();
 const statusSchema = z.object({
+    period: z.number().int().positive().optional().catch(undefined),
     type: z.object({
         name: z.string().optional(),
         state: z.string().optional(),
+        detail: z.string().optional(),
         shortDetail: z.string().optional(),
     }),
 });
@@ -67,6 +70,19 @@ const broadcastSchema = z
         })
     )
     .nullable()
+    .optional()
+    .catch(undefined);
+const linescoreSchema = z
+    .array(
+        z
+            .object({
+                period: z.number().int().min(1).max(100).optional(),
+                value: z.number().int().nonnegative().optional(),
+                displayValue: z.string().optional(),
+            })
+            .nullable()
+            .catch(null)
+    )
     .optional()
     .catch(undefined);
 // Scoreboards send this while a game is live: football down and distance, baseball outs, bases and count.
@@ -99,11 +115,32 @@ const eventSchema = z.object({
                 status: statusSchema.optional(),
                 situation: situationSchema,
                 broadcasts: broadcastSchema,
+                venue: z
+                    .object({ fullName: z.string().trim().min(1).max(200) })
+                    .optional()
+                    .catch(undefined),
                 competitors: z.array(
                     z.object({
                         homeAway: z.string().optional(),
-                        team: z.object({ id: z.string(), displayName: z.string().optional() }),
+                        team: z.object({
+                            id: z.string(),
+                            displayName: z.string().optional(),
+                            abbreviation: z.string().trim().min(1).max(10).optional().catch(undefined),
+                            color: z
+                                .string()
+                                .trim()
+                                .regex(/^#?[\da-f]{6}$/i)
+                                .transform((value) => `#${value.replace(/^#/, '').toLowerCase()}`)
+                                .optional()
+                                .catch(undefined),
+                            logo: z
+                                .string()
+                                .regex(/^https:\/\/a\.espncdn\.com\/i\/teamlogos\/[\w/-]+\.png$/)
+                                .optional()
+                                .catch(undefined),
+                        }),
                         score: scoreSchema,
+                        linescores: linescoreSchema,
                         records: recordSchema,
                         record: recordSchema,
                     })
@@ -134,6 +171,31 @@ function source(links: { rel: string[]; href: string }[] | undefined, fallback: 
 }
 
 type Competitor = z.infer<typeof eventSchema>['competitions'][number]['competitors'][number];
+
+function lineScore(away: Competitor | undefined, home: Competitor | undefined, baseball: boolean): Game['lineScore'] {
+    const periods = new Map<number, NonNullable<Game['lineScore']>[number]>();
+    for (const [side, team] of [
+        ['away', away],
+        ['home', home],
+    ] as const) {
+        team?.linescores?.forEach((entry, index) => {
+            if (!entry) return;
+            const period = entry.period ?? index + 1;
+            const row = periods.get(period) ?? { period, away: null, home: null };
+            const text = entry.displayValue?.trim();
+            row[side] =
+                baseball && text?.toUpperCase() === 'X'
+                    ? 'X'
+                    : (entry.value ?? (text && /^\d{1,6}$/.test(text) ? Number(text) : null));
+            periods.set(period, row);
+        });
+    }
+    if (![...periods.values()].some(({ away, home }) => away !== null || home !== null)) return undefined;
+    return Array.from(
+        { length: Math.max(...periods.keys()) },
+        (_, index) => periods.get(index + 1) ?? { period: index + 1, away: null, home: null }
+    );
+}
 
 function overall(competitor: Competitor | undefined): string | undefined {
     const entries = competitor?.records ?? competitor?.record ?? [];
@@ -218,7 +280,9 @@ function toGame(
     const competition = event.competitions[0];
     const home = competition.competitors.find((entry) => entry.homeAway === 'home');
     const away = competition.competitors.find((entry) => entry.homeAway === 'away');
-    const type = (competition.status ?? event.status)?.type;
+    const report = competition.status ?? event.status;
+    const type = report?.type;
+    const volleyball = context.path.startsWith('volleyball/');
     const name = type?.name ?? '';
     const status: Game['status'] =
         name === 'STATUS_POSTPONED'
@@ -257,7 +321,7 @@ function toGame(
         status,
         statusLabel:
             status === 'live'
-                ? type?.shortDetail || 'Live'
+                ? (volleyball ? type?.detail || type?.shortDetail : type?.shortDetail) || 'Live'
                 : status === 'final'
                   ? type?.shortDetail || 'Final'
                   : status === 'upcoming'
@@ -280,6 +344,23 @@ function toGame(
     if (national) game.national = national;
     if (homeRecord) game.homeRecord = homeRecord;
     if (awayRecord) game.awayRecord = awayRecord;
+    if (home?.team.logo) game.homeLogo = home.team.logo;
+    if (away?.team.logo) game.awayLogo = away.team.logo;
+    if (home?.team.color) game.homeColor = home.team.color;
+    if (away?.team.color) game.awayColor = away.team.color;
+    if (home?.team.abbreviation) game.homeAbbreviation = home.team.abbreviation;
+    if (away?.team.abbreviation) game.awayAbbreviation = away.team.abbreviation;
+    if (competition.venue) game.venue = competition.venue.fullName;
+    if (status === 'live' || status === 'final') {
+        const breakdown = lineScore(away, home, context.path.startsWith('baseball/'));
+        if (breakdown) game.lineScore = breakdown;
+        if (volleyball && status === 'live' && name !== 'STATUS_END_PERIOD') {
+            const current = breakdown?.find(({ period }) => period === report?.period);
+            if (typeof current?.away === 'number' && typeof current.home === 'number') {
+                game.situation = `Set points: ${current.away}–${current.home}`;
+            }
+        }
+    }
     return { game, espnTeamIds, homeId: home?.team.id };
 }
 
@@ -545,14 +626,27 @@ export class SportsProvider {
 
     async schedule(team: Team, full = false): Promise<Game[]> {
         const games = await this.fullSchedule(team);
-        if (!full) return selectWindow(games, this.clock());
         const { path } = parseProviderId(team.providerId ?? '');
+        const volleyball = path.startsWith('volleyball/');
+        const selected = full ? games : selectWindow(games, this.clock());
+        if (!full && !volleyball) return selected;
         return Promise.all(
-            games.map(async (game) => {
+            selected.map(async (game) => {
                 if (game.status !== 'live') return game;
-                const details = eventSchema.parse(await this.request(`${path}/scoreboard/${game.id}`));
-                if (details.id !== game.id) throw new Error('Provider returned details for a different game.');
-                const live = normalizeEvent(details, team);
+                let live: Game;
+                try {
+                    const details = eventSchema.parse(await this.request(`${path}/scoreboard/${game.id}`));
+                    if (details.id !== game.id) throw new Error('Provider returned details for a different game.');
+                    live = normalizeEvent(details, team);
+                } catch (error) {
+                    if (!volleyball) throw error;
+                    console.warn(
+                        `Could not load live volleyball scores for game ${game.id}:`,
+                        error instanceof Error ? error.message : error
+                    );
+                    return game;
+                }
+                if (volleyball) return withLiveFields({ ...game, ...live, origin: 'scoreboard' }, live);
                 return this.withFootballScore({ ...game, ...live, origin: 'scoreboard' as const }, path);
             })
         );

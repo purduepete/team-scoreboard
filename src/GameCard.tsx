@@ -2,11 +2,14 @@ import { Activity, ArrowUpRight, CircleDot, Info, Star, Tv } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from 'react';
 import type { View } from './games';
 import { footballSituation, formatStart, formatTime } from './games';
 import { formatDate, pacificDate } from './pacific-time';
 import { Tooltip } from './Tooltip';
+import { GameDetails, TeamLogo } from './GameDetails';
+import type { ResolvedTheme } from './theme';
+import './scoreboard-card.css';
 
 function Broadcast({ name }: { name: string }) {
     const text = useRef<HTMLSpanElement>(null);
@@ -93,29 +96,6 @@ function Broadcast({ name }: { name: string }) {
                     document.body
                 )}
         </span>
-    );
-}
-
-// Lucide has no American football, so this is a Lucide-style stroke glyph for football possession.
-function Possession({ football }: { football: boolean }) {
-    if (!football) return <span className="possession" role="img" aria-label="Has possession" />;
-    return (
-        <svg
-            className="possession-ball"
-            role="img"
-            aria-label="Has possession"
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M5 19A14 14 0 0 1 19 5a14 14 0 0 1-14 14Z" />
-            <path d="m9.5 14.5 5-5M9.5 12.5l2 2M11 11l2 2M12.5 9.5l2 2" />
-        </svg>
     );
 }
 
@@ -241,6 +221,7 @@ export function GameCard({
     reorderActions,
     showDate = false,
     tight = false,
+    scoreboardTheme,
 }: {
     game: Game;
     favorite?: boolean;
@@ -253,8 +234,61 @@ export function GameCard({
     reorderActions?: ReactNode;
     showDate?: boolean;
     tight?: boolean;
+    scoreboardTheme?: ResolvedTheme;
 }) {
+    const detailsId = useId();
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const cardClass = `${scoreboardTheme ? ' scoreboard-card' : ''}${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`;
+    const cardStyle: (CSSProperties & Partial<Record<`--game-${'away' | 'home'}-color`, string>>) | undefined =
+        scoreboardTheme
+            ? {
+                  ...reorder?.style,
+                  '--game-away-color': game.awayColor,
+                  '--game-home-color': game.homeColor,
+              }
+            : reorder?.style;
+    const logo = (name: string, side: 'away' | 'home') =>
+        scoreboardTheme && <TeamLogo name={name} src={game[`${side}Logo`]} theme={scoreboardTheme} />;
+    const toggleDetails = () => setDetailsOpen((open) => !open);
+    const onCardClick = (event: MouseEvent<HTMLElement>) => {
+        reorder?.onClick?.(event);
+        const { target, currentTarget } = event;
+        if (
+            !event.defaultPrevented &&
+            target instanceof Element &&
+            currentTarget.contains(target) &&
+            !target.closest('a, button, [tabindex], .game-details-panel')
+        ) {
+            toggleDetails();
+        }
+    };
+    const detailsControl = scoreboardTheme && (
+        <button
+            type="button"
+            className="sr-only game-details-control"
+            aria-label={`Details for ${game.title}`}
+            aria-expanded={detailsOpen}
+            aria-controls={detailsId}
+            onClick={toggleDetails}
+        />
+    );
+    const detailsPanel = scoreboardTheme && (
+        <div className="game-details-panel" id={detailsId} hidden={!detailsOpen}>
+            {detailsOpen && <GameDetails game={game} theme={scoreboardTheme} />}
+        </div>
+    );
     const football = game.sport === 'Football';
+    const teamName = (name: string, side: 'away' | 'home', className = '') => {
+        const hasPossession = game.status === 'live' && game.possession === side;
+        if (!hasPossession) return <span className={className || undefined}>{name}</span>;
+        return (
+            <span className="team-has-possession">
+                <span className={className || undefined}>{name}</span>
+                <span className="possession-dot" aria-hidden="true" />
+                <span className="sr-only"> Has possession</span>
+            </span>
+        );
+    };
     const situation = useSituation(game);
     const { detail, position } = football ? footballSituation(situation.text) : { detail: situation.text };
     const showRedZoneMarker = game.redZone && !position && !(football && game.status === 'live' && game.scored);
@@ -304,9 +338,8 @@ export function GameCard({
         const line = (team: string, side: 'home' | 'away') => (
             <div className="tight-team">
                 <span className="tight-name">
-                    {football && game.possession === side && <Possession football={football} />}
-                    <span className="tight-name-text">{team}</span>
-                    {!football && game.possession === side && <Possession football={football} />}
+                    {logo(team, side)}
+                    {teamName(team, side, 'tight-name-text')}
                 </span>
                 <strong
                     key={`${side}-${flashes[`${game.id}:${side}`] ?? 0}`}
@@ -318,9 +351,12 @@ export function GameCard({
         );
         return (
             <article
-                className={`game tight-game${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`}
+                className={`game tight-game${cardClass}`}
                 {...reorder}
+                style={cardStyle}
+                onClick={scoreboardTheme ? onCardClick : reorder?.onClick}
             >
+                {detailsControl}
                 {nationalBadge}
                 {game.home && game.away ? (
                     <>
@@ -366,15 +402,29 @@ export function GameCard({
                             RZ
                         </span>
                     )}
-                    <a href={game.sourceUrl} target="_blank" rel="noreferrer" aria-label={`Source for ${game.title}`}>
-                        <ArrowUpRight size={14} aria-hidden="true" />
-                    </a>
+                    {!scoreboardTheme && (
+                        <a
+                            href={game.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Source for ${game.title}`}
+                        >
+                            <ArrowUpRight size={14} aria-hidden="true" />
+                        </a>
+                    )}
                 </div>
+                {detailsPanel}
             </article>
         );
     }
     return (
-        <article className={`game${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`} {...reorder}>
+        <article
+            className={`game${cardClass}`}
+            {...reorder}
+            style={cardStyle}
+            onClick={scoreboardTheme ? onCardClick : reorder?.onClick}
+        >
+            {detailsControl}
             {nationalBadge}
             <div className="game-meta">
                 <span className="game-description">
@@ -404,9 +454,8 @@ export function GameCard({
                 <div className="score-lines">
                     <div>
                         <span>
-                            {football && game.possession === 'away' && <Possession football={football} />}
-                            {game.away}
-                            {!football && game.possession === 'away' && <Possession football={football} />}
+                            {logo(game.away, 'away')}
+                            {teamName(game.away, 'away', scoreboardTheme ? 'compact-team-name' : undefined)}
                             {game.awayRecord && <span className="record"> ({game.awayRecord})</span>}
                         </span>
                         <strong
@@ -418,9 +467,8 @@ export function GameCard({
                     </div>
                     <div>
                         <span>
-                            {football && game.possession === 'home' && <Possession football={football} />}
-                            {game.home}
-                            {!football && game.possession === 'home' && <Possession football={football} />}
+                            {logo(game.home, 'home')}
+                            {teamName(game.home, 'home', scoreboardTheme ? 'compact-team-name' : undefined)}
                             {game.homeRecord && <span className="record"> ({game.homeRecord})</span>}
                         </span>
                         <strong
@@ -462,16 +510,30 @@ export function GameCard({
             <div className="game-footer">
                 <span className="when">
                     {actions && <span className="custom-card-actions">{actions}</span>}
-                    <time dateTime={game.startTime ?? game.date ?? undefined}>
-                        {showDate ? formatStart(game) : formatTime(game)}
-                    </time>
-                    {game.broadcast && <Broadcast name={game.broadcast} />}
+                    {scoreboardTheme && game.status === 'final' ? (
+                        showDate &&
+                        (game.startTime || game.date) && (
+                            <time dateTime={game.startTime ?? game.date ?? undefined}>
+                                {formatDate(game.startTime ? pacificDate(new Date(game.startTime)) : game.date!)}
+                            </time>
+                        )
+                    ) : (
+                        <>
+                            <time dateTime={game.startTime ?? game.date ?? undefined}>
+                                {showDate ? formatStart(game) : formatTime(game)}
+                            </time>
+                            {game.broadcast && <Broadcast name={game.broadcast} />}
+                        </>
+                    )}
                 </span>
-                <a href={game.sourceUrl} target="_blank" rel="noreferrer">
-                    Source <ArrowUpRight size={14} />
-                </a>
+                {!scoreboardTheme && (
+                    <a href={game.sourceUrl} target="_blank" rel="noreferrer">
+                        Source <ArrowUpRight size={14} />
+                    </a>
+                )}
                 {reorderActions && <span className="custom-order-actions">{reorderActions}</span>}
             </div>
+            {detailsPanel}
         </article>
     );
 }

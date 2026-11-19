@@ -41,6 +41,14 @@ export interface Game {
     national?: string;
     homeRecord?: string;
     awayRecord?: string;
+    homeLogo?: string;
+    awayLogo?: string;
+    homeColor?: string;
+    awayColor?: string;
+    homeAbbreviation?: string;
+    awayAbbreviation?: string;
+    venue?: string;
+    lineScore?: { period: number; away: number | 'X' | null; home: number | 'X' | null }[];
     // Live only: football down and distance or baseball outs, bases and count.
     situation?: string;
     possession?: 'home' | 'away';

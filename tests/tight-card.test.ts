@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { GameCard } from '../src/GameCard';
+import { GameDetails } from '../src/GameDetails';
 import type { Game } from '../shared/contracts';
 import type { ReactNode } from 'react';
 
@@ -29,6 +30,91 @@ const game: Game = {
 };
 
 describe('tight game cards', () => {
+    it.each([false, true])('adds logos and a closed details control to enhanced cards (tight: %s)', (tight) => {
+        const fixture = {
+            ...game,
+            awayLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
+            awayColor: '#002c5f',
+            homeColor: '#002244',
+        };
+        const props = { game: fixture, view: 'live' as const };
+        const html = renderToStaticMarkup(createElement(GameCard, { ...props, tight, scoreboardTheme: 'midnight' }));
+        expect(html).toContain('/500-dark/ind.png');
+        expect(html).toContain('--game-away-color:#002c5f;--game-home-color:#002244');
+        expect(html).toContain('aria-label="Details for Colts at Seahawks" aria-expanded="false"');
+        expect(html).toContain('class="sr-only game-details-control"');
+        expect(html).not.toContain('lucide-chevron-down');
+        expect(html).not.toContain(`href="${fixture.sourceUrl}"`);
+        const legacyHtml = renderToStaticMarkup(createElement(GameCard, { ...props, tight }));
+        expect(legacyHtml).not.toContain('game-details-control');
+        expect(legacyHtml).toContain(`href="${fixture.sourceUrl}"`);
+    });
+
+    it('shows a completed baseball game inning by inning without logistics', () => {
+        const html = renderToStaticMarkup(
+            createElement(GameDetails, {
+                theme: 'midnight',
+                game: {
+                    ...game,
+                    league: 'MLB',
+                    sport: 'Baseball',
+                    status: 'final',
+                    venue: 'Oracle Park',
+                    lineScore: Array.from({ length: 10 }, (_, index) => ({ period: index + 1, away: 0, home: 0 })),
+                },
+            })
+        );
+        expect(html).toContain('Score by inning');
+        expect(html).toContain('<th scope="col">9</th><th scope="col">10</th>');
+        expect(html).not.toContain('<dl>');
+        expect(html).toContain(`href="${game.sourceUrl}" target="_blank" rel="noreferrer">View game on ESPN`);
+    });
+
+    it('shows live volleyball points in both formats and separates sets won in the details', () => {
+        const volleyball: Game = {
+            ...game,
+            sport: "Women's Volleyball",
+            league: 'Purdue',
+            away: 'Purdue',
+            home: 'Indiana',
+            awayScore: 1,
+            homeScore: 0,
+            statusLabel: '2nd Set',
+            situation: 'Set points: 12–0',
+            lineScore: [
+                { period: 1, away: 25, home: 20 },
+                { period: 2, away: 12, home: 0 },
+            ],
+        };
+        for (const tight of [true, false]) {
+            const html = renderToStaticMarkup(
+                createElement(GameCard, { game: volleyball, view: 'live', tight, scoreboardTheme: 'midnight' })
+            );
+            expect(html).toContain('2nd Set');
+            expect(html).toContain('Set points: 12–0');
+        }
+        const details = renderToStaticMarkup(createElement(GameDetails, { game: volleyball, theme: 'midnight' }));
+        expect(details).toContain('Score by set');
+        expect(details).toContain('<th scope="col">Sets won</th>');
+        expect(details).toContain('<td>25</td><td>12</td><td>1</td>');
+        expect(details).toContain('<td>20</td><td>0</td><td>0</td>');
+    });
+
+    it('shows the live matchup and available game info above the ESPN action', () => {
+        const html = renderToStaticMarkup(
+            createElement(GameDetails, {
+                theme: 'midnight',
+                game: { ...game, awayRecord: '4-2', venue: 'Lumen Field' },
+            })
+        );
+        expect(html).toContain('data-status="live">Q3 08:42');
+        expect(html).toContain('<strong>Colts</strong><span>4-2</span>');
+        expect(html).toContain('<strong>Seahawks</strong>');
+        expect(html).toContain('17 <span>:</span> 14');
+        expect(html).toContain('<dd>Lumen Field</dd>');
+        expect(html).toContain('<dd>2nd &amp; 6 at SEA 12</dd>');
+    });
+
     it('uses short numeric dates for scheduled games with or without a start time', () => {
         const render = (overrides: Partial<Game>) =>
             renderToStaticMarkup(
@@ -95,24 +181,27 @@ describe('tight game cards', () => {
         expect(html.match(/class="tight-meta"/g)).toHaveLength(1);
     });
 
-    it.each(['away', 'home'] as const)('places football possession before the %s team name', (possession) => {
-        const html = renderToStaticMarkup(
-            createElement(GameCard, { game: { ...game, possession }, view: 'live', tight: true })
-        );
-        const rows = html.split('<div class="tight-team">').slice(1);
-        const withBall = rows[possession === 'away' ? 0 : 1];
-        const withoutBall = rows[possession === 'away' ? 1 : 0];
-        expect(withBall).toMatch(/class="possession-ball".*?<\/svg><span class="tight-name-text">/);
-        expect(withoutBall).not.toContain('Has possession');
+    it.each([false, true])('puts a possession dot after the live team name (tight: %s)', (tight) => {
+        for (const [possession, name] of [
+            ['away', 'Colts'],
+            ['home', 'Seahawks'],
+        ] as const) {
+            const html = renderToStaticMarkup(
+                createElement(GameCard, { game: { ...game, possession }, view: 'live', tight })
+            );
+            expect(html.match(/team-has-possession/g)).toHaveLength(1);
+            expect(html).toContain(
+                `${name}</span><span class="possession-dot" aria-hidden="true"></span><span class="sr-only"> Has possession</span>`
+            );
+            expect(html).not.toContain('possession-ball');
+        }
     });
 
-    it('keeps non-football possession after the team name', () => {
+    it('does not show a possession dot once the game is final', () => {
         const html = renderToStaticMarkup(
-            createElement(GameCard, { game: { ...game, sport: 'Baseball' }, view: 'live', tight: true })
+            createElement(GameCard, { game: { ...game, status: 'final' }, view: 'live', tight: true })
         );
-        expect(html).toContain(
-            '<span class="tight-name-text">Colts</span><span class="possession" role="img" aria-label="Has possession">'
-        );
+        expect(html).not.toContain('Has possession');
     });
 
     it('does not invent a position when the feed omits it', () => {

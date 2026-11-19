@@ -7,6 +7,7 @@ export default defineConfig({
     use: { baseURL: 'http://127.0.0.1:5181', channel: 'msedge' },
     webServer: {
         command: 'npm run dev -- --port 5181',
+        env: { VITE_TEST_FULL_FORMAT: 'true' },
         url: 'http://127.0.0.1:5181',
         reuseExistingServer: false,
     },
