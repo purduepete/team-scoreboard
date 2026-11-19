@@ -111,13 +111,9 @@ export function GameDetails({ game, theme }: { game: Game; theme: ResolvedTheme 
                         </table>
                     </div>
                 </>
-            ) : (
-                <p>
-                    {game.status === 'upcoming'
-                        ? 'Scoring breakdown appears once the game starts.'
-                        : 'Scoring breakdown unavailable.'}
-                </p>
-            )}
+            ) : game.status !== 'upcoming' ? (
+                <p>Scoring breakdown unavailable.</p>
+            ) : null}
             {showLogistics && (
                 <dl>
                     <div>

@@ -82,6 +82,16 @@ describe('tight game cards', () => {
         expect(html).toContain(`href="${game.sourceUrl}" target="_blank" rel="noreferrer">View game on ESPN`);
     });
 
+    it('omits the empty scoring message for upcoming games while retaining it after play starts', () => {
+        const render = (status: Game['status']) =>
+            renderToStaticMarkup(createElement(GameDetails, { theme: 'midnight', game: { ...game, status } }));
+        const upcoming = render('upcoming');
+        expect(upcoming).not.toContain('Scoring breakdown');
+        for (const status of ['live', 'final'] as const) {
+            expect(render(status)).toContain('Scoring breakdown unavailable.');
+        }
+    });
+
     it('shows live volleyball points in both formats and separates sets won in the details', () => {
         const volleyball: Game = {
             ...game,

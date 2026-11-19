@@ -24,7 +24,7 @@ Compact uses taller team rows, larger logos, and a status badge. Possession uses
 
 Midnight uses a navy header and a subtle dotted page background. Both themes use Roboto Flex throughout. Team names on game cards and in their expanded matchup headers are uppercase. On the cards, team names are semibold at 16 px in Compact and 14 px in Tight. Scores use heavier text with equal-width digits.
 
-In expanded game details, narrow matchup headers place the score below the teams to give names more room. Labels such as Broadcast stay on one line. Long values can wrap.
+In expanded game details, narrow matchup headers place the score below the teams to give names more room. Labels such as Broadcast stay on one line. Long values can wrap. Upcoming games omit the empty scoring-breakdown message.
 
 Tight uses up to 3 lines per game: away team and score, home team and score, then a sport icon and game status. Full, Compact and Tight show football possession, down and distance, and field position when supplied by the feed; a red background shows field position in the red zone. If the feed reports a red zone without position, an RZ label appears, except while Scored is visible. Networks and the card-level favorite star are omitted in Tight. In Full, Compact and Tight, a green dot beside an individual favorite's score shows a lead or win, and a red dot shows a deficit or loss. Ties and games without both scores have no outcome dot.
 
