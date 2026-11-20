@@ -251,6 +251,43 @@ p {
     color: var(--accent-text);
     background: var(--accent);
 }
+.header-actions .header-mode-button {
+    display: inline-flex;
+    padding: 0 6px;
+    gap: 5px;
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.header-mode-button svg {
+    flex-shrink: 0;
+}
+.header-actions .header-status-button {
+    width: 68px;
+}
+.header-actions .header-format-button {
+    width: 94px;
+}
+@media (max-width: 600px) {
+    .header-actions {
+        gap: 4px;
+    }
+    .header-mode-button svg {
+        display: none;
+    }
+    .header-actions .header-status-button {
+        width: 44px;
+    }
+    .header-actions .header-format-button {
+        width: 64px;
+    }
+}
+@media (max-width: 360px) {
+    .brand > span:last-child {
+        display: none;
+    }
+}
 .icon-button.is-busy svg {
     transform-box: view-box;
     transform-origin: center;

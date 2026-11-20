@@ -556,7 +556,7 @@ export function App() {
                         <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]}`}>
                             <button
                                 type="button"
-                                className="icon-button"
+                                className="icon-button header-mode-button header-status-button"
                                 aria-label={`Game status: ${gameStatusLabels[gameStatus]}`}
                                 aria-pressed={filteredStatus}
                                 onClick={() =>
@@ -572,12 +572,13 @@ export function App() {
                                 ) : (
                                     <CircleCheck size={18} aria-hidden="true" />
                                 )}
+                                <span>{gameStatusLabels[gameStatus]}</span>
                             </button>
                         </Tooltip>
                         <Tooltip content={`Display format: ${formatLabels[formatSettings.current]}`}>
                             <button
                                 type="button"
-                                className="icon-button"
+                                className="icon-button header-mode-button header-format-button"
                                 aria-label={`Display format: ${formatLabels[formatSettings.current]}`}
                                 aria-pressed={compact}
                                 disabled={formatSettings.selected.length === 1}
@@ -596,6 +597,7 @@ export function App() {
                                 }}
                             >
                                 <LayoutGrid size={18} aria-hidden="true" />
+                                <span>{formatLabels[formatSettings.current]}</span>
                             </button>
                         </Tooltip>
                         <ThemeMenu theme={theme} setTheme={setTheme} />

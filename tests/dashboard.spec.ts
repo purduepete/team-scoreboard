@@ -98,6 +98,25 @@ const expandSections = async (page: import('@playwright/test').Page) => {
     while ((await collapsed.count()) > 0) await collapsed.first().click();
 };
 
+test('phone header shows the selected status and format as text', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.addInitScript(() => {
+        localStorage.setItem('team-scoreboard-formats', '["compact","tight"]');
+        localStorage.setItem('team-scoreboard-format', 'compact');
+    });
+    await page.goto('/');
+    const status = page.getByRole('button', { name: /^Game status:/ });
+    const format = page.getByRole('button', { name: /^Display format:/ });
+    for (const label of ['All', 'Live', 'Final']) {
+        await expect(status.getByText(label, { exact: true })).toBeVisible();
+        await status.click();
+    }
+    await expect(format.getByText('Compact', { exact: true })).toBeVisible();
+    await format.click();
+    await expect(format.getByText('Tight', { exact: true })).toBeVisible();
+    await expect(format).toBeInViewport({ ratio: 1 });
+});
+
 test('selected display formats persist and cycle while settings and team filters stay available', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Show', exact: true }).click();
