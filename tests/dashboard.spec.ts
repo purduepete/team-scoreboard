@@ -1866,6 +1866,36 @@ for (const format of ['full', 'compact', 'tight']) {
     });
 }
 
+test('Compact details slide in from the page edge and reverse when dismissed', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    await page.addInitScript(() => localStorage.setItem('team-scoreboard-format', 'compact'));
+    await page.goto('/');
+    const details = page.getByRole('button', { name: `Details for ${game.title}`, exact: true });
+    await details.press('Enter');
+    const drawer = page.locator('.game-details-drawer');
+    const stage = page.locator('.game-details-stage');
+    await expect(drawer).toBeVisible();
+    const positions = await drawer.evaluate((element) => {
+        const animation = element.getAnimations()[0];
+        animation.pause();
+        return [0, 300, 600, 300].map((time) => {
+            animation.currentTime = time;
+            return element.getBoundingClientRect().left;
+        });
+    });
+    const stageRight = await stage.evaluate((element) => element.getBoundingClientRect().right);
+    expect(positions[0]).toBeCloseTo(stageRight, 0);
+    expect(positions[0]).toBeGreaterThan(positions[1]);
+    expect(positions[1]).toBeGreaterThan(positions[2]);
+    await stage.click({ position: { x: 4, y: 200 } });
+    const closingLeft = await drawer.evaluate((element) => element.getBoundingClientRect().left);
+    expect(Math.abs(closingLeft - positions[3])).toBeLessThan(5);
+    await page.clock.runFor(600);
+    await expect(drawer).toHaveCount(0);
+    await expect(details).toBeFocused();
+});
+
 test('Compact details can remove a pin without removing its league game', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 25, 9) });
     addedGames = [{ ...game, teamIds: [...game.teamIds, searchedTeam.id] }];
@@ -1886,7 +1916,7 @@ test('Compact details can remove a pin without removing its league game', async 
     await expect(remove).toHaveCount(0);
     await expect(details).toBeAttached();
     await page.keyboard.press('Escape');
-    await page.clock.runFor(250);
+    await page.clock.runFor(600);
     await expect(dialog).toHaveCount(0);
     await expect(details).toBeFocused();
 });

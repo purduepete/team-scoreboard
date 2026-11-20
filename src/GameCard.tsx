@@ -231,11 +231,18 @@ function GameDetailsOverlay({
     const [closing, setClosing] = useState(false);
     const close = useCallback(() => {
         if (closeTimer.current !== undefined) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            onCloseRef.current();
+            return;
+        }
+        if (drawer.current) {
+            drawer.current.style.setProperty('--game-details-close-start', getComputedStyle(drawer.current).transform);
+        }
         setClosing(true);
         closeTimer.current = setTimeout(() => {
             closeTimer.current = undefined;
             onCloseRef.current();
-        }, 250);
+        }, 600);
     }, []);
 
     useEffect(() => {
@@ -245,7 +252,7 @@ function GameDetailsOverlay({
         const returnFocus = returnFocusRef.current;
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        closeButton.current?.focus();
+        closeButton.current?.focus({ preventScroll: true });
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -285,7 +292,11 @@ function GameDetailsOverlay({
             className={`game-details-backdrop${closing ? ' is-closing' : ''}`}
             style={style}
             onMouseDown={(event) => {
-                if (event.target === event.currentTarget) close();
+                if (
+                    event.target === event.currentTarget ||
+                    (event.target instanceof Element && event.target.classList.contains('game-details-stage'))
+                )
+                    close();
             }}
         >
             <div className="game-details-stage">
