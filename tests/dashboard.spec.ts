@@ -2219,7 +2219,7 @@ test('Upcoming days ahead are saved and compact tabs show dates', async ({ page 
 });
 
 test('keyboard shortcuts switch views, game statuses and refresh', async ({ page }) => {
-    await page.clock.install({ time: new Date(2026, 9, 26, 9) });
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
     liveExtra = { status: 'final', statusLabel: 'Final' };
     extraGames = [{ ...game, id: 'fixture-final', status: 'final', statusLabel: 'Final' }];
     await page.goto('/');
@@ -2255,6 +2255,7 @@ test('keyboard shortcuts switch views, game statuses and refresh', async ({ page
     await page.locator('.section-title button').first().click();
     await expect(open).not.toHaveCount(0);
     await expect(closed).not.toHaveCount(0);
+    const closedAfterToggle = await closed.count();
     await page.keyboard.press('r');
     await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
 
@@ -2262,8 +2263,8 @@ test('keyboard shortcuts switch views, game statuses and refresh', async ({ page
     await page.getByRole('button', { name: 'Edit favorites' }).click();
     await page.getByLabel('Find a team or sport').fill('x2');
     await expect(page.getByLabel('Find a team or sport')).toHaveValue('x2');
-    await expect(closed).toHaveCount(await page.locator('.section-title button').count());
-    await expect(pressed('Recent')).toHaveAttribute('aria-pressed', 'true');
+    await expect(closed).toHaveCount(closedAfterToggle);
+    await expect(pressed('Today')).toHaveAttribute('aria-pressed', 'true');
     await expect(pressed('Upcoming')).toHaveAttribute('aria-describedby', /\S+/);
     await expect(pressed('Upcoming')).not.toHaveAttribute('title');
     await expect(pressed('Recent')).toHaveAttribute('aria-describedby', /\S+/);
