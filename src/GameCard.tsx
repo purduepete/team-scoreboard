@@ -1,5 +1,5 @@
-import { Activity, ArrowUpRight, CircleDot, Info, Star, Tv } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { Activity, ArrowUpRight, CircleDot, Info, Star, Tv, X } from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Game } from '../shared/contracts';
 import type { CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from 'react';
@@ -209,6 +209,113 @@ function tightStatus(game: Game, showDate: boolean) {
     return status;
 }
 
+function GameDetailsOverlay({
+    id,
+    game,
+    theme,
+    actions,
+    onClose,
+    returnFocusRef,
+}: {
+    id: string;
+    game: Game;
+    theme: ResolvedTheme;
+    actions?: ReactNode;
+    onClose: () => void;
+    returnFocusRef: { current: HTMLButtonElement | null };
+}) {
+    const drawer = useRef<HTMLElement>(null);
+    const closeButton = useRef<HTMLButtonElement>(null);
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const onCloseRef = useRef(onClose);
+    const [closing, setClosing] = useState(false);
+    const close = useCallback(() => {
+        if (closeTimer.current !== undefined) return;
+        setClosing(true);
+        closeTimer.current = setTimeout(() => {
+            closeTimer.current = undefined;
+            onCloseRef.current();
+        }, 250);
+    }, []);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+    useEffect(() => {
+        const returnFocus = returnFocusRef.current;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        closeButton.current?.focus();
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = drawer.current?.querySelectorAll<HTMLElement>(
+                'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            );
+            if (!focusable?.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            clearTimeout(closeTimer.current);
+            document.removeEventListener('keydown', onKeyDown);
+            document.body.style.overflow = previousOverflow;
+            returnFocus?.focus();
+        };
+    }, [close, returnFocusRef]);
+
+    const style: CSSProperties & Partial<Record<`--game-${'away' | 'home'}-color`, string>> = {
+        '--game-away-color': game.awayColor,
+        '--game-home-color': game.homeColor,
+    };
+    return createPortal(
+        <div
+            className={`game-details-backdrop${closing ? ' is-closing' : ''}`}
+            style={style}
+            onMouseDown={(event) => {
+                if (event.target === event.currentTarget) close();
+            }}
+        >
+            <section
+                ref={drawer}
+                className="game-details-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={`${id}-title`}
+            >
+                <header className="game-details-drawer-header">
+                    <h2 id={`${id}-title`}>Game details</h2>
+                    <button
+                        ref={closeButton}
+                        type="button"
+                        className="icon-button game-details-close"
+                        aria-label="Close game details"
+                        onClick={close}
+                    >
+                        <X aria-hidden="true" />
+                    </button>
+                </header>
+                <div className="game-details-panel" id={id}>
+                    <GameDetails game={game} theme={theme} actions={actions} />
+                </div>
+            </section>
+        </div>,
+        document.body
+    );
+}
+
 export function GameCard({
     game,
     favorite = false,
@@ -243,6 +350,7 @@ export function GameCard({
     onToggleDetails?: () => void;
 }) {
     const detailsId = useId();
+    const detailsControlRef = useRef<HTMLButtonElement>(null);
     const cardClass = `${scoreboardTheme ? ' scoreboard-card' : ''}${favorite ? ' favorite' : ''}${className ? ` ${className}` : ''}`;
     const cardStyle: (CSSProperties & Partial<Record<`--game-${'away' | 'home'}-color`, string>>) | undefined =
         scoreboardTheme
@@ -261,13 +369,14 @@ export function GameCard({
             !event.defaultPrevented &&
             target instanceof Element &&
             currentTarget.contains(target) &&
-            !target.closest('a, button, [tabindex], .game-details-panel')
+            !target.closest('a, button, [tabindex]')
         ) {
             onToggleDetails?.();
         }
     };
     const detailsControl = scoreboardTheme && (
         <button
+            ref={detailsControlRef}
             type="button"
             className="sr-only game-details-control"
             aria-label={`Details for ${game.title}`}
@@ -276,10 +385,15 @@ export function GameCard({
             onClick={onToggleDetails}
         />
     );
-    const detailsPanel = scoreboardTheme && (
-        <div className="game-details-panel" id={detailsId} hidden={!detailsOpen}>
-            {detailsOpen && <GameDetails game={game} theme={scoreboardTheme} actions={detailsActions} />}
-        </div>
+    const detailsOverlay = scoreboardTheme && detailsOpen && onToggleDetails && (
+        <GameDetailsOverlay
+            id={detailsId}
+            game={game}
+            theme={scoreboardTheme}
+            actions={detailsActions}
+            onClose={onToggleDetails}
+            returnFocusRef={detailsControlRef}
+        />
     );
     const football = game.sport === 'Football';
     const compact = !!scoreboardTheme && !tight;
@@ -428,7 +542,7 @@ export function GameCard({
                         </a>
                     )}
                 </div>
-                {detailsPanel}
+                {detailsOverlay}
             </article>
         );
     }
@@ -548,7 +662,7 @@ export function GameCard({
                 )}
                 {reorderActions && <span className="custom-order-actions">{reorderActions}</span>}
             </div>
-            {detailsPanel}
+            {detailsOverlay}
         </article>
     );
 }

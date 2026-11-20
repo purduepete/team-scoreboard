@@ -1879,10 +1879,16 @@ test('Compact details can remove a pin without removing its league game', async 
     await page.goto('/');
     const details = page.getByRole('button', { name: `Details for ${game.title}`, exact: true });
     await details.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Game details', exact: true });
+    await expect(dialog).toBeVisible();
     const remove = page.getByRole('button', { name: `Remove ${searchedTeam.name}`, exact: true });
     await remove.click();
     await expect(remove).toHaveCount(0);
     await expect(details).toBeAttached();
+    await page.keyboard.press('Escape');
+    await page.clock.runFor(250);
+    await expect(dialog).toHaveCount(0);
+    await expect(details).toBeFocused();
 });
 
 test('team search errors are visible and a removed pending team cannot reappear', async ({ page }) => {
