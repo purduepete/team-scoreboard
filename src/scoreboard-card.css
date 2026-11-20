@@ -154,9 +154,17 @@
     background: rgb(2 6 23 / 58%);
     animation: game-details-backdrop-in 250ms ease-out both;
 }
+.game-details-stage {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    justify-content: flex-end;
+    overflow: hidden;
+}
 @media (min-width: 1024px) {
-    .game-details-backdrop {
-        padding-right: max(20px, calc((100vw - 1440px) / 2 + 20px));
+    .game-details-stage {
+        width: min(1400px, calc(100% - 40px));
+        margin-inline: auto;
     }
 }
 .theme-midnight .game-details-backdrop {

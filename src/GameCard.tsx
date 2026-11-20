@@ -288,29 +288,31 @@ function GameDetailsOverlay({
                 if (event.target === event.currentTarget) close();
             }}
         >
-            <section
-                ref={drawer}
-                className="game-details-drawer"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={`${id}-title`}
-            >
-                <header className="game-details-drawer-header">
-                    <h2 id={`${id}-title`}>Game details</h2>
-                    <button
-                        ref={closeButton}
-                        type="button"
-                        className="icon-button game-details-close"
-                        aria-label="Close game details"
-                        onClick={close}
-                    >
-                        <X aria-hidden="true" />
-                    </button>
-                </header>
-                <div className="game-details-panel" id={id}>
-                    <GameDetails game={game} theme={theme} actions={actions} />
-                </div>
-            </section>
+            <div className="game-details-stage">
+                <section
+                    ref={drawer}
+                    className="game-details-drawer"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={`${id}-title`}
+                >
+                    <header className="game-details-drawer-header">
+                        <h2 id={`${id}-title`}>Game details</h2>
+                        <button
+                            ref={closeButton}
+                            type="button"
+                            className="icon-button game-details-close"
+                            aria-label="Close game details"
+                            onClick={close}
+                        >
+                            <X aria-hidden="true" />
+                        </button>
+                    </header>
+                    <div className="game-details-panel" id={id}>
+                        <GameDetails game={game} theme={theme} actions={actions} />
+                    </div>
+                </section>
+            </div>
         </div>,
         document.body
     );
