@@ -15,10 +15,10 @@ describe('pre-paint theme', () => {
     });
 
     it.each([
-        { saved: null, dark: false, expected: '#242f47' },
-        { saved: 'midnight', dark: false, expected: '#242f47' },
+        { saved: null, dark: false, expected: '#0f172a' },
+        { saved: 'midnight', dark: false, expected: '#0f172a' },
         { saved: 'light', dark: true, expected: '#ffffff' },
-        { saved: 'system', dark: true, expected: '#242f47' },
+        { saved: 'system', dark: true, expected: '#0f172a' },
         { saved: 'system', dark: false, expected: '#ffffff' },
     ])('sets the backdrop for $saved with system dark=$dark', ({ saved, dark, expected }) => {
         const root = { className: '', style: { colorScheme: '', backgroundColor: '' } };

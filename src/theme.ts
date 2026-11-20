@@ -27,8 +27,8 @@ export function useTheme() {
         document.documentElement.classList.toggle('theme-midnight', dark);
         document.documentElement.classList.toggle('light', !dark);
         document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        document.documentElement.style.backgroundColor = dark ? '#242f47' : '#ffffff';
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#242f47' : '#ffffff');
+        document.documentElement.style.backgroundColor = dark ? '#0f172a' : '#ffffff';
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0f172a' : '#ffffff');
         document.querySelector('link[rel="icon"]')?.setAttribute('href', dark ? '/favicon.svg' : '/favicon-light.svg');
         document
             .querySelector('link[rel="apple-touch-icon"]')
