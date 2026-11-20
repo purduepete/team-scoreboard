@@ -252,6 +252,9 @@
     font-weight: 800;
 }
 .game-details-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px dashed var(--scoreboard-rule);

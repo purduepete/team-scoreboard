@@ -83,7 +83,12 @@ export function AddedTeams({
     onToggle: () => void;
     onAdd: () => void;
     onCountChange: (count: number) => void;
-    renderCompact?: (games: Game[], status: ReactNode, flashes: Record<string, number>) => ReactNode;
+    renderCompact?: (
+        games: Game[],
+        status: ReactNode,
+        flashes: Record<string, number>,
+        detailsActions: (gameId: string) => ReactNode
+    ) => ReactNode;
     onInitialReady: (failure?: string) => void;
 }) {
     const [saved, setSaved] = useState(initialPins);
@@ -355,18 +360,30 @@ export function AddedTeams({
             <X size={14} aria-hidden="true" />
         </button>
     );
+    const removeAction = (pin: TeamPin, name: string) => (
+        <button key={pinKey(pin)} type="button" onClick={() => remove(pin)}>
+            <X size={14} aria-hidden="true" />
+            Remove {name}
+        </button>
+    );
     const best = reconcile([
         ...selected.flatMap(({ entry }) => entry?.result?.feed.games ?? []),
         ...dashboardFeeds.flatMap((feed) => feed.games),
     ]);
     const games = new Map<string, { game: Game; names: Set<string> }>();
-    for (const { entry } of selected) {
+    const gamePins = new Map<string, { pin: TeamPin; name: string }[]>();
+    for (const { pin, entry } of selected) {
         if (!entry?.result) continue;
         for (const game of todayGames(entry.result.feed.games).filter((game) =>
             game.teamIds.includes(entry.result!.team.id)
         )) {
             const currentGame = withLiveFields(game, best.get(game.id));
             if (!matchesGameStatus(currentGame, gameStatus)) continue;
+            const pins = gamePins.get(game.id) ?? [];
+            if (!pins.some((item) => pinKey(item.pin) === pinKey(pin))) {
+                pins.push({ pin, name: entry.result.team.name });
+                gamePins.set(game.id, pins);
+            }
             const key = `${game.sport}:${game.id}`;
             const existing = games.get(key);
             if (existing) existing.names.add(entry.result.team.name);
@@ -507,6 +524,12 @@ export function AddedTeams({
                     !result.feed.error &&
                     !awaitingFirstLoad(result.feed) &&
                     !todayGames(result.feed.games).length && <p>No game today.</p>}
+                {renderCompact && (
+                    <details>
+                        <summary>Added team details</summary>
+                        {removeAction(card.pin, card.name)}
+                    </details>
+                )}
             </article>
         );
     };
@@ -621,7 +644,8 @@ export function AddedTeams({
                 {renderCompact(
                     gameCards.map((card) => card.game),
                     statusCards.map(renderStatus),
-                    flashes
+                    flashes,
+                    (gameId) => gamePins.get(gameId)?.map(({ pin, name }) => removeAction(pin, name))
                 )}
             </>
         );

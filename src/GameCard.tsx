@@ -217,6 +217,7 @@ export function GameCard({
     view,
     flashes = {},
     actions,
+    detailsActions,
     reorder,
     reorderActions,
     showDate = false,
@@ -232,6 +233,7 @@ export function GameCard({
     view: View;
     flashes?: Record<string, number>;
     actions?: ReactNode;
+    detailsActions?: ReactNode;
     reorder?: HTMLAttributes<HTMLElement>;
     reorderActions?: ReactNode;
     showDate?: boolean;
@@ -276,7 +278,7 @@ export function GameCard({
     );
     const detailsPanel = scoreboardTheme && (
         <div className="game-details-panel" id={detailsId} hidden={!detailsOpen}>
-            {detailsOpen && <GameDetails game={game} theme={scoreboardTheme} />}
+            {detailsOpen && <GameDetails game={game} theme={scoreboardTheme} actions={detailsActions} />}
         </div>
     );
     const football = game.sport === 'Football';

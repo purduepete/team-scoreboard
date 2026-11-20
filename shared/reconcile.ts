@@ -24,6 +24,18 @@ function merge(winner: Game, loser: Game): Game {
     for (const key of liveFields) {
         if (winner[key] === undefined) delete merged[key];
     }
+    if (
+        !merged.lineScore?.length &&
+        winner.status === 'final' &&
+        loser.status === 'final' &&
+        winner.homeScore !== null &&
+        winner.awayScore !== null &&
+        winner.homeScore === loser.homeScore &&
+        winner.awayScore === loser.awayScore &&
+        loser.lineScore?.length
+    ) {
+        merged.lineScore = loser.lineScore;
+    }
     merged.teamIds = [...new Set([...winner.teamIds, ...loser.teamIds])];
     return merged;
 }

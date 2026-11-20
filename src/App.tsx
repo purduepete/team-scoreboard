@@ -966,7 +966,7 @@ export function App() {
                                         onCountChange={setCustomCount}
                                         renderCompact={
                                             compact
-                                                ? (customGames, customStatus, customFlashes) => (
+                                                ? (customGames, customStatus, customFlashes, customDetailsActions) => (
                                                       <>
                                                           <div
                                                               className="games compact-games"
@@ -996,6 +996,11 @@ export function App() {
                                                                           tight={formatSettings.current === 'tight'}
                                                                           scoreboardTheme={resolvedTheme}
                                                                           detailsOpen={openGameId === game.id}
+                                                                          detailsActions={
+                                                                              showCustom
+                                                                                  ? customDetailsActions(game.id)
+                                                                                  : undefined
+                                                                          }
                                                                           onToggleDetails={() =>
                                                                               setOpenGameId((openId) =>
                                                                                   openId === game.id ? null : game.id

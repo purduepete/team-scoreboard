@@ -1805,6 +1805,25 @@ for (const format of ['full', 'compact', 'tight']) {
     });
 }
 
+test('Compact details can remove a pin without removing its league game', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 25, 9) });
+    addedGames = [{ ...game, teamIds: [...game.teamIds, searchedTeam.id] }];
+    await page.addInitScript(() => {
+        localStorage.setItem('team-scoreboard-format', 'compact');
+        localStorage.setItem(
+            'team-scoreboard-added-teams-v1',
+            JSON.stringify({ date: '2026-10-25', teams: [{ category: 'college-football', id: '333' }] })
+        );
+    });
+    await page.goto('/');
+    const details = page.getByRole('button', { name: `Details for ${game.title}`, exact: true });
+    await details.press('Enter');
+    const remove = page.getByRole('button', { name: `Remove ${searchedTeam.name}`, exact: true });
+    await remove.click();
+    await expect(remove).toHaveCount(0);
+    await expect(details).toBeAttached();
+});
+
 test('team search errors are visible and a removed pending team cannot reappear', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 25, 9) });
     await page.goto('/');

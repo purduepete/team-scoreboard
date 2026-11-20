@@ -1,5 +1,5 @@
 import { Clock, ExternalLink, Info, MapPin, Tv } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Game } from '../shared/contracts';
 import { formatStart } from './games';
 import type { ResolvedTheme } from './theme';
@@ -30,7 +30,7 @@ export function TeamLogo({ name, src, theme }: { name: string; src?: string; the
     );
 }
 
-export function GameDetails({ game, theme }: { game: Game; theme: ResolvedTheme }) {
+export function GameDetails({ game, theme, actions }: { game: Game; theme: ResolvedTheme; actions?: ReactNode }) {
     const innings = /baseball|softball/i.test(game.sport);
     const sets = /volleyball/i.test(game.sport);
     const halves = game.league !== 'NBA' && /^men's basketball$/i.test(game.sport);
@@ -157,6 +157,7 @@ export function GameDetails({ game, theme }: { game: Game; theme: ResolvedTheme 
                     View game on ESPN
                     <ExternalLink size={14} aria-hidden="true" />
                 </a>
+                {actions}
             </div>
         </>
     );

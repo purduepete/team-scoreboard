@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Game } from '../shared/contracts.js';
+import { reconcile } from '../shared/reconcile.js';
 import { teams, expandFavorites, leagues } from '../server/catalog.js';
 import {
     isHot,
@@ -747,6 +748,59 @@ describe('provider requests', () => {
             homeLogo,
         });
         expect(urls[1]).toContain(`/womens-college-basketball/scoreboard/${event.id}`);
+    });
+    it('fills recent basketball finals from the individual scoreboard and keeps matching final breakdowns', async () => {
+        const purdue = teams.find((item) => item.id === 'purdue-womens-basketball')!;
+        const fixture = withStatus(status('STATUS_FINAL', 'post'), ['50', '63']);
+        const schedule = {
+            ...fixture,
+            competitions: fixture.competitions.map((competition) => ({
+                ...competition,
+                competitors: competition.competitors.map((entry, index) => ({
+                    ...entry,
+                    team: { id: index === 0 ? '2509' : '52' },
+                })),
+            })),
+        };
+        const older = ['1', '2', '3'].map((id) => ({ ...schedule, id, date: '2026-09-10T17:00Z' }));
+        const competition = schedule.competitions[0];
+        const lines = [
+            [8, 10, 15, 17],
+            [18, 15, 15, 15],
+        ];
+        let report = {
+            ...schedule,
+            competitions: [
+                {
+                    ...competition,
+                    status: status('STATUS_IN_PROGRESS', 'in', 'Q4'),
+                    competitors: competition.competitors.map((entry, index) => ({
+                        ...entry,
+                        linescores: lines[index].map((value) => ({ value })),
+                    })),
+                },
+            ],
+        };
+        const urls: string[] = [];
+        const espn = provider((url) => {
+            if (url.endsWith(`/scoreboard/${schedule.id}`)) return Response.json(report);
+            if (url.includes('/scoreboard/')) return Response.json({ events: [] });
+            return Response.json({ events: [schedule, ...older] });
+        }, urls);
+        const [before] = await espn.schedule(purdue, true);
+        expect(before).toMatchObject({ status: 'final', awayScore: 50, homeScore: 63 });
+        expect(before.lineScore).toBeUndefined();
+        report = { ...report, competitions: [{ ...report.competitions[0], status: competition.status }] };
+        const [after] = await espn.schedule(purdue, true);
+        expect(after.lineScore).toEqual(
+            lines[0].map((away, index) => ({ period: index + 1, away, home: lines[1][index] }))
+        );
+        expect((await espn.schedule(purdue))[0].lineScore).toEqual(after.lineScore);
+        expect(urls.filter((url) => url.endsWith(`/scoreboard/${schedule.id}`))).toHaveLength(2);
+        expect(urls.some((url) => url.endsWith('/scoreboard/3'))).toBe(false);
+        const scoreboard = { ...before, origin: 'scoreboard' as const };
+        expect(reconcile([after, scoreboard]).get(after.id)?.lineScore).toEqual(after.lineScore);
+        expect(reconcile([after, { ...scoreboard, homeScore: 64 }]).get(after.id)?.lineScore).toBeUndefined();
     });
     it('refreshes play history until the kickoff, then avoids fetching it on unchanged scores', async () => {
         const urls: string[] = [];

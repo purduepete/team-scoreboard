@@ -561,6 +561,7 @@ export class SportsProvider {
         { home: number | null; away: number | null; scored?: Game['scored'] }
     >();
     private readonly footballFetches = new Map<string, Promise<unknown>>();
+    private readonly finalBreakdowns = new Map<string, Promise<Game['lineScore']>>();
 
     constructor(
         private readonly fetcher: typeof fetch = fetch,
@@ -627,13 +628,56 @@ export class SportsProvider {
         }
     }
 
+    private async withFinalBreakdown(game: Game, team: Team, path: string): Promise<Game> {
+        const key = `${path}:${game.id}:${game.awayScore}:${game.homeScore}`;
+        let pending = this.finalBreakdowns.get(key);
+        if (!pending) {
+            pending = this.request(`${path}/scoreboard/${game.id}`)
+                .then((report) => {
+                    const final = normalizeEvent(report, team);
+                    if (
+                        final.id === game.id &&
+                        final.status === 'final' &&
+                        final.awayScore === game.awayScore &&
+                        final.homeScore === game.homeScore
+                    ) {
+                        return final.lineScore;
+                    }
+                    return undefined;
+                })
+                .catch((error: unknown) => {
+                    console.warn(`Could not load the final scoring breakdown for game ${game.id}:`, error);
+                    return undefined;
+                });
+            this.finalBreakdowns.set(key, pending);
+            if (this.finalBreakdowns.size > 100) {
+                const oldest = this.finalBreakdowns.keys().next().value;
+                if (oldest !== undefined) this.finalBreakdowns.delete(oldest);
+            }
+        }
+        const lineScore = await pending;
+        if (!lineScore && this.finalBreakdowns.get(key) === pending) this.finalBreakdowns.delete(key);
+        return lineScore ? { ...game, lineScore } : game;
+    }
+
     async schedule(team: Team, full = false): Promise<Game[]> {
         const games = await this.fullSchedule(team);
         const { path } = parseProviderId(team.providerId ?? '');
         const volleyball = path.startsWith('volleyball/');
-        const selected = full ? games : selectWindow(games, this.clock());
+        const window = selectWindow(games, this.clock());
+        const recentFinals = new Set(window.filter((game) => game.status === 'final').map((game) => game.id));
+        const selected = full ? games : window;
         return Promise.all(
             selected.map(async (game) => {
+                if (
+                    path.startsWith('basketball/') &&
+                    recentFinals.has(game.id) &&
+                    game.homeScore !== null &&
+                    game.awayScore !== null &&
+                    !game.lineScore?.length
+                ) {
+                    return this.withFinalBreakdown(game, team, path);
+                }
                 if (game.status !== 'live') return game;
                 let live: Game;
                 try {
