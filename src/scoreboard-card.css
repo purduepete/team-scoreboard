@@ -154,6 +154,11 @@
     background: rgb(2 6 23 / 58%);
     animation: game-details-backdrop-in 250ms ease-out both;
 }
+@media (min-width: 1024px) {
+    .game-details-backdrop {
+        padding-right: max(20px, calc((100vw - 1440px) / 2 + 20px));
+    }
+}
 .theme-midnight .game-details-backdrop {
     --scoreboard-surface: #1a1e2a;
     --scoreboard-raised: #242d42;
