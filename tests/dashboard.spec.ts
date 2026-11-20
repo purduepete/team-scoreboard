@@ -97,6 +97,10 @@ const expandSections = async (page: import('@playwright/test').Page) => {
     const collapsed = page.locator('.section-title button[aria-expanded="false"]:visible');
     while ((await collapsed.count()) > 0) await collapsed.first().click();
 };
+const collapseSections = async (page: import('@playwright/test').Page) => {
+    const expanded = page.locator('.section-title button[aria-expanded="true"]:visible');
+    while ((await expanded.count()) > 0) await expanded.first().click();
+};
 
 test('phone header shows the selected status and format as text', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
@@ -763,8 +767,8 @@ test('full format keeps phone tabs equal and the settings menu inside the screen
         const row = await tabs.boundingBox();
         const toolbarBox = await toolbar.boundingBox();
         expect(toolbarBox!.height).toBeLessThan(row!.height + 20);
-        await page.getByRole('button', { name: 'Expand all', exact: true }).click();
-        await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
+        await expandSections(page);
+        await collapseSections(page);
         for (const label of ['Today', 'Upcoming', 'Recent']) {
             await tabs.getByRole('button', { name: label, exact: true }).click();
             const layout = await tabs.evaluate((element) => {
@@ -945,6 +949,26 @@ test('favorite edits survive reload, live scores and source errors are visible',
 for (const theme of ['light', 'midnight']) {
     test(`game status respects teams and restores the schedule view (${theme})`, async ({ page }) => {
         await page.clock.setFixedTime(new Date(2026, 9, 25, 12));
+        extraGames = [
+            {
+                ...game,
+                id: 'future-status-filter',
+                home: 'Future NFL fixture',
+                startTime: '2026-10-26T20:00:00Z',
+                date: '2026-10-26',
+            },
+            {
+                ...game,
+                id: 'recent-status-filter',
+                home: 'Recent NFL fixture',
+                startTime: '2026-10-24T20:00:00Z',
+                date: '2026-10-24',
+                homeScore: 28,
+                awayScore: 21,
+                status: 'final',
+                statusLabel: 'Final',
+            },
+        ];
         await page.setViewportSize({ width: 390, height: 844 });
         await page.addInitScript((theme) => localStorage.setItem('team-scoreboard-theme', theme), theme);
         await page.goto('/');
@@ -961,27 +985,42 @@ for (const theme of ['light', 'midnight']) {
         expect(footerLayout).toEqual({ right: true });
         await expect(page.locator('.data-note')).toHaveCount(0);
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         const show = page.getByRole('button', { name: 'Show', exact: true });
         await show.click();
         await page.getByRole('option', { name: 'NFL', exact: true }).click();
         await page.keyboard.press('Escape');
         const status = page.getByRole('button', { name: /^Game status:/ });
+        const checkScheduleViews = async () => {
+            await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+            await expect(status).toBeDisabled();
+            await expect(status).toHaveAttribute('aria-description', 'Game status filters apply only to Today');
+            await expect(page.locator('.game:visible')).toHaveCount(1);
+            await expect(page.locator('.game:visible')).toContainText('Future NFL fixture');
+            await page.getByRole('button', { name: 'Recent', exact: true }).click();
+            await expect(status).toBeDisabled();
+            await expect(status).toHaveAttribute('aria-description', 'Game status filters apply only to Today');
+            await expect(page.locator('.game:visible')).toHaveCount(1);
+            await expect(page.locator('.game:visible')).toContainText('Recent NFL fixture');
+            await page.getByRole('button', { name: 'Today', exact: true }).click();
+            await expect(status).toBeEnabled();
+        };
+        await expect(status).toBeEnabled();
+        await checkScheduleViews();
         await status.click();
         await expect(status).toHaveAccessibleName('Game status: Live');
         await expect(status).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
-        await expect(page.getByRole('button', { name: 'Recent', exact: true })).toBeDisabled();
-        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveCSS('opacity', '0.45');
-        await expect(page.getByRole('button', { name: 'Recent', exact: true })).toHaveCSS('opacity', '0.45');
-        await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveCSS('opacity', '1');
-        await expect(page.getByRole('status').filter({ hasText: 'No live games' })).toBeVisible();
-        await expect(page.locator('.game')).toHaveCount(0);
+        await checkScheduleViews();
+        await status.click();
+        await expect(status).toHaveAccessibleName('Game status: Final');
+        await checkScheduleViews();
+        await status.click();
+        await expect(status).toHaveAccessibleName('Game status: All');
         await show.click();
         await page.getByRole('option', { name: 'NBA', exact: true }).click();
         await page.keyboard.press('Escape');
         await expect(show).toHaveText('2 selected');
+        await status.click();
+        await expect(status).toHaveAccessibleName('Game status: Live');
         await expect(page.locator('.game:visible')).toHaveCount(1);
         await expect(page.locator('.game:visible')).toContainText('Indiana Pacers');
         await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
@@ -992,16 +1031,20 @@ for (const theme of ['light', 'midnight']) {
         await status.click();
         await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
         await page.getByRole('button', { name: 'Display format: Tight', exact: true }).click();
+        await status.click();
+        await expect(status).toHaveAccessibleName('Game status: Live');
+        await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toHaveAttribute(
             'aria-pressed',
             'true'
         );
+        await expect(status).toBeDisabled();
         await expect(show).toHaveText('2 selected');
-        await status.click();
         await page.reload();
         await expect(status).toHaveAccessibleName('Game status: Live');
         await expect(status).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Upcoming', exact: true })).toBeEnabled();
+        await expect(status).toBeEnabled();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
 
@@ -1061,7 +1104,6 @@ for (const theme of ['light', 'midnight']) {
         await page.getByRole('option', { name: 'NFL', exact: true }).click();
         await page.getByRole('option', { name: 'NBA', exact: true }).click();
         await page.keyboard.press('Escape');
-        await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
         const compact = page.getByRole('button', { name: 'Display format: Full', exact: true });
         await compact.click();
         const cards = page.locator('.compact-games .game');
@@ -1341,14 +1383,14 @@ test('favorites lead each day, Show sits on the tab row and refresh posts the fi
     await page.getByRole('option', { name: 'All teams', exact: true }).click();
     await page.keyboard.press('Escape');
     await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
-    const expandAll = page.getByRole('button', { name: 'Expand all', exact: true });
-    const collapseAll = page.getByRole('button', { name: 'Collapse all', exact: true });
-    await expect(collapseAll).toBeDisabled();
-    await expandAll.click();
-    await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
-    await expect(expandAll).toBeDisabled();
-    await collapseAll.click();
-    await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
+    const firstSection = page.locator('.section-title button').first();
+    await expect(firstSection).toHaveAttribute('aria-expanded', 'false');
+    await firstSection.click();
+    await expect(firstSection).toHaveAttribute('aria-expanded', 'true');
+    await firstSection.click();
+    await expect(firstSection).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('button', { name: 'Expand all', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Collapse all', exact: true })).toHaveCount(0);
     const titles = await page.locator('.section-title span').allTextContents();
     expect(titles.indexOf('Purdue')).toBeLessThan(titles.indexOf('NFL'));
     await expect(page.getByRole('button', { name: 'Results', exact: true })).toHaveCount(0);
@@ -1507,7 +1549,7 @@ test('game status filters Custom games in grouped and compact mode', async ({ pa
         );
     });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Expand all', exact: true }).click();
+    await page.locator('.added-teams .section-title button').click();
     await expect(page.locator('.added-teams .game')).toHaveCount(1);
     await expect(page.locator('.added-teams .game')).toContainText('Active Custom');
     await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
@@ -2006,49 +2048,31 @@ for (const theme of ['midnight', 'light']) {
         await expect(page.locator('#section-NFL .game.favorite')).toHaveCSS('background-color', pageBackground);
     });
 
-    test(`section actions stay beside Show on desktop and phones (${theme})`, async ({ page }) => {
+    test(`league sections stay individually collapsible without global controls (${theme})`, async ({ page }) => {
         await page.addInitScript((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
         await page.goto('/');
-        const pill = page.getByRole('group', { name: 'Section controls', exact: true });
-        const expand = pill.getByRole('button', { name: 'Expand all', exact: true });
-        const collapse = pill.getByRole('button', { name: 'Collapse all', exact: true });
-        await expect(expand).toHaveText('');
-        await expect(collapse).toHaveText('');
-        await expect(expand.locator('svg')).toHaveCount(1);
-        await expect(collapse.locator('svg')).toHaveCount(1);
-        await expect(expand).toHaveAttribute('aria-keyshortcuts', 'X');
-        await expect(collapse).toHaveAttribute('aria-keyshortcuts', 'X');
-        await expect(pill).toHaveCSS('border-radius', '0px');
+        await expect(page.getByRole('button', { name: 'Expand all', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Collapse all', exact: true })).toHaveCount(0);
         const tabs = page.getByRole('group', { name: 'Schedule view', exact: true });
         await expect(tabs).toHaveCSS('border-radius', '0px');
         const highlight = theme === 'midnight' ? 'rgb(107, 140, 174)' : 'rgb(47, 71, 123)';
         const sliderColor = (el: Element) => getComputedStyle(el, '::before').backgroundColor;
         await expect(tabs.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect.poll(() => tabs.evaluate(sliderColor)).toBe(highlight);
-        await expect(collapse).toHaveAttribute('aria-pressed', 'true');
-        await expect.poll(() => pill.evaluate(sliderColor)).toBe(highlight);
-        await expect(page.locator('.toolbar').getByRole('group', { name: 'Section controls' })).toBeVisible();
+        const firstSection = page.locator('.section-title button').first();
+        await expect(firstSection).toHaveAttribute('aria-expanded', 'false');
+        await page.keyboard.press('x');
+        await expect(firstSection).toHaveAttribute('aria-expanded', 'false');
+        await firstSection.click();
+        await expect(firstSection).toHaveAttribute('aria-expanded', 'true');
+        await firstSection.click();
+        await expect(firstSection).toHaveAttribute('aria-expanded', 'false');
         await page.setViewportSize({ width: 1280, height: 844 });
-        const show = await page.getByRole('button', { name: 'Show', exact: true }).boundingBox();
-        const controls = await pill.boundingBox();
-        expect(controls!.x).toBeGreaterThanOrEqual(show!.x + show!.width);
-        expect(Math.abs(controls!.y - show!.y)).toBeLessThan(2);
-        await expect(collapse).toBeDisabled();
-        await expand.focus();
-        await page.keyboard.press('Enter');
-        await expect(page.locator('.section-title button[aria-expanded="false"]')).toHaveCount(0);
-        await expect(expand).toBeDisabled();
-        await expect(expand).toHaveAttribute('aria-pressed', 'true');
-        await collapse.click();
-        await expect(page.locator('.section-title button[aria-expanded="true"]')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Expand all', exact: true })).toHaveCount(0);
         await page.setViewportSize({ width: 390, height: 844 });
-        const mobileExpand = page.getByRole('button', { name: 'Expand all', exact: true });
-        await expect(mobileExpand).toBeVisible();
-        await mobileExpand.click();
-        await expect(page.getByRole('button', { name: 'Collapse all', exact: true })).toBeVisible();
-        await page.getByRole('button', { name: 'Collapse all', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Collapse all', exact: true })).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-        await page.screenshot({ path: `test-results/section-pill-${theme}-mobile.png`, fullPage: true });
+        await page.screenshot({ path: `test-results/individual-sections-${theme}-mobile.png`, fullPage: true });
     });
 
     test(`Today favorites lead and only Today finals have a distinct status badge (${theme})`, async ({ page }) => {
@@ -2194,7 +2218,7 @@ test('Upcoming days ahead are saved and compact tabs show dates', async ({ page 
     await expect(group.getByRole('button', { name: '5 days' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ page }) => {
+test('keyboard shortcuts switch views, game statuses and refresh', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 26, 9) });
     liveExtra = { status: 'final', statusLabel: 'Final' };
     extraGames = [{ ...game, id: 'fixture-final', status: 'final', statusLabel: 'Final' }];
@@ -2208,24 +2232,29 @@ test('keyboard shortcuts switch tabs, expand, collapse and refresh', async ({ pa
     await page.keyboard.press('Numpad1');
     await expect(pressed('Today')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('3');
+    const status = page.getByRole('button', { name: /^Game status:/ });
+    await expect(status).toBeDisabled();
+    await expect(status).not.toHaveAttribute('aria-keyshortcuts');
+    await page.keyboard.press('4');
+    await expect(status).toHaveAccessibleName('Game status: All');
+    await page.keyboard.press('1');
+    await expect(status).toBeEnabled();
+    await expect(status).toHaveAttribute('aria-keyshortcuts', '4 5 6');
+    await page.keyboard.press('4');
+    await expect(pressed('Game status: Live')).toBeVisible();
+    await expect(pressed('Today')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('5');
+    await expect(pressed('Game status: Final')).toBeVisible();
+    await page.keyboard.press('6');
+    await expect(pressed('Game status: All')).toBeVisible();
     const closed = page.locator('.section-title button[aria-expanded="false"]');
     const open = page.locator('.section-title button[aria-expanded="true"]');
+    const closedCount = await closed.count();
     await page.keyboard.press('x');
-    await expect(closed).toHaveCount(0);
-    await page.keyboard.press('c');
-    await expect(closed).toHaveCount(0);
-    await page.keyboard.press('x');
-    await expect(open).toHaveCount(0);
-    await page.keyboard.press('Control+x');
-    await expect(open).toHaveCount(0);
-    await page.keyboard.press('x');
+    await expect(closed).toHaveCount(closedCount);
     await page.locator('.section-title button').first().click();
     await expect(open).not.toHaveCount(0);
     await expect(closed).not.toHaveCount(0);
-    await page.keyboard.press('x');
-    await expect(closed).toHaveCount(0);
-    await page.keyboard.press('x');
-    await expect(open).toHaveCount(0);
     await page.keyboard.press('r');
     await expect.poll(() => refreshBodies).toEqual([{ days: 14, scope: 'live' }]);
 
@@ -2273,7 +2302,11 @@ test('? opens the shortcut help and Escape or a backdrop click closes it', async
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
     await expect(dialog).toContainText('Today');
-    await expect(dialog).toContainText('Expand or collapse all sections');
+    await expect(dialog).toContainText('Live games');
+    await expect(dialog).toContainText('Final games');
+    await expect(dialog).toContainText('All games');
+    await expect(dialog).toContainText('Game-status shortcuts work only on Today.');
+    await expect(dialog).not.toContainText('Expand or collapse all sections');
     await expect(dialog.locator('kbd', { hasText: /^C$/ })).toHaveCount(0);
     await page.keyboard.press('2');
     await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -2331,16 +2364,9 @@ test('calendar menu appears only when the feed is configured', async ({ page }) 
 test('square controls slide their selection and honor reduced motion', async ({ page }) => {
     await page.goto('/');
     const tabs = page.getByRole('group', { name: 'Schedule view' });
-    const sections = page.getByRole('group', { name: 'Section controls' });
-    await expect(sections).toBeVisible();
-    expect(await sections.evaluate((element) => getComputedStyle(element, '::before').transitionDuration)).toBe(
-        '0.12s, 0.08s'
-    );
-    for (const group of [tabs, sections]) {
-        await expect(group).toHaveCSS('border-radius', '0px');
-        for (const button of await group.getByRole('button').all()) {
-            await expect(button).toHaveCSS('border-radius', '0px');
-        }
+    await expect(tabs).toHaveCSS('border-radius', '0px');
+    for (const button of await tabs.getByRole('button').all()) {
+        await expect(button).toHaveCSS('border-radius', '0px');
     }
     await page.keyboard.press('2');
     await expect(tabs).toHaveAttribute('data-active', '1');
@@ -2367,10 +2393,6 @@ test('square controls slide their selection and honor reduced motion', async ({ 
     await expect.poll(async () => (await indicator()).leftError).toBeLessThan(1);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.keyboard.press('1');
-    await page.keyboard.press('x');
-    await expect(sections).toHaveAttribute('data-active', '0');
-    await page.keyboard.press('x');
-    await expect(sections).toHaveAttribute('data-active', '1');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 

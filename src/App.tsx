@@ -7,8 +7,6 @@ import {
     Check,
     CircleCheck,
     ChevronRight,
-    ChevronsDownUp,
-    ChevronsUpDown,
     Clock3,
     Filter,
     Keyboard,
@@ -69,12 +67,14 @@ const shortcutHelp: [string[], string][] = [
     [['1'], 'Today'],
     [['2'], 'Upcoming'],
     [['3'], 'Recent'],
+    [['4'], 'Live games'],
+    [['5'], 'Final games'],
+    [['6'], 'All games'],
     [['A'], 'Show all teams'],
     [['P'], 'Show Purdue'],
     [['F'], 'Show NFL'],
     [['K'], 'Show NBA'],
     [['B'], 'Show MLB'],
-    [['X'], 'Expand or collapse all sections'],
     [['R'], 'Refresh live scores'],
     [['?'], 'Show or hide this help'],
     [['Esc'], 'Close this help'],
@@ -132,8 +132,7 @@ export function App() {
             console.warn('Game status preference could not be saved.', error);
         }
     }, [gameStatus]);
-    const filteredStatus = gameStatus !== 'all';
-    const effectiveView = filteredStatus ? 'live' : view;
+    const effectiveView = view;
     const [formatSettings, setFormatSettings] = useState<{ selected: Format[]; current: Format }>(() => {
         try {
             const stored = JSON.parse(localStorage.getItem('team-scoreboard-formats') ?? 'null');
@@ -225,6 +224,8 @@ export function App() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(() => (location.hash === '#status' ? 'status' : 'scores'));
     const statusPage = page === 'status';
+    const statusAvailable = !statusPage && effectiveView === 'live';
+    const filteredStatus = statusAvailable && gameStatus !== 'all';
     useEffect(() => {
         if (firstLoad !== 'loading') return;
         if (error) setFirstLoad('error');
@@ -394,7 +395,7 @@ export function App() {
         favoriteIds,
         new Date(),
         effectiveView === 'upcoming' ? upcomingDays : recentDays
-    ).filter((game) => matchesGameStatus(game, gameStatus));
+    ).filter((game) => !filteredStatus || matchesGameStatus(game, gameStatus));
     // Selections limited to favorites, individual teams or Purdue skip favorite highlighting.
     const noHighlight = team.every(
         (filter) =>
@@ -409,25 +410,7 @@ export function App() {
             ...current,
             keys: current.keys.includes(key) ? current.keys.filter((item) => item !== key) : [...current.keys, key],
         });
-    // Moves the pill first and opens sections 2 frames later, so the slide is already running on the
-    // compositor when the expensive section render lands.
-    const [slideTarget, setSlideTarget] = useState<boolean | null>(null);
-    const setAllSections = (open: boolean) => {
-        setSlideTarget(open);
-        requestAnimationFrame(() =>
-            requestAnimationFrame(() => {
-                setToggled({ filter: filterKey, open, keys: [] });
-                setSlideTarget(null);
-            })
-        );
-    };
     const showCustom = effectiveView === 'live' && allTeams;
-    const sectionKeys = [
-        ...sections.map((section) => section.key),
-        ...(showCustom && customCount > 0 ? ['custom'] : []),
-    ];
-    const allOpen = slideTarget ?? sectionKeys.every(isOpen);
-    const allClosed = slideTarget === null ? sectionKeys.every((key) => !isOpen(key)) : !slideTarget;
     const shortcut = useRef<(event: globalThis.KeyboardEvent) => void>(() => undefined);
     shortcut.current = (event) => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
@@ -452,6 +435,14 @@ export function App() {
             Digit3: 'recent',
             Numpad3: 'recent',
         };
+        const statuses: Record<string, GameStatusFilter> = {
+            Digit4: 'live',
+            Numpad4: 'live',
+            Digit5: 'final',
+            Numpad5: 'final',
+            Digit6: 'all',
+            Numpad6: 'all',
+        };
         const key = event.key.toLowerCase();
         if (key === '?') {
             setHelp(true);
@@ -460,15 +451,14 @@ export function App() {
         } else if (statusPage) {
             return;
         } else if (views[event.code]) {
-            if (!filteredStatus) {
-                setView(views[event.code]);
-                setToolsOpen(false);
-            }
+            setView(views[event.code]);
+            setToolsOpen(false);
+        } else if (statuses[event.code] && statusAvailable) {
+            setGameStatus(statuses[event.code]);
+            setToolsOpen(false);
         } else if (filterKeys[key]) {
             setTeam([filterKeys[key]]);
             setToolsOpen(false);
-        } else if (key === 'x' && !compact) {
-            setAllSections(!allOpen);
         } else {
             return;
         }
@@ -491,39 +481,6 @@ export function App() {
         .filter((value): value is string => value !== null)
         .sort()
         .at(-1);
-    const sectionControls = !compact && sectionKeys.length > 0 && (
-        <div
-            className="section-controls"
-            role="group"
-            aria-label="Section controls"
-            data-active={allOpen ? '0' : allClosed ? '1' : 'none'}
-        >
-            <Tooltip content="Expand all (X)">
-                <button
-                    type="button"
-                    disabled={allOpen}
-                    aria-pressed={allOpen}
-                    aria-keyshortcuts="X"
-                    aria-label="Expand all"
-                    onClick={() => setAllSections(true)}
-                >
-                    <ChevronsUpDown size={16} aria-hidden="true" />
-                </button>
-            </Tooltip>
-            <Tooltip content="Collapse all (X)">
-                <button
-                    type="button"
-                    disabled={allClosed}
-                    aria-pressed={allClosed}
-                    aria-keyshortcuts="X"
-                    aria-label="Collapse all"
-                    onClick={() => setAllSections(false)}
-                >
-                    <ChevronsDownUp size={16} aria-hidden="true" />
-                </button>
-            </Tooltip>
-        </div>
-    );
     return (
         <div data-first-load={firstLoad}>
             {firstLoad === 'loading' && (
@@ -553,12 +510,17 @@ export function App() {
                                 <RefreshCw size={18} aria-hidden="true" />
                             </button>
                         </Tooltip>
-                        <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]}`}>
+                        <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]} (4 Live, 5 Final, 6 All)`}>
                             <button
                                 type="button"
                                 className="icon-button header-mode-button header-status-button"
                                 aria-label={`Game status: ${gameStatusLabels[gameStatus]}`}
-                                aria-pressed={filteredStatus}
+                                aria-pressed={gameStatus !== 'all'}
+                                aria-keyshortcuts={statusAvailable ? '4 5 6' : undefined}
+                                aria-description={
+                                    statusAvailable ? undefined : 'Game status filters apply only to Today'
+                                }
+                                disabled={!statusAvailable}
                                 onClick={() =>
                                     setGameStatus(
                                         (value) => gameStatuses[(gameStatuses.indexOf(value) + 1) % gameStatuses.length]
@@ -684,7 +646,7 @@ export function App() {
                         )}
                         {!statusPage && (
                             <section className="panel">
-                                <div className="toolbar" data-sections={Boolean(sectionControls)}>
+                                <div className="toolbar">
                                     <div
                                         className="tabs"
                                         role="group"
@@ -696,7 +658,6 @@ export function App() {
                                                 <button
                                                     type="button"
                                                     aria-pressed={effectiveView === item}
-                                                    disabled={filteredStatus}
                                                     aria-keyshortcuts={String(index + 1)}
                                                     className={effectiveView === item ? 'selected' : ''}
                                                     onClick={() => setView(item)}
@@ -854,24 +815,6 @@ export function App() {
                                                 ]}
                                             />
                                         </div>
-                                        {sectionControls}
-                                        {sectionControls && (
-                                            <Tooltip content={allOpen ? 'Collapse all (X)' : 'Expand all (X)'}>
-                                                <button
-                                                    type="button"
-                                                    className="mobile-section-toggle"
-                                                    aria-label={allOpen ? 'Collapse all' : 'Expand all'}
-                                                    aria-keyshortcuts="X"
-                                                    onClick={() => setAllSections(!allOpen)}
-                                                >
-                                                    {allOpen ? (
-                                                        <ChevronsDownUp size={16} aria-hidden="true" />
-                                                    ) : (
-                                                        <ChevronsUpDown size={16} aria-hidden="true" />
-                                                    )}
-                                                </button>
-                                            </Tooltip>
-                                        )}
                                     </div>
                                 </div>
                                 <div className="score-results" ref={enterResults} aria-busy={startupRefreshing}>
@@ -1150,8 +1093,8 @@ export function App() {
                             ))}
                         </dl>
                         <p className="help-note">
-                            Number keys work on the number row or numpad. Shortcuts pause while you type in a field or a
-                            dropdown is open.
+                            Game-status shortcuts work only on Today. Number keys work on the number row or numpad.
+                            Shortcuts pause while you type in a field or a dropdown is open.
                         </p>
                     </div>
                 </div>
