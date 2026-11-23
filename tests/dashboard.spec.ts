@@ -2680,6 +2680,7 @@ test('team rows line up across live, final and scheduled cards', async ({ page }
 });
 
 test('football colors the possessing score; red zone and NBA national games remain visible', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('team-scoreboard-theme', 'light'));
     liveExtra = { national: 'ESPN' };
     extraGames = [
         {
@@ -2718,9 +2719,7 @@ test('football colors the possessing score; red zone and NBA national games rema
     await expect(possessionScore).toHaveCount(1);
     await expect(football.locator('.possession-dot')).toHaveCount(0);
     await expect(football.locator('.sr-only').filter({ hasText: 'Has possession' })).toHaveCount(1);
-    expect(await possessionScore.evaluate((element) => getComputedStyle(element).color)).toBe(
-        await football.locator('.live-label').evaluate((element) => getComputedStyle(element).color)
-    );
+    await expect(possessionScore).toHaveCSS('color', 'rgb(47, 71, 123)');
     await expect(football.getByText('AWAY', { exact: true })).toHaveCount(0);
     await expect(football.getByText('HOME', { exact: true })).toHaveCount(0);
     await expect(football.locator('.national-badge')).toHaveCount(0);
@@ -2739,6 +2738,7 @@ test('football colors the possessing score; red zone and NBA national games rema
     await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
     const tightFootball = page.locator('.tight-game', { hasText: 'Green Bay Packers' });
     await expect(tightFootball.locator('.score-value.possession-score')).toHaveCount(1);
+    await expect(tightFootball.locator('.score-value.possession-score')).toHaveCSS('color', 'rgb(47, 71, 123)');
     await expect(tightFootball.locator('.possession-dot')).toHaveCount(0);
     await expect(tightFootball.locator('.sr-only').filter({ hasText: 'Has possession' })).toHaveCount(1);
     const tightNational = page.locator('.tight-game', { hasText: 'Indiana Pacers' });
@@ -2752,6 +2752,36 @@ test('football colors the possessing score; red zone and NBA national games rema
     await expect(page.locator('.tight-game', { hasText: 'Charlotte Hornets' }).locator('.national-badge')).toHaveCount(
         0
     );
+});
+
+test('possession score uses the blue accent in light and midnight scoreboard cards', async ({ page }) => {
+    extraGames = [
+        {
+            ...game,
+            id: 'preview-live',
+            status: 'live',
+            statusLabel: 'Q3 11:06',
+            homeScore: 28,
+            awayScore: 10,
+            possession: 'away',
+        },
+    ];
+    await page.addInitScript(() => {
+        localStorage.setItem('team-scoreboard-formats', '["compact","tight"]');
+        localStorage.setItem('team-scoreboard-format', 'compact');
+    });
+    await page.goto('/');
+    for (const [theme, color] of [
+        ['light', 'rgb(47, 71, 123)'],
+        ['midnight', 'rgb(107, 140, 174)'],
+    ] as const) {
+        await page.evaluate((value) => localStorage.setItem('team-scoreboard-theme', value), theme);
+        await page.reload();
+        const score = page.locator('.game .possession-score');
+        await expect(score).toHaveCSS('color', color);
+        await page.getByRole('button', { name: 'Display format: Compact' }).click();
+        await expect(score).toHaveCSS('color', color);
+    }
 });
 
 test('server failures are visible with retry, without fake records', async ({ page }) => {

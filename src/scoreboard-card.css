@@ -111,9 +111,6 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
 }
-.scoreboard-card .score-value.possession-score {
-    color: var(--scoreboard-accent);
-}
 .scoreboard-card .live-label {
     color: var(--scoreboard-accent);
 }
