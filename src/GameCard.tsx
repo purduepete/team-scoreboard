@@ -414,14 +414,25 @@ export function GameCard({
         football && game.status === 'live' && game.scored === side && <span className="scored-label">Scored</span>;
     const teamName = (name: string, side: 'away' | 'home', className = '') => {
         const hasPossession = game.status === 'live' && game.possession === side;
+        const scoreIndicatesPossession = football && hasPossession;
         const label = <span className={className || undefined}>{name}</span>;
         if (compact) {
             return (
-                <span className="compact-team-name-group">
-                    {hasPossession && <span className="possession-dot" aria-hidden="true" />}
+                <span className={`compact-team-name-group${scoreIndicatesPossession ? ' possession-score-team' : ''}`}>
+                    {hasPossession && !scoreIndicatesPossession && (
+                        <span className="possession-dot" aria-hidden="true" />
+                    )}
                     {label}
                     {hasPossession && <span className="sr-only"> Has possession</span>}
                 </span>
+            );
+        }
+        if (scoreIndicatesPossession) {
+            return (
+                <>
+                    {label}
+                    <span className="sr-only"> Has possession</span>
+                </>
             );
         }
         if (!hasPossession) return label;
@@ -459,9 +470,10 @@ export function GameCard({
             score !== opponentScore;
         const winning = showResult && score > opponentScore;
         const label = game.status === 'final' ? (winning ? 'won' : 'lost') : winning ? 'winning' : 'losing';
+        const scoreIndicatesPossession = football && game.status === 'live' && game.possession === side;
         return (
             <>
-                <span className="score-value">
+                <span className={`score-value${scoreIndicatesPossession ? ' possession-score' : ''}`}>
                     {!compact && scoredLabel(side)}
                     {showResult && (
                         <span

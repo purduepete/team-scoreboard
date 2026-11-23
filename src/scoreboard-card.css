@@ -66,6 +66,12 @@
     column-gap: 4px;
     min-width: 0;
 }
+.scoreboard-card .compact-team-name-group.possession-score-team {
+    grid-template-columns: minmax(0, 1fr);
+}
+.scoreboard-card .compact-team-name-group.possession-score-team .compact-team-name {
+    grid-column: 1;
+}
 .scoreboard-card .compact-team-name-group .possession-dot {
     grid-column: 1;
     grid-row: 1;
@@ -104,6 +110,9 @@
 .scoreboard-card .tight-team strong {
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+}
+.scoreboard-card .score-value.possession-score {
+    color: var(--scoreboard-accent);
 }
 .scoreboard-card .live-label {
     color: var(--scoreboard-accent);

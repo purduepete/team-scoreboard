@@ -1150,6 +1150,9 @@ small {
     align-items: center;
     gap: 6px;
 }
+.score-value.possession-score {
+    color: var(--accent);
+}
 .scored-label {
     color: var(--scored-text);
     background: var(--scored-bg);

@@ -169,38 +169,30 @@ describe('tight game cards', () => {
         expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
     });
 
-    it.each(['away', 'home'] as const)(
-        'places Compact Scored beneath the %s team and possession before its name',
-        (side) => {
-            const fixture = { ...game, scored: side, possession: side };
-            const render = (overrides: Partial<Game> = {}) =>
-                renderToStaticMarkup(
-                    createElement(GameCard, {
-                        game: { ...fixture, ...overrides },
-                        view: 'live',
-                        scoreboardTheme: 'midnight',
-                    })
-                );
-            const html = render();
-            const name = side === 'away' ? game.away : game.home;
-            const score = side === 'away' ? game.awayScore : game.homeScore;
-            expect(html).toContain(
-                `<span class="compact-team-name-group"><span class="possession-dot" aria-hidden="true"></span><span class="compact-team-name">${name}</span>`
+    it.each(['away', 'home'] as const)('shows Compact Scored beneath the %s team', (side) => {
+        const fixture = { ...game, scored: side, possession: side };
+        const render = (overrides: Partial<Game> = {}) =>
+            renderToStaticMarkup(
+                createElement(GameCard, {
+                    game: { ...fixture, ...overrides },
+                    view: 'live',
+                    scoreboardTheme: 'midnight',
+                })
             );
-            expect(html).toContain(
-                `<strong><span class="score-value">${score}</span></strong><span class="scored-label">Scored</span>`
-            );
-            expect(html.match(/scored-label/g)).toHaveLength(1);
-            expect(render({ scored: undefined })).not.toContain('scored-label');
-            expect(render({ status: 'final' })).not.toContain('possession-dot');
-            expect(render({ status: 'final' })).not.toContain('scored-label');
-            expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
-            const tight = renderToStaticMarkup(
-                createElement(GameCard, { game: fixture, view: 'live', tight: true, scoreboardTheme: 'midnight' })
-            );
-            expect(tight).toContain('<span class="score-value"><span class="scored-label">Scored</span>');
-        }
-    );
+        const html = render();
+        const score = side === 'away' ? game.awayScore : game.homeScore;
+        expect(html).toContain(`class="score-value possession-score">${score}</span>`);
+        expect(html).toContain('<span class="scored-label">Scored</span>');
+        expect(html.match(/scored-label/g)).toHaveLength(1);
+        expect(render({ scored: undefined })).not.toContain('scored-label');
+        expect(render({ status: 'final' })).not.toContain('possession-dot');
+        expect(render({ status: 'final' })).not.toContain('scored-label');
+        expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
+        const tight = renderToStaticMarkup(
+            createElement(GameCard, { game: fixture, view: 'live', tight: true, scoreboardTheme: 'midnight' })
+        );
+        expect(tight).toContain('<span class="score-value possession-score"><span class="scored-label">Scored</span>');
+    });
 
     it('marks nationally televised NBA games', () => {
         const render = (overrides: Partial<Game>) =>
@@ -236,19 +228,22 @@ describe('tight game cards', () => {
         expect(html.match(/class="tight-meta"/g)).toHaveLength(1);
     });
 
-    it.each([false, true])('puts a possession dot after the live team name (tight: %s)', (tight) => {
-        for (const [possession, name] of [
-            ['away', 'Colts'],
-            ['home', 'Seahawks'],
+    it.each([
+        { tight: false, scoreboardTheme: undefined },
+        { tight: false, scoreboardTheme: 'midnight' as const },
+        { tight: true, scoreboardTheme: undefined },
+    ])('colors the possessing team score instead of showing a dot (%o)', (cardProps) => {
+        for (const [possession, score] of [
+            ['away', game.awayScore],
+            ['home', game.homeScore],
         ] as const) {
             const html = renderToStaticMarkup(
-                createElement(GameCard, { game: { ...game, possession }, view: 'live', tight })
+                createElement(GameCard, { game: { ...game, possession }, view: 'live', ...cardProps })
             );
-            expect(html.match(/team-has-possession/g)).toHaveLength(1);
-            expect(html).toContain(
-                `${name}</span><span class="possession-dot" aria-hidden="true"></span><span class="sr-only"> Has possession</span>`
-            );
-            expect(html).not.toContain('possession-ball');
+            expect(html).toContain(`<span class="score-value possession-score">${score}</span>`);
+            expect(html).toContain('Has possession');
+            expect(html).not.toContain('possession-dot');
+            expect(html).not.toContain('team-has-possession');
         }
     });
 
@@ -257,6 +252,7 @@ describe('tight game cards', () => {
             createElement(GameCard, { game: { ...game, status: 'final' }, view: 'live', tight: true })
         );
         expect(html).not.toContain('Has possession');
+        expect(html).not.toContain('possession-score');
     });
 
     it('does not invent a position when the feed omits it', () => {

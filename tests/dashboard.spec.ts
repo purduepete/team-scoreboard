@@ -2679,7 +2679,7 @@ test('team rows line up across live, final and scheduled cards', async ({ page }
     }
 });
 
-test('football shows possession and a red-zone position; NBA marks national games', async ({ page }) => {
+test('football colors the possessing score; red zone and NBA national games remain visible', async ({ page }) => {
     liveExtra = { national: 'ESPN' };
     extraGames = [
         {
@@ -2714,8 +2714,13 @@ test('football shows possession and a red-zone position; NBA marks national game
     const football = page.locator('.game', { hasText: 'Green Bay Packers' });
     await expect(football.locator('.red-zone')).toHaveText('GB 12');
     await expect(football.locator('.situation')).toContainText('2nd & 4 at GB 12');
-    await expect(football.locator('.team-has-possession')).toHaveCount(1);
-    await expect(football.locator('.team-has-possession > .possession-dot')).toBeVisible();
+    const possessionScore = football.locator('.score-value.possession-score');
+    await expect(possessionScore).toHaveCount(1);
+    await expect(football.locator('.possession-dot')).toHaveCount(0);
+    await expect(football.locator('.sr-only').filter({ hasText: 'Has possession' })).toHaveCount(1);
+    expect(await possessionScore.evaluate((element) => getComputedStyle(element).color)).toBe(
+        await football.locator('.live-label').evaluate((element) => getComputedStyle(element).color)
+    );
     await expect(football.getByText('AWAY', { exact: true })).toHaveCount(0);
     await expect(football.getByText('HOME', { exact: true })).toHaveCount(0);
     await expect(football.locator('.national-badge')).toHaveCount(0);
@@ -2733,8 +2738,9 @@ test('football shows possession and a red-zone position; NBA marks national game
     await page.getByRole('button', { name: 'Display format: Full', exact: true }).click();
     await page.getByRole('button', { name: 'Display format: Compact', exact: true }).click();
     const tightFootball = page.locator('.tight-game', { hasText: 'Green Bay Packers' });
-    await expect(tightFootball.locator('.team-has-possession')).toHaveCount(1);
-    await expect(tightFootball.locator('.team-has-possession > .possession-dot')).toBeVisible();
+    await expect(tightFootball.locator('.score-value.possession-score')).toHaveCount(1);
+    await expect(tightFootball.locator('.possession-dot')).toHaveCount(0);
+    await expect(tightFootball.locator('.sr-only').filter({ hasText: 'Has possession' })).toHaveCount(1);
     const tightNational = page.locator('.tight-game', { hasText: 'Indiana Pacers' });
     const marker = tightNational.getByRole('img', { name: 'National broadcast: ESPN' });
     await expect(marker).toBeVisible();
