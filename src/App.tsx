@@ -9,10 +9,11 @@ import {
     ChevronRight,
     Clock3,
     Filter,
+    Grid2x2,
+    Grid3x3,
     Keyboard,
+    Layers,
     LayoutGrid,
-    ListFilter,
-    Radio,
     Plus,
     RefreshCw,
     Search,
@@ -513,7 +514,7 @@ export function App() {
                         <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]} (4 Live, 5 Final, 6 All)`}>
                             <button
                                 type="button"
-                                className="icon-button header-mode-button header-status-button"
+                                className="icon-button"
                                 aria-label={`Game status: ${gameStatusLabels[gameStatus]}`}
                                 aria-pressed={gameStatus !== 'all'}
                                 aria-keyshortcuts={statusAvailable ? '4 5 6' : undefined}
@@ -528,19 +529,18 @@ export function App() {
                                 }
                             >
                                 {gameStatus === 'all' ? (
-                                    <ListFilter size={18} aria-hidden="true" />
+                                    <Layers size={18} aria-hidden="true" />
                                 ) : gameStatus === 'live' ? (
-                                    <Radio size={18} aria-hidden="true" />
+                                    <Activity size={18} aria-hidden="true" />
                                 ) : (
                                     <CircleCheck size={18} aria-hidden="true" />
                                 )}
-                                <span>{gameStatusLabels[gameStatus]}</span>
                             </button>
                         </Tooltip>
                         <Tooltip content={`Display format: ${formatLabels[formatSettings.current]}`}>
                             <button
                                 type="button"
-                                className="icon-button header-mode-button header-format-button"
+                                className="icon-button"
                                 aria-label={`Display format: ${formatLabels[formatSettings.current]}`}
                                 aria-pressed={compact}
                                 disabled={formatSettings.selected.length === 1}
@@ -558,8 +558,13 @@ export function App() {
                                     if (statusPage) location.hash = '';
                                 }}
                             >
-                                <LayoutGrid size={18} aria-hidden="true" />
-                                <span>{formatLabels[formatSettings.current]}</span>
+                                {formatSettings.current === 'compact' ? (
+                                    <Grid2x2 size={18} aria-hidden="true" />
+                                ) : formatSettings.current === 'tight' ? (
+                                    <Grid3x3 size={18} aria-hidden="true" />
+                                ) : (
+                                    <LayoutGrid size={18} aria-hidden="true" />
+                                )}
                             </button>
                         </Tooltip>
                         <ThemeMenu theme={theme} setTheme={setTheme} />

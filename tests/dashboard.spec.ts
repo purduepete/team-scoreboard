@@ -102,7 +102,7 @@ const collapseSections = async (page: import('@playwright/test').Page) => {
     while ((await expanded.count()) > 0) await expanded.first().click();
 };
 
-test('phone header shows the selected status and format as text', async ({ page }) => {
+test('phone header shows icon-only status and format controls without changing color', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.addInitScript(() => {
         localStorage.setItem('team-scoreboard-formats', '["compact","tight"]');
@@ -111,13 +111,24 @@ test('phone header shows the selected status and format as text', async ({ page 
     await page.goto('/');
     const status = page.getByRole('button', { name: /^Game status:/ });
     const format = page.getByRole('button', { name: /^Display format:/ });
+    const initialStatusColor = await status.evaluate((el) => getComputedStyle(el).color);
     for (const label of ['All', 'Live', 'Final']) {
-        await expect(status.getByText(label, { exact: true })).toBeVisible();
+        await expect(status).toHaveAccessibleName(`Game status: ${label}`);
+        await expect(status).toHaveText('');
+        await expect(status.locator('svg')).toBeVisible();
+        await expect(status).toHaveCSS('color', initialStatusColor);
         await status.click();
+        await page.mouse.move(0, 0);
     }
-    await expect(format.getByText('Compact', { exact: true })).toBeVisible();
+    const initialFormatColor = await format.evaluate((el) => getComputedStyle(el).color);
+    expect(initialFormatColor).toBe(initialStatusColor);
+    await expect(format).toHaveAccessibleName('Display format: Compact');
+    await expect(format).toHaveText('');
+    await expect(format.locator('svg')).toBeVisible();
     await format.click();
-    await expect(format.getByText('Tight', { exact: true })).toBeVisible();
+    await page.mouse.move(0, 0);
+    await expect(format).toHaveAccessibleName('Display format: Tight');
+    await expect(format).toHaveCSS('color', initialFormatColor);
     await expect(format).toBeInViewport({ ratio: 1 });
 });
 
