@@ -6,7 +6,7 @@ import { createApp, dashboardSources } from './app.js';
 import { SportsProvider, maxDaysBack as resultDays } from './provider.js';
 import { FeedCache } from './feeds.js';
 import { PostgresFavorites } from './storage.js';
-import { GameAlerts, alertTeamIds, pushoverSender } from './alerts.js';
+import { GameAlerts, alertTeamIds, pushoverSender, readPushoverCredentials } from './alerts.js';
 
 if (!process.env.DATABASE_URL || process.env.STORAGE_BACKEND !== 'postgresql') {
     throw new Error('DATABASE_URL and STORAGE_BACKEND=postgresql are required. There is no file-storage fallback.');
@@ -59,13 +59,12 @@ const app = createApp({
           }
         : {}),
 });
+const pushover = readPushoverCredentials(process.env.PUSHOVER_CREDENTIAL_FILE);
+const alerts = pushover ? new GameAlerts(pushoverSender(pushover.user, pushover.token)) : null;
+if (!alerts) console.warn('Game alerts are off: PUSHOVER_CREDENTIAL_FILE is not set.');
 if (!process.env.CALENDAR_TOKEN || process.env.CALENDAR_TOKEN.length < 32)
     console.warn('The calendar feed is off: CALENDAR_TOKEN is missing or shorter than 32 characters.');
 const server = app.listen(port, '127.0.0.1', () => console.info(`Team Scoreboard listening on loopback port ${port}`));
-const userKey = process.env.PUSHOVER_USER_KEY;
-const appToken = process.env.PUSHOVER_APP_TOKEN;
-const alerts = userKey && appToken ? new GameAlerts(pushoverSender(userKey, appToken)) : null;
-if (!alerts) console.warn('Game alerts are off: PUSHOVER_USER_KEY and PUSHOVER_APP_TOKEN are not set.');
 // Keeps scores current with no page open, so favorite alerts fire on time. Each feed still follows
 // its own refresh timer; this only asks for the feeds a 14-day dashboard would show.
 const watcher = setInterval(() => {

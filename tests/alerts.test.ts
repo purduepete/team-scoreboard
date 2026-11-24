@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Game } from '../shared/contracts.js';
-import { GameAlerts, alertTeamIds, pushoverSender } from '../server/alerts.js';
+import { GameAlerts, alertTeamIds, pushoverSender, readPushoverCredentials } from '../server/alerts.js';
 import type { Alert } from '../server/alerts.js';
 import { expandFavorites } from '../server/catalog.js';
 
@@ -24,6 +27,20 @@ const game = (status: Game['status'], overrides: Partial<Game> = {}): Game => ({
 });
 
 describe('game alerts', () => {
+    it('reads Pushover credentials from a configured file and rejects invalid files', () => {
+        const directory = mkdtempSync(join(tmpdir(), 'scoreboard-pushover-'));
+        const file = join(directory, 'credentials.json');
+        try {
+            expect(readPushoverCredentials(undefined)).toBeNull();
+            writeFileSync(file, JSON.stringify({ user: 'user', token: 'token' }));
+            expect(readPushoverCredentials(file)).toEqual({ user: 'user', token: 'token' });
+            writeFileSync(file, JSON.stringify({ user: 'user', token: '' }));
+            expect(() => readPushoverCredentials(file)).toThrow('nonempty user and token');
+            expect(() => readPushoverCredentials(join(directory, 'missing'))).toThrow('Cannot read');
+        } finally {
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
     const setup = () => {
         const sent: Alert[] = [];
         const alerts = new GameAlerts(async (alert) => {

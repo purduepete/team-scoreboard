@@ -88,7 +88,7 @@ To rotate the token, replace `CALENDAR_TOKEN` in `app.env`, restart the app, and
 
 ## Game alerts
 
-When `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN` are set, the server sends a Pushover alert when a favorite's game starts (with the channel) and when it ends (with the final score). Alerts follow all saved favorites, including individually selected Purdue programs and every program in Purdue All Varsity; programs without ESPN coverage cannot generate alerts. The first sighting of a game after a restart only records its status, so a deploy never replays alerts. Without both values, alerts are off and the server logs that once. The Pushover application icon is [deploy/pushover-icon.png](deploy/pushover-icon.png) (72×72).
+Set `PUSHOVER_CREDENTIAL_FILE` to a protected JSON file outside the repository containing `user` and `token` strings. The server sends a Pushover alert when a favorite's game starts (with the channel) and when it ends (with the final score). Alerts follow all saved favorites, including individually selected Purdue programs and every program in Purdue All Varsity; programs without ESPN coverage cannot generate alerts. The first sighting of a game after a restart only records its status, so a deploy never replays alerts. Without a configured file, alerts are off and the server logs that once. A missing or invalid configured file prevents startup. The Pushover application icon is [deploy/pushover-icon.png](deploy/pushover-icon.png) (72×72).
 
 Terms: [Disney terms of use section 2.B.x](https://disneytermsofuse.com/english/) limits automated extraction. This is a personal app behind Cloudflare Access, used with that risk accepted. Compact and Tight reference team logos hosted by ESPN and show initials when the image is unavailable.
 

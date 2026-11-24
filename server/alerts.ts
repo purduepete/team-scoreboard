@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { Game } from '../shared/contracts.js';
 import { reconcile } from '../shared/reconcile.js';
 import { expandFavorites } from './catalog.js';
@@ -10,6 +11,29 @@ export interface Alert {
     title: string;
     message: string;
     url: string;
+}
+
+export function readPushoverCredentials(path: string | undefined): { user: string; token: string } | null {
+    if (!path) return null;
+    let value: unknown;
+    try {
+        value = JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+        throw new Error('Cannot read Pushover credential file.');
+    }
+    if (
+        typeof value !== 'object' ||
+        value === null ||
+        !('user' in value) ||
+        !('token' in value) ||
+        typeof value.user !== 'string' ||
+        typeof value.token !== 'string' ||
+        !value.user.trim() ||
+        !value.token.trim()
+    ) {
+        throw new Error('Pushover credential file must contain nonempty user and token strings.');
+    }
+    return { user: value.user.trim(), token: value.token.trim() };
 }
 
 const matchup = (game: Game) => (game.home && game.away ? `${game.away} at ${game.home}` : game.title);
