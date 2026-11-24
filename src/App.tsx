@@ -68,9 +68,9 @@ const shortcutHelp: [string[], string][] = [
     [['1'], 'Today'],
     [['2'], 'Upcoming'],
     [['3'], 'Recent'],
-    [['4'], 'Live games'],
-    [['5'], 'Final games'],
-    [['6'], 'All games'],
+    [['4'], 'All games'],
+    [['5'], 'Live games'],
+    [['6'], 'Final games'],
     [['A'], 'Show all teams'],
     [['P'], 'Show Purdue'],
     [['F'], 'Show NFL'],
@@ -437,12 +437,12 @@ export function App() {
             Numpad3: 'recent',
         };
         const statuses: Record<string, GameStatusFilter> = {
-            Digit4: 'live',
-            Numpad4: 'live',
-            Digit5: 'final',
-            Numpad5: 'final',
-            Digit6: 'all',
-            Numpad6: 'all',
+            Digit4: 'all',
+            Numpad4: 'all',
+            Digit5: 'live',
+            Numpad5: 'live',
+            Digit6: 'final',
+            Numpad6: 'final',
         };
         const key = event.key.toLowerCase();
         if (key === '?') {
@@ -511,7 +511,7 @@ export function App() {
                                 <RefreshCw size={18} aria-hidden="true" />
                             </button>
                         </Tooltip>
-                        <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]} (4 Live, 5 Final, 6 All)`}>
+                        <Tooltip content={`Game status: ${gameStatusLabels[gameStatus]} (4 All, 5 Live, 6 Final)`}>
                             <button
                                 type="button"
                                 className="icon-button"
