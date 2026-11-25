@@ -473,14 +473,10 @@ export function GameCard({
         const scoreIndicatesPossession = football && game.status === 'live' && game.possession === side;
         return (
             <>
-                <span className={`score-value${scoreIndicatesPossession ? ' possession-score' : ''}`}>
-                    {!compact && scoredLabel(side)}
-                    {showResult && (
-                        <span
-                            className={`favorite-result ${winning ? 'favorite-winning' : 'favorite-losing'}`}
-                            aria-hidden="true"
-                        />
-                    )}
+                {!compact && scoredLabel(side)}
+                <span
+                    className={`score-value${scoreIndicatesPossession ? ' possession-score' : ''}${showResult ? ` favorite-${winning ? 'winning' : 'losing'}` : ''}`}
+                >
                     {score ?? '—'}
                 </span>
                 {showResult && <span className="sr-only">{` ${team} ${label}`}</span>}

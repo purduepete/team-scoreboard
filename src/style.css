@@ -15,8 +15,8 @@
     --error: #b91c1c;
     --red-zone: #b91c1c;
     --red-zone-text: #ffffff;
-    --favorite-win: #15803d;
-    --favorite-loss: #b91c1c;
+    --favorite-win: #16a34a;
+    --favorite-loss: #dc2626;
     --scored-bg: #dcfce7;
     --scored-text: #14532d;
     --header-control-height: 36px;
@@ -38,6 +38,8 @@
     --accent-text: #0f172a;
     --error: #fca5a5;
     --red-zone: #dc2626;
+    --favorite-win: #22c55e;
+    --favorite-loss: #dc2626;
     --scored-bg: #294d3f;
     --scored-text: #dcfce7;
 }
@@ -1135,23 +1137,22 @@ small {
     font-weight: 700;
     padding: 2px;
 }
-.favorite-result {
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    transform: translateY(-0.05em);
+.score-value.favorite-winning,
+.score-value.favorite-losing {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 4px;
 }
-.favorite-winning {
-    color: var(--favorite-win);
+.score-value.favorite-winning {
+    text-decoration-color: var(--favorite-win);
 }
-.favorite-losing {
-    color: var(--favorite-loss);
+.score-value.favorite-losing {
+    text-decoration-color: var(--favorite-loss);
 }
 .tight-team strong {
     display: flex;
     align-items: center;
+    gap: 6px;
     flex: none;
     font-variant-numeric: tabular-nums;
 }
@@ -1248,6 +1249,7 @@ small {
 .score-lines strong {
     display: flex;
     align-items: center;
+    gap: 6px;
     font-size: 1.5rem;
     font-weight: 600;
 }

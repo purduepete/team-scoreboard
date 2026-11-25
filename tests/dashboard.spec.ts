@@ -2551,7 +2551,7 @@ test('football scoring label appears in every format and clears after kickoff', 
     const card = page.locator('.game', { hasText: 'Green Bay Packers' });
     for (const format of ['Full', 'Compact', 'Tight']) {
         await expect(card.locator('.scored-label')).toHaveText('Scored');
-        await expect(card.locator('.favorite-result')).toHaveCount(1);
+        await expect(card.locator('.score-value.favorite-losing')).toHaveCount(1);
         const difference = await card
             .locator('.score-lines > div, .tight-team')
             .first()

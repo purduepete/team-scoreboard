@@ -163,7 +163,7 @@ describe('tight game cards', () => {
                 })
             );
         const html = render();
-        expect(html).toMatch(/scored-label">Scored<\/span><span class="favorite-result favorite-winning"/);
+        expect(html).toMatch(/scored-label">Scored<\/span><span class="score-value possession-score favorite-winning"/);
         expect(render({ scored: undefined })).not.toContain('scored-label');
         expect(render({ status: 'final' })).not.toContain('scored-label');
         expect(render({ sport: 'Basketball' })).not.toContain('scored-label');
@@ -191,7 +191,7 @@ describe('tight game cards', () => {
         const tight = renderToStaticMarkup(
             createElement(GameCard, { game: fixture, view: 'live', tight: true, scoreboardTheme: 'midnight' })
         );
-        expect(tight).toContain('<span class="score-value possession-score"><span class="scored-label">Scored</span>');
+        expect(tight).toContain('<span class="scored-label">Scored</span><span class="score-value possession-score">');
     });
 
     it('marks nationally televised NBA games', () => {
@@ -206,12 +206,12 @@ describe('tight game cards', () => {
         expect(render({ league: 'NFL', national: 'ESPN' })).not.toContain('national-badge');
     });
 
-    it('shows the outcome dot in Tight and retains the card star in other formats', () => {
+    it('underlines the favorite score in Tight and retains the card star in other formats', () => {
         const props = { game, view: 'live' as const, favorite: true, favoriteTeamIds: ['colts'] };
         const fixture = { ...props, game: { ...game, awayTeamId: 'colts' } };
         const tight = renderToStaticMarkup(createElement(GameCard, { ...fixture, tight: true }));
         const standard = renderToStaticMarkup(createElement(GameCard, fixture));
-        expect(tight).toContain('<span class="favorite-result favorite-winning" aria-hidden="true"></span>');
+        expect(tight).toContain('<span class="score-value possession-score favorite-winning">17</span>');
         expect(tight).not.toContain('aria-label="Favorite"');
         expect(standard).toContain('aria-label="Favorite"');
     });
@@ -245,6 +245,17 @@ describe('tight game cards', () => {
             expect(html).not.toContain('possession-dot');
             expect(html).not.toContain('team-has-possession');
         }
+        const favorite = renderToStaticMarkup(
+            createElement(GameCard, {
+                game: { ...game, awayTeamId: 'colts', possession: 'away' },
+                view: 'live',
+                favoriteTeamIds: ['colts'],
+                ...cardProps,
+            })
+        );
+        expect(favorite).toContain('<span class="score-value possession-score favorite-winning">17</span>');
+        expect(favorite).toContain('Has possession');
+        expect(favorite).not.toContain('possession-dot');
     });
 
     it('does not show a possession dot once the game is final', () => {
@@ -378,17 +389,17 @@ describe('tight game cards', () => {
                 createElement(GameCard, { game: { ...fixture, ...overrides }, view: 'live', tight, favoriteTeamIds })
             );
         const live = render({});
-        expect(live).toContain('favorite-result favorite-winning');
-        expect(live).toContain('favorite-result favorite-losing');
+        expect(live).toContain('class="score-value possession-score favorite-winning">17</span>');
+        expect(live).toContain('class="score-value favorite-losing">14</span>');
         expect(live).toContain('Colts winning');
         expect(live).toContain('Seahawks losing');
         const final = render({ status: 'final' });
         expect(final).toContain('Colts won');
         expect(final).toContain('Seahawks lost');
         expect(render({}, ['seahawks'])).not.toContain('Colts winning');
-        expect(render({ awayScore: 14 })).not.toContain('favorite-result');
-        expect(render({ homeScore: null })).not.toContain('favorite-result');
-        expect(render({ status: 'upcoming' })).not.toContain('favorite-result');
-        expect(render({ homeTeamId: undefined, awayTeamId: undefined })).not.toContain('favorite-result');
+        expect(render({ awayScore: 14 })).not.toMatch(/favorite-(?:winning|losing)/);
+        expect(render({ homeScore: null })).not.toMatch(/favorite-(?:winning|losing)/);
+        expect(render({ status: 'upcoming' })).not.toMatch(/favorite-(?:winning|losing)/);
+        expect(render({ homeTeamId: undefined, awayTeamId: undefined })).not.toMatch(/favorite-(?:winning|losing)/);
     });
 });
